@@ -118,6 +118,12 @@ type VibeInspectorFormProps = {
   onStepEditDirtyChange: (isDirty: boolean) => void;
 };
 
+/**
+ * Editable form for one selected step.
+ *
+ * The form keeps local drafts so users can inspect, reset, or save changes
+ * without immediately mutating YAML on every keystroke.
+ */
 function VibeInspectorForm({
   selectedStep,
   selectedStepDescription,
@@ -157,6 +163,8 @@ function VibeInspectorForm({
 
   const selectedFunctionTemplate = getStepFunctionTemplate(functionNameDraft);
 
+  // Signatures ignore local row ids so dirty-state only reflects actual input
+  // key/value/type changes.
   const originalInputRowsSignature = useMemo(() => {
     return JSON.stringify(originalInputRows.map(stripInputRowId));
   }, [originalInputRows]);
@@ -249,6 +257,8 @@ function VibeInspectorForm({
     }
 
     if (nextMode === "keyValue") {
+      // Moving from JSON to key/value requires valid object JSON so the simpler
+      // editor can faithfully represent the same data.
       const parsed = parseJsonInputDraft(inputDraft);
 
       if (!parsed.ok) {
@@ -262,6 +272,8 @@ function VibeInspectorForm({
       return;
     }
 
+    // Moving from key/value to JSON validates and materializes typed row values
+    // before showing the raw JSON representation.
     const parsed = parseInputRows(inputRows);
 
     if (!parsed.ok) {

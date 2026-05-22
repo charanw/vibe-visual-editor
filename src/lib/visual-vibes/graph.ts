@@ -1,5 +1,6 @@
 import type { VisualVibe } from "./schema";
 
+/** Graph node consumed by layout and canvas rendering code. */
 export type VibeGraphNode = {
   id: string;
   functionName: string;
@@ -7,6 +8,7 @@ export type VibeGraphNode = {
   memberCount?: number;
 };
 
+/** Directed relationship between two Vibe steps. */
 export type VibeGraphEdge = {
   id: string;
   source: string;
@@ -14,13 +16,23 @@ export type VibeGraphEdge = {
   type: "data" | "next" | "error";
 };
 
+/** Minimal graph model derived from a parsed Vibe workflow. */
 export type VibeGraph = {
   nodes: VibeGraphNode[];
   edges: VibeGraphEdge[];
 };
 
+// Matches input expressions such as `${steps.normalize_request.output}`.
 const STEP_REFERENCE_REGEX = /\$\{steps\.([a-zA-Z0-9_-]+)\./g;
 
+/**
+ * Converts a parsed Vibe into the graph model used by layout and rendering.
+ *
+ * Edges come from three sources:
+ * - `${steps.some_step...}` references inside step input objects
+ * - `next_step_id` main-flow routing
+ * - `on_error_step_id` error routing
+ */
 export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
   const steps = vibe.workflow.steps;
 
@@ -32,6 +44,8 @@ export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
 
   const edgeByKey = new Map<string, VibeGraphEdge>();
 
+  // Multiple inputs may point to the same source/target pair; de-duping here
+  // keeps the canvas from drawing duplicate overlapping edges.
   function addEdge(
     source: string,
     target: string,

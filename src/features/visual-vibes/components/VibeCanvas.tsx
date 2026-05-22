@@ -113,6 +113,9 @@ export function VibeCanvas({
 }: VibeCanvasProps) {
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
+  // Canvas-local interaction state. YAML mutations are still owned by the
+  // parent editor so the source text remains the single source of truth.
   const [connectingFromStepId, setConnectingFromStepId] = useState<
     string | null
   >(null);
@@ -139,6 +142,9 @@ export function VibeCanvas({
       ? Math.max(...graph.nodes.map((node) => node.y + NODE_HEIGHT)) + 320
       : CANVAS_VIEWPORT_HEIGHT;
 
+  // Classification uses the full graph even when the canvas is drawing a
+  // filtered graph. That keeps labels such as conclusion/error consistent
+  // across Flow View and Error View.
   const nodeById = new Map(
     classificationGraph.nodes.map((node) => [node.id, node]),
   );
@@ -407,6 +413,8 @@ export function VibeCanvas({
   function handleWheelZoom(event: ReactWheelEvent<SVGSVGElement>) {
     event.preventDefault();
 
+    // Zoom around the pointer rather than the canvas origin. This makes large
+    // graphs feel anchored while the user inspects a specific node or edge.
     const svgElement = event.currentTarget;
     const svgRect = svgElement.getBoundingClientRect();
 
@@ -491,6 +499,8 @@ export function VibeCanvas({
       return 0;
     }
 
+    // Deterministic offsets keep repeated renders stable while separating
+    // parallel vertical edges enough that labels/actions remain clickable.
     const laneOffsets = [-28, 0, 28, -56, 56];
     const hash = hashString(`${edge.type}:${edge.source}:${edge.target}`);
 

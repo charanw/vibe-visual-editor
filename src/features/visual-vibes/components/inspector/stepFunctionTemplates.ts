@@ -1,3 +1,9 @@
+/**
+ * Catalog of known Studio X step functions shown in the Inspector.
+ *
+ * Templates are examples, not a hard schema. Choosing one pre-fills practical
+ * input keys while still allowing custom functions and custom JSON input.
+ */
 export type StepFunctionTemplate = {
   functionName: string;
   label: string;
@@ -6,6 +12,7 @@ export type StepFunctionTemplate = {
   input: Record<string, unknown>;
 };
 
+/** Function templates grouped by domain for the Inspector function picker. */
 export const STEP_FUNCTION_TEMPLATES: StepFunctionTemplate[] = [
   {
     functionName: "aiExtractVariables",
@@ -219,7 +226,7 @@ export const STEP_FUNCTION_TEMPLATES: StepFunctionTemplate[] = [
   },
 ];
 
-
+/** Finds the template metadata for a known step function. */
 export function getStepFunctionTemplate(functionName: string) {
   return (
     STEP_FUNCTION_TEMPLATES.find(
@@ -228,6 +235,7 @@ export function getStepFunctionTemplate(functionName: string) {
   );
 }
 
+/** Groups templates by category for rendering `<optgroup>` sections. */
 export function getStepFunctionTemplateGroups() {
   const groups = new Map<string, StepFunctionTemplate[]>();
 
@@ -243,6 +251,7 @@ export function getStepFunctionTemplateGroups() {
   }));
 }
 
+/** Deep-clones template input before it is placed into editable component state. */
 export function cloneTemplateInput(input: Record<string, unknown>) {
   return JSON.parse(JSON.stringify(input)) as Record<string, unknown>;
 }

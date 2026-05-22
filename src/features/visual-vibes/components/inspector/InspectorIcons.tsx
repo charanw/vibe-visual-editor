@@ -1,3 +1,4 @@
+/** Pencil icon used by the Inspector edit-unlock button. */
 export function PencilIcon() {
   return (
     <svg

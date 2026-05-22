@@ -8,6 +8,12 @@ type InputKeyValueRowEditorProps = {
   onRemove: () => void;
 };
 
+/**
+ * One editable row in the Inspector's key/value input mode.
+ *
+ * The row only manages field rendering; parsing and validation stay in
+ * `inputUtils.ts` so save behavior is easy to test and reason about.
+ */
 export function InputKeyValueRowEditor({
   row,
   rowNumber,

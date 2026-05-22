@@ -1,13 +1,22 @@
 import { parseVisualVibeYaml } from "./yaml";
 
+/** User-facing validation item rendered above the source editor. */
 export type VibeValidationIssue = {
   level: "error" | "warning";
   message: string;
   stepId?: string;
 };
 
+// Matches input expressions such as `${steps.lookup_customer.output}`.
 const STEP_REFERENCE_REGEX = /\$\{steps\.([a-zA-Z0-9_-]+)\./g;
 
+/**
+ * Validates YAML as a Visual Vibe document without mutating it.
+ *
+ * Schema parsing catches malformed documents first; the remaining checks cover
+ * workflow-level quality issues and cross-step references that the schema alone
+ * cannot know about.
+ */
 export function validateVisualVibeYaml(yamlText: string): VibeValidationIssue[] {
   const issues: VibeValidationIssue[] = [];
 
@@ -77,6 +86,8 @@ export function validateVisualVibeYaml(yamlText: string): VibeValidationIssue[] 
     });
   }
 
+  // A set makes all routing/reference checks cheap and keeps the diagnostics
+  // focused on the specific step that owns the broken reference.
   const stepIds = new Set(steps.map((step) => step.id));
 
   for (const step of steps) {

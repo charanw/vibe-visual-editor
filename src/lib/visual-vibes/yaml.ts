@@ -1,15 +1,27 @@
 import YAML from "yaml";
 import { VisualVibeSchema, type VisualVibe } from "./schema";
 
+/**
+ * Parses YAML text into a validated Visual Vibe object.
+ *
+ * Throws when the YAML is invalid or when required workflow fields are missing.
+ */
 export function parseVisualVibeYaml(yamlText: string): VisualVibe {
   const parsed = YAML.parse(yamlText);
   return VisualVibeSchema.parse(parsed);
 }
 
+/** Serializes a parsed Vibe back to YAML using the shared YAML library. */
 export function stringifyVisualVibe(vibe: VisualVibe): string {
   return YAML.stringify(vibe);
 }
 
+/**
+ * Reads the editable step description stored as YAML comments above a step.
+ *
+ * Descriptions intentionally live in comments so they do not alter the Vibe
+ * runtime payload.
+ */
 export function getStepDescriptionFromYaml(
   yamlText: string,
   stepId: string,
@@ -17,6 +29,10 @@ export function getStepDescriptionFromYaml(
   return collectStepDescriptionsFromYaml(yamlText).get(stepId) ?? "";
 }
 
+/**
+ * Updates the comment-backed description for one step while preserving all
+ * other step descriptions.
+ */
 export function updateStepDescriptionInYaml(
   yamlText: string,
   stepId: string,
@@ -41,6 +57,9 @@ export function updateStepDescriptionInYaml(
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
+/**
+ * Updates workflow-level metadata and keeps comment-backed step descriptions.
+ */
 export function updateVibeMetadataInYaml(
   yamlText: string,
   field: "id" | "name" | "description",
@@ -54,6 +73,12 @@ export function updateVibeMetadataInYaml(
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
+/**
+ * Updates a step's identity, function, input, and error fields.
+ *
+ * When a step id changes, all known references to that id are rewritten so graph
+ * edges and input expressions continue pointing at the renamed step.
+ */
 export function updateVibeStepInYaml(
   yamlText: string,
   originalStepId: string,
@@ -145,6 +170,9 @@ export function updateVibeStepInYaml(
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
+/**
+ * Adds a generated error-handler step immediately after the source step.
+ */
 export function addErrorHandlerNodeInYaml(
   yamlText: string,
   sourceStepId: string,
@@ -195,6 +223,12 @@ type AddStepOnEdgeOptions = {
   edgeType: "data" | "next" | "error";
 };
 
+/**
+ * Inserts a generated step between two existing graph nodes.
+ *
+ * The source edge is rewired for next/error edges; data edges keep their input
+ * reference relationship and simply insert the new step before the target.
+ */
 export function addStepOnEdgeInYaml(
   yamlText: string,
   options: AddStepOnEdgeOptions,
@@ -237,6 +271,7 @@ export function addStepOnEdgeInYaml(
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
+/** Adds a generated standalone step, creating a blank Vibe first if needed. */
 export function addStandaloneStepInYaml(yamlText: string): string {
   const descriptions = collectStepDescriptionsFromYaml(yamlText);
   const vibe = parseVisualVibeYamlOrCreateBlank(yamlText);
@@ -255,6 +290,12 @@ export function addStandaloneStepInYaml(yamlText: string): string {
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
+/**
+ * Removes a step and cleans up references that would otherwise point to it.
+ *
+ * For main-flow deletes, incoming `next_step_id` references are bridged to the
+ * deleted step's next step when that can be done without creating a self-loop.
+ */
 export function deleteStepInYaml(
   yamlText: string,
   stepIdToDelete: string,
@@ -309,6 +350,7 @@ type DeleteEdgeOptions = {
   edgeType: "data" | "next" | "error";
 };
 
+/** Adds a main-flow edge by setting `source.next_step_id = target.id`. */
 export function addEdgeInYaml(
   yamlText: string,
   options: AddEdgeOptions,
@@ -333,6 +375,12 @@ export function addEdgeInYaml(
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
+/**
+ * Deletes a graph edge from the YAML source.
+ *
+ * Next/error edges map to explicit routing fields. Data edges map to input
+ * expressions and are removed from the target input object.
+ */
 export function deleteEdgeInYaml(
   yamlText: string,
   options: DeleteEdgeOptions,
@@ -369,6 +417,7 @@ export function deleteEdgeInYaml(
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
+/** Inserts a generated step immediately after the given source step. */
 export function appendStepAfterInYaml(
   yamlText: string,
   sourceStepId: string,
@@ -401,6 +450,7 @@ export function appendStepAfterInYaml(
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
+/** Inserts a generated step immediately before the given target step. */
 export function prependStepBeforeInYaml(
   yamlText: string,
   targetStepId: string,
@@ -432,6 +482,12 @@ export function prependStepBeforeInYaml(
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
+/**
+ * Parses the source if possible; otherwise returns a valid blank Vibe.
+ *
+ * Used by create/edit flows where the editor should recover gracefully from an
+ * empty or temporarily invalid source buffer.
+ */
 function parseVisualVibeYamlOrCreateBlank(yamlText: string): VisualVibe {
   if (yamlText.trim().length === 0) {
     return createBlankVibe();
@@ -444,6 +500,7 @@ function parseVisualVibeYamlOrCreateBlank(yamlText: string): VisualVibe {
   }
 }
 
+/** Creates the minimum valid document the editor can render and mutate. */
 function createBlankVibe(): VisualVibe {
   return {
     workflow: {
@@ -455,6 +512,12 @@ function createBlankVibe(): VisualVibe {
   };
 }
 
+/**
+ * Collects step descriptions from comments directly above `- id:` lines.
+ *
+ * The YAML library does not preserve comments through object mutation, so the
+ * editor extracts comments first and re-applies them after serialization.
+ */
 function collectStepDescriptionsFromYaml(yamlText: string) {
   const descriptions = new Map<string, string>();
   const lines = yamlText.split(/\r?\n/);
@@ -493,6 +556,7 @@ function collectStepDescriptionsFromYaml(yamlText: string) {
   return descriptions;
 }
 
+/** Re-inserts comment-backed step descriptions into freshly serialized YAML. */
 function applyStepDescriptionsToYaml(
   yamlText: string,
   descriptions: Map<string, string>,
@@ -519,6 +583,7 @@ function applyStepDescriptionsToYaml(
   return outputLines.join("\n");
 }
 
+/** Returns the step id and indentation level for a YAML list item line. */
 function getStepIdLineInfo(line: string) {
   const match = line.match(/^(\s*)-\s+id:\s*(.+?)\s*$/);
 
@@ -535,6 +600,12 @@ function getStepIdLineInfo(line: string) {
   };
 }
 
+/**
+ * Recursively rewrites references to a renamed step.
+ *
+ * Handles both routing fields and string interpolation references in nested
+ * input structures.
+ */
 function updateStepIdReferences(
   value: unknown,
   originalStepId: string,
@@ -577,6 +648,12 @@ function updateStepIdReferences(
   return value;
 }
 
+/**
+ * Recursively removes values that reference a deleted source step.
+ *
+ * Returning `undefined` from nested branches lets callers remove now-invalid
+ * properties while keeping unrelated input data intact.
+ */
 function removeStepReferencesFromValue(
   value: unknown,
   sourceStepId: string,
@@ -617,6 +694,7 @@ function removeStepReferencesFromValue(
   return value;
 }
 
+/** Creates a stable generated step id that does not collide with existing ids. */
 function createUniqueStepId(existingStepIds: string[]): string {
   const existing = new Set(existingStepIds);
 
@@ -631,6 +709,7 @@ function createUniqueStepId(existingStepIds: string[]): string {
   return candidate;
 }
 
+/** Creates a unique id from a requested base, normalizing invalid characters. */
 function createUniqueStepIdFromBase(
   baseStepId: string,
   existingStepIds: string[],

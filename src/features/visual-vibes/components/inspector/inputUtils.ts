@@ -1,5 +1,11 @@
 import type { InputKeyValueRow, InputValueType } from './inputTypes';
 
+/**
+ * Parses the raw JSON editor contents.
+ *
+ * Step input must be a top-level object because Vibe step inputs are keyed
+ * parameter bags, not arrays or scalar values.
+ */
 export function parseJsonInputDraft(
   inputDraft: string,
 ):
@@ -28,6 +34,12 @@ export function parseJsonInputDraft(
   }
 }
 
+/**
+ * Converts key/value editor rows into a Vibe step input object.
+ *
+ * Empty string rows are ignored, duplicate keys are rejected, and row values are
+ * coerced according to their selected type.
+ */
 export function parseInputRows(
   rows: InputKeyValueRow[],
 ):
@@ -78,6 +90,7 @@ export function parseInputRows(
   };
 }
 
+/** Parses one key/value row into its typed JavaScript value. */
 function parseInputRowValue(
   row: InputKeyValueRow,
   rowLabel: string,
@@ -142,6 +155,7 @@ function parseInputRowValue(
   }
 }
 
+/** Converts an input object into editable key/value rows. */
 export function inputObjectToRows(input: Record<string, unknown>) {
   const entries = Object.entries(input);
 
@@ -161,6 +175,7 @@ export function inputObjectToRows(input: Record<string, unknown>) {
   });
 }
 
+/** Infers the closest key/value editor type for an existing input value. */
 function getInputValueType(value: unknown): InputValueType {
   if (value === null) {
     return "null";
@@ -181,6 +196,7 @@ function getInputValueType(value: unknown): InputValueType {
   return "string";
 }
 
+/** Converts an existing input value into the string shown in the row editor. */
 function stringifyInputValue(value: unknown, valueType: InputValueType) {
   if (valueType === "null") {
     return "";
@@ -193,6 +209,7 @@ function stringifyInputValue(value: unknown, valueType: InputValueType) {
   return String(value);
 }
 
+/** Normalizes row values when the user changes the selected value type. */
 export function normalizeInputRowAfterUpdate(row: InputKeyValueRow) {
   if (row.type === "boolean" && row.value !== "true" && row.value !== "false") {
     return {
@@ -211,6 +228,7 @@ export function normalizeInputRowAfterUpdate(row: InputKeyValueRow) {
   return row;
 }
 
+/** Creates an empty row for the key/value input editor. */
 export function createEmptyInputRow(): InputKeyValueRow {
   return {
     id: createInputRowId(),
@@ -220,10 +238,12 @@ export function createEmptyInputRow(): InputKeyValueRow {
   };
 }
 
+/** Creates a local-only row id so React can track draft rows. */
 function createInputRowId() {
   return `input-row-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/** Removes the local-only row id before comparing row drafts. */
 export function stripInputRowId(row: InputKeyValueRow) {
   return {
     key: row.key,

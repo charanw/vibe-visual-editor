@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* Global design tokens consumed by the Visual Vibes feature UI. */
 :root {
   color-scheme: light;
 
@@ -31,6 +32,7 @@
   --danger-soft: #fef2f2;
 }
 
+/* Dark-mode token overrides follow the user's system color preference. */
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
@@ -64,6 +66,7 @@
   }
 }
 
+/* App-level reset. Feature components own their own layout and spacing. */
 html,
 body {
   margin: 0;
@@ -72,6 +75,7 @@ body {
   color: var(--text-primary);
 }
 
+/* Predictable sizing for SVG-heavy canvas controls and dense form layouts. */
 * {
   box-sizing: border-box;
 }

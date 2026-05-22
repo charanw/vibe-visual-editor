@@ -6,6 +6,11 @@ type InspectorFieldProps = {
   children: ReactNode;
 };
 
+/**
+ * Shared label/helper wrapper for Inspector controls.
+ *
+ * Keeping the wrapper consistent makes dense forms easier to scan.
+ */
 export function InspectorField({ label, helperText, children }: InspectorFieldProps) {
   return (
     <label className="block">

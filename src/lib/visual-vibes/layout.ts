@@ -1,5 +1,6 @@
 import type { VibeGraph, VibeGraphEdge, VibeGraphNode } from "./graph";
 
+/** Graph node with absolute SVG/canvas coordinates. */
 export type PositionedVibeNode = {
   id: string;
   functionName: string;
@@ -9,6 +10,7 @@ export type PositionedVibeNode = {
   y: number;
 };
 
+/** Graph edge with concrete connection points on its source and target nodes. */
 export type PositionedVibeEdge = {
   id: string;
   source: string;
@@ -20,14 +22,19 @@ export type PositionedVibeEdge = {
   targetY: number;
 };
 
+/** Fully positioned graph consumed by the canvas renderer. */
 export type PositionedVibeGraph = {
   nodes: PositionedVibeNode[];
   edges: PositionedVibeEdge[];
 };
 
+/** Layout strategy selected by the canvas view mode. */
 export type VibeGraphLayoutMode = "flow" | "errors";
 
+/** Shared node width used by layout and SVG rendering. */
 export const NODE_WIDTH = 220;
+
+/** Shared node height used by layout and SVG rendering. */
 export const NODE_HEIGHT = 110;
 
 const START_X = 80;
@@ -41,6 +48,13 @@ const COLUMNS_PER_ROW = 5;
 const ERROR_COLUMN_GAP = 150;
 const ERROR_ROW_GAP = 95;
 
+/**
+ * Positions a graph for the canvas.
+ *
+ * Flow mode separates normal and error lanes into serpentine rows. Error mode
+ * organizes each error chain into its own vertical column so recovery paths are
+ * easier to scan.
+ */
 export function layoutVibeGraph(
   graph: VibeGraph,
   options: { mode?: VibeGraphLayoutMode } = {},
@@ -119,6 +133,7 @@ export function layoutVibeGraph(
   };
 }
 
+/** Positions error-view components as independent vertical columns. */
 function layoutErrorChainsInColumns(graph: VibeGraph): PositionedVibeGraph {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const nodeIndexById = new Map(
@@ -170,6 +185,12 @@ function layoutErrorChainsInColumns(graph: VibeGraph): PositionedVibeGraph {
   };
 }
 
+/**
+ * Builds ordered node chains for each weakly connected error component.
+ *
+ * The input graph has already been filtered to the Error View, so components
+ * map naturally to the visual columns shown on the canvas.
+ */
 function getErrorColumnChains(
   graph: VibeGraph,
   nodeById: Map<string, VibeGraphNode>,
@@ -195,6 +216,12 @@ function getErrorColumnChains(
     });
 }
 
+/**
+ * Returns graph components while ignoring edge direction.
+ *
+ * This groups each source/error-handler/recovery chain even when individual
+ * edges point in different semantic directions.
+ */
 function getWeaklyConnectedComponents(graph: VibeGraph) {
   const nodeIds = new Set(graph.nodes.map((node) => node.id));
   const neighborsByNode = new Map<string, Set<string>>();
@@ -248,6 +275,12 @@ function getWeaklyConnectedComponents(graph: VibeGraph) {
   return components;
 }
 
+/**
+ * Produces a readable top-to-bottom order for one error component.
+ *
+ * Error edges are visited before next/data edges, which keeps the source step
+ * and its handler relationship visually close together.
+ */
 function orderErrorComponentNodes(options: {
   componentNodeIds: string[];
   graph: VibeGraph;
@@ -356,6 +389,7 @@ function orderErrorComponentNodes(options: {
   return orderedNodes;
 }
 
+/** Sort score used when traversing an error component. */
 function getEdgeTypeOrderScore(edge: VibeGraphEdge) {
   if (edge.type === "error") {
     return 1;
@@ -368,6 +402,12 @@ function getEdgeTypeOrderScore(edge: VibeGraphEdge) {
   return 3;
 }
 
+/**
+ * Places a linear node order into alternating left-to-right/right-to-left rows.
+ *
+ * This keeps long flows compact without requiring horizontal scrolling for
+ * every additional step.
+ */
 function positionNodesInSerpentineRows(options: {
   nodes: VibeGraphNode[];
   edges: VibeGraphEdge[];
@@ -404,6 +444,12 @@ function positionNodesInSerpentineRows(options: {
   });
 }
 
+/**
+ * Builds a deterministic traversal order from a set of nodes and edges.
+ *
+ * Disconnected or cyclic nodes are appended after the normal traversal so every
+ * valid step remains visible even if the workflow graph is imperfect.
+ */
 function getLinearNodeOrder(
   nodes: VibeGraphNode[],
   edges: VibeGraphEdge[],
@@ -506,6 +552,8 @@ function positionEdge(
   const isVertical = isTargetBelow || isTargetAbove;
 
   if (edge.type === "error") {
+    // Error edges are visually distinct; vertical error-mode edges can route
+    // from side-to-side to avoid overlapping node bodies.
     if (options.routeErrorOnSide && isVertical) {
       return {
         id: edge.id,
@@ -532,6 +580,8 @@ function positionEdge(
   }
 
   if ((edge.type === "next" || options.routeVerticalNextOnSide) && isVertical) {
+    // Vertical next edges route along the node sides, which keeps serpentine
+    // row wraps readable.
     return {
       id: edge.id,
       source: edge.source,
@@ -595,6 +645,12 @@ function positionEdge(
   };
 }
 
+/**
+ * Finds nodes that should be treated as the error lane in Flow View.
+ *
+ * Once a node is reached by an error edge, downstream `next` nodes are kept in
+ * the same lane until the graph view is filtered or the chain ends.
+ */
 function getErrorLaneNodeIds(graph: VibeGraph) {
   const errorLaneNodeIds = new Set<string>();
 
@@ -633,6 +689,7 @@ function getErrorLaneNodeIds(graph: VibeGraph) {
   return errorLaneNodeIds;
 }
 
+/** Compares nodes with lane-specific terminal/conclusion ordering rules. */
 function compareNodesForLane(
   a: VibeGraphNode | undefined,
   b: VibeGraphNode | undefined,
@@ -653,6 +710,7 @@ function compareNodesForLane(
   return (nodeIndexById.get(a.id) ?? 0) - (nodeIndexById.get(b.id) ?? 0);
 }
 
+/** Gives terminal-looking nodes a later sort position inside their lane. */
 function getNodeOrderScore(node: VibeGraphNode, lane: "normal" | "error") {
   if (lane === "error") {
     if (isTerminatingErrorLikeNode(node)) {
@@ -673,6 +731,7 @@ function getNodeOrderScore(node: VibeGraphNode, lane: "normal" | "error") {
   return 10;
 }
 
+/** Heuristic for steps that look like terminal failures. */
 function isTerminatingErrorLikeNode(node: VibeGraphNode) {
   return (
     node.id.endsWith("_error") ||
@@ -683,6 +742,7 @@ function isTerminatingErrorLikeNode(node: VibeGraphNode) {
   );
 }
 
+/** Heuristic for steps that represent successful workflow completion. */
 function isConclusionLikeNode(node: VibeGraphNode) {
   return (
     node.functionName === "concludeWorkflow" ||
