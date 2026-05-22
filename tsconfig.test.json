@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "target": "ES2020",
+    "outDir": ".test-dist",
+    "rootDir": ".",
+    "noEmit": false,
+    "incremental": false,
+    "tsBuildInfoFile": ".test-dist/tsconfig.test.tsbuildinfo"
+  },
+  "include": ["src/lib/visual-vibes/**/*.ts"],
+  "exclude": ["node_modules", ".next", ".vercel", ".test-dist"]
+}

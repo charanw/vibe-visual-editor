@@ -2,12 +2,13 @@
   "name": "vibe-visual-editor",
   "version": "0.1.0",
   "private": true,
-"scripts": {
-  "dev": "next dev",
-  "build": "next build --webpack",
-  "start": "next start",
-  "lint": "eslint"
-},
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "tsc -p tsconfig.test.json && node --test \".test-dist/**/*.test.js\""
+  },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "next": "16.2.6",
