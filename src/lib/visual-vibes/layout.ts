@@ -30,19 +30,34 @@ const COLUMN_GAP = 140;
 const ROW_GAP = 80;
 const START_X = 80;
 const START_Y = 100;
-const BAND_GAP = 120;
+const ERROR_ROW_GAP = 100;
 
 export function layoutVibeGraph(
   graph: VibeGraph,
   availableWidth = 1000,
 ): PositionedVibeGraph {
+  const errorTargetNodeIds = new Set(
+    graph.edges.filter((edge) => edge.type === "error").map((edge) => edge.target),
+  );
+
+  const normalNodes = graph.nodes.filter((node) => !errorTargetNodeIds.has(node.id));
+  const errorNodes = graph.nodes.filter((node) => errorTargetNodeIds.has(node.id));
+
   const incomingByNode = new Map<string, string[]>();
 
-  for (const node of graph.nodes) {
+  for (const node of normalNodes) {
     incomingByNode.set(node.id, []);
   }
 
   for (const edge of graph.edges) {
+    if (edge.type === "error") {
+      continue;
+    }
+
+    if (!incomingByNode.has(edge.target)) {
+      continue;
+    }
+
     incomingByNode.get(edge.target)?.push(edge.source);
   }
 
@@ -74,13 +89,13 @@ export function layoutVibeGraph(
     return depth;
   }
 
-  for (const node of graph.nodes) {
+  for (const node of normalNodes) {
     getDepth(node.id);
   }
 
   const nodesByDepth = new Map<number, typeof graph.nodes>();
 
-  for (const node of graph.nodes) {
+  for (const node of normalNodes) {
     const depth = depthByNode.get(node.id) ?? 0;
     const existing = nodesByDepth.get(depth) ?? [];
 
@@ -90,14 +105,6 @@ export function layoutVibeGraph(
 
   const sortedDepths = Array.from(nodesByDepth.keys()).sort((a, b) => a - b);
 
-  const maxNodesInAnyDepth = Math.max(
-    1,
-    ...Array.from(nodesByDepth.values()).map((nodes) => nodes.length),
-  );
-
-  const bandHeight =
-    maxNodesInAnyDepth * (NODE_HEIGHT + ROW_GAP) + BAND_GAP;
-
   const usableWidth = Math.max(availableWidth - START_X * 2, NODE_WIDTH);
 
   const maxColumns = Math.max(
@@ -105,11 +112,17 @@ export function layoutVibeGraph(
     Math.floor((usableWidth + COLUMN_GAP) / (NODE_WIDTH + COLUMN_GAP)),
   );
 
+  const maxRowsInAnyDepth = Math.max(
+    1,
+    ...Array.from(nodesByDepth.values()).map((nodes) => nodes.length),
+  );
+
+  const normalBandHeight = maxRowsInAnyDepth * (NODE_HEIGHT + ROW_GAP);
+
   const positionedNodes: PositionedVibeNode[] = [];
 
   for (const depth of sortedDepths) {
     const nodesAtDepth = nodesByDepth.get(depth) ?? [];
-
     const wrappedColumn = depth % maxColumns;
     const bandIndex = Math.floor(depth / maxColumns);
 
@@ -120,35 +133,69 @@ export function layoutVibeGraph(
         x: START_X + wrappedColumn * (NODE_WIDTH + COLUMN_GAP),
         y:
           START_Y +
-          bandIndex * bandHeight +
+          bandIndex * (normalBandHeight + ERROR_ROW_GAP + NODE_HEIGHT) +
           rowIndex * (NODE_HEIGHT + ROW_GAP),
       });
     });
   }
 
+  const normalContentBottom =
+    positionedNodes.length > 0
+      ? Math.max(...positionedNodes.map((node) => node.y + NODE_HEIGHT))
+      : START_Y + NODE_HEIGHT;
+
+  const errorStartY = normalContentBottom + ERROR_ROW_GAP;
+
+  errorNodes.forEach((node, index) => {
+    const wrappedColumn = index % maxColumns;
+    const rowIndex = Math.floor(index / maxColumns);
+
+    positionedNodes.push({
+      id: node.id,
+      functionName: node.functionName,
+      x: START_X + wrappedColumn * (NODE_WIDTH + COLUMN_GAP),
+      y: errorStartY + rowIndex * (NODE_HEIGHT + ROW_GAP),
+    });
+  });
+
   const nodeById = new Map(positionedNodes.map((node) => [node.id, node]));
 
-  const positionedEdges: PositionedVibeEdge[] = graph.edges.flatMap((edge) => {
-    const source = nodeById.get(edge.source);
-    const target = nodeById.get(edge.target);
+const positionedEdges: PositionedVibeEdge[] = [];
 
-    if (!source || !target) {
-      return [];
-    }
+for (const edge of graph.edges) {
+  const source = nodeById.get(edge.source);
+  const target = nodeById.get(edge.target);
 
-    return [
-      {
-        id: edge.id,
-        source: edge.source,
-        target: edge.target,
-        type: edge.type,
-        sourceX: source.x + NODE_WIDTH,
-        sourceY: source.y + NODE_HEIGHT / 2,
-        targetX: target.x,
-        targetY: target.y + NODE_HEIGHT / 2,
-      },
-    ];
+  if (!source || !target) {
+    continue;
+  }
+
+  if (edge.type === "error") {
+    positionedEdges.push({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      type: edge.type,
+      sourceX: source.x + NODE_WIDTH / 2,
+      sourceY: source.y + NODE_HEIGHT,
+      targetX: target.x + NODE_WIDTH / 2,
+      targetY: target.y,
+    });
+
+    continue;
+  }
+
+  positionedEdges.push({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    type: edge.type,
+    sourceX: source.x + NODE_WIDTH,
+    sourceY: source.y + NODE_HEIGHT / 2,
+    targetX: target.x,
+    targetY: target.y + NODE_HEIGHT / 2,
   });
+}
 
   return {
     nodes: positionedNodes,

@@ -22,6 +22,89 @@ export function updateVibeMetadataInYaml(
   return YAML.stringify(vibe);
 }
 
+export function updateVibeStepInYaml(
+  yamlText: string,
+  originalStepId: string,
+  updates: {
+    id: string;
+    functionName: string;
+    input: Record<string, unknown>;
+    onErrorStepId?: string;
+    onErrorMessage?: string;
+  },
+): string {
+  const vibe = parseVisualVibeYaml(yamlText);
+  const steps = vibe.workflow.steps;
+
+  const stepIndex = steps.findIndex(
+    (currentStep) => currentStep.id === originalStepId,
+  );
+  const step = steps[stepIndex];
+
+  if (!step) {
+    return yamlText;
+  }
+
+  const nextStepId = updates.id.trim();
+
+  if (!nextStepId) {
+    return yamlText;
+  }
+
+  const duplicateStep = steps.find(
+    (currentStep) =>
+      currentStep.id === nextStepId && currentStep.id !== originalStepId,
+  );
+
+  if (duplicateStep) {
+    return yamlText;
+  }
+
+  step.id = nextStepId;
+  step.function = updates.functionName.trim() || step.function;
+  step.input = updates.input;
+
+  const nextErrorStepId = updates.onErrorStepId?.trim() ?? "";
+  const nextErrorMessage = updates.onErrorMessage?.trim() ?? "";
+
+  if (nextErrorStepId) {
+    step.on_error_step_id = nextErrorStepId;
+
+    const errorStepExists = steps.some(
+      (currentStep) => currentStep.id === nextErrorStepId,
+    );
+
+    if (!errorStepExists) {
+      const newErrorStep = {
+        id: nextErrorStepId,
+        function: "sendResponse",
+        input: {
+          type: "fixed",
+          message:
+            nextErrorMessage ||
+            `Error while running ${nextStepId}. Please review the failed step output.`,
+        },
+      };
+
+      steps.splice(stepIndex + 1, 0, newErrorStep);
+    }
+  } else {
+    delete step.on_error_step_id;
+  }
+
+  if (nextErrorMessage) {
+    step.on_error_message = nextErrorMessage;
+  } else {
+    delete step.on_error_message;
+  }
+
+  if (nextStepId !== originalStepId) {
+    updateStepIdReferences(steps, originalStepId, nextStepId);
+  }
+
+  return YAML.stringify(vibe);
+}
+
 type AddStepOnEdgeOptions = {
   sourceStepId: string;
   targetStepId: string;
@@ -95,12 +178,13 @@ export function deleteStepInYaml(
     }
 
     if (step.on_error_step_id === stepIdToDelete) {
-      if (fallbackNextStepId && fallbackNextStepId !== step.id) {
-        step.on_error_step_id = fallbackNextStepId;
-      } else {
-        delete step.on_error_step_id;
-      }
+      delete step.on_error_step_id;
     }
+
+    step.input = removeStepReferencesFromValue(
+      step.input,
+      stepIdToDelete,
+    ) as Record<string, unknown>;
   }
 
   vibe.workflow.steps = remainingSteps;
@@ -238,6 +322,48 @@ export function prependStepBeforeInYaml(
   return YAML.stringify(vibe);
 }
 
+function updateStepIdReferences(
+  value: unknown,
+  originalStepId: string,
+  nextStepId: string,
+): unknown {
+  const originalReference = `\${steps.${originalStepId}.`;
+  const nextReference = `\${steps.${nextStepId}.`;
+
+  if (typeof value === "string") {
+    return value.replaceAll(originalReference, nextReference);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      updateStepIdReferences(item, originalStepId, nextStepId),
+    );
+  }
+
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+
+    for (const [key, nestedValue] of Object.entries(record)) {
+      if (
+        (key === "next_step_id" || key === "on_error_step_id") &&
+        nestedValue === originalStepId
+      ) {
+        record[key] = nextStepId;
+      } else {
+        record[key] = updateStepIdReferences(
+          nestedValue,
+          originalStepId,
+          nextStepId,
+        );
+      }
+    }
+
+    return record;
+  }
+
+  return value;
+}
+
 function removeStepReferencesFromValue(
   value: unknown,
   sourceStepId: string,
@@ -290,88 +416,4 @@ function createUniqueStepId(existingStepIds: string[]): string {
   }
 
   return candidate;
-}
-
-export function updateVibeStepInYaml(
-  yamlText: string,
-  originalStepId: string,
-  updates: {
-    id: string;
-    functionName: string;
-    input: Record<string, unknown>;
-  },
-): string {
-  const vibe = parseVisualVibeYaml(yamlText);
-  const steps = vibe.workflow.steps;
-
-  const step = steps.find((currentStep) => currentStep.id === originalStepId);
-
-  if (!step) {
-    return yamlText;
-  }
-
-  const nextStepId = updates.id.trim();
-
-  if (!nextStepId) {
-    return yamlText;
-  }
-
-  const duplicateStep = steps.find(
-    (currentStep) =>
-      currentStep.id === nextStepId && currentStep.id !== originalStepId,
-  );
-
-  if (duplicateStep) {
-    return yamlText;
-  }
-
-  step.id = nextStepId;
-  step.function = updates.functionName.trim() || step.function;
-  step.input = updates.input;
-
-  if (nextStepId !== originalStepId) {
-    updateStepIdReferences(steps, originalStepId, nextStepId);
-  }
-
-  return YAML.stringify(vibe);
-}
-
-function updateStepIdReferences(
-  value: unknown,
-  originalStepId: string,
-  nextStepId: string,
-): unknown {
-  const originalReference = `\${steps.${originalStepId}.`;
-  const nextReference = `\${steps.${nextStepId}.`;
-
-  if (typeof value === "string") {
-    return value.replaceAll(originalReference, nextReference);
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) =>
-      updateStepIdReferences(item, originalStepId, nextStepId),
-    );
-  }
-
-  if (value && typeof value === "object") {
-    for (const [key, nestedValue] of Object.entries(value)) {
-      const record = value as Record<string, unknown>;
-
-      if (
-        (key === "next_step_id" || key === "on_error_step_id") &&
-        nestedValue === originalStepId
-      ) {
-        record[key] = nextStepId;
-      } else {
-        record[key] = updateStepIdReferences(
-          nestedValue,
-          originalStepId,
-          nextStepId,
-        );
-      }
-    }
-  }
-
-  return value;
 }

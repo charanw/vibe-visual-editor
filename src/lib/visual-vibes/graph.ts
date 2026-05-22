@@ -27,7 +27,30 @@ export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
     functionName: step.function,
   }));
 
-  const edges: VibeGraphEdge[] = [];
+  const edgeByKey = new Map<string, VibeGraphEdge>();
+
+  function addEdge(
+    source: string,
+    target: string,
+    type: VibeGraphEdge["type"],
+  ) {
+    if (!source || !target) {
+      return;
+    }
+
+    const key = `${source}-${target}-${type}`;
+
+    if (edgeByKey.has(key)) {
+      return;
+    }
+
+    edgeByKey.set(key, {
+      id: key,
+      source,
+      target,
+      type,
+    });
+  }
 
   for (const step of steps) {
     const inputText = JSON.stringify(step.input);
@@ -35,33 +58,20 @@ export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
 
     for (const match of matches) {
       const sourceStepId = match[1];
-
-      edges.push({
-        id: `${sourceStepId}-${step.id}-data`,
-        source: sourceStepId,
-        target: step.id,
-        type: "data",
-      });
+      addEdge(sourceStepId, step.id, "data");
     }
 
     if (step.next_step_id) {
-      edges.push({
-        id: `${step.id}-${step.next_step_id}-next`,
-        source: step.id,
-        target: step.next_step_id,
-        type: "next",
-      });
+      addEdge(step.id, step.next_step_id, "next");
     }
 
     if (step.on_error_step_id) {
-      edges.push({
-        id: `${step.id}-${step.on_error_step_id}-error`,
-        source: step.id,
-        target: step.on_error_step_id,
-        type: "error",
-      });
+      addEdge(step.id, step.on_error_step_id, "error");
     }
   }
 
-  return { nodes, edges };
+  return {
+    nodes,
+    edges: Array.from(edgeByKey.values()),
+  };
 }

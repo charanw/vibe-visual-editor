@@ -12,6 +12,7 @@ import {
   updateVibeMetadataInYaml,
   updateVibeStepInYaml,
 } from "@/lib/visual-vibes/yaml";
+import { validateVisualVibeYaml } from "@/lib/visual-vibes/validation";
 import { visualVibeToGraph } from "@/lib/visual-vibes/graph";
 import { layoutVibeGraph } from "@/lib/visual-vibes/layout";
 import { visualVibesAppConfig } from "@/lib/visual-vibes/appConfig";
@@ -64,6 +65,10 @@ export function VisualVibesEditor() {
         error: error instanceof Error ? error.message : "Invalid YAML",
       };
     }
+  }, [yamlText]);
+
+  const validationIssues = useMemo(() => {
+    return validateVisualVibeYaml(yamlText);
   }, [yamlText]);
 
   const positionedGraph = useMemo(() => {
@@ -207,6 +212,8 @@ export function VisualVibesEditor() {
       id: string;
       functionName: string;
       input: Record<string, unknown>;
+      onErrorStepId?: string;
+      onErrorMessage?: string;
     },
   ) {
     setYamlText((currentYamlText) =>
@@ -307,6 +314,28 @@ export function VisualVibesEditor() {
             </div>
           )}
 
+          {validationIssues.length > 0 && (
+            <div className="max-h-40 overflow-auto border-b border-[var(--border-subtle)] bg-yellow-500/10 px-4 py-3 text-xs text-yellow-700 dark:text-yellow-300">
+              <div className="mb-2 font-semibold">
+                Vibe validation found {validationIssues.length}{" "}
+                {validationIssues.length === 1 ? "issue" : "issues"}:
+              </div>
+
+              <ul className="space-y-1">
+                {validationIssues.map((issue, index) => (
+                  <li
+                    key={`${issue.level}-${issue.stepId ?? "workflow"}-${index}`}
+                  >
+                    <span className="font-semibold uppercase">
+                      {issue.level}:
+                    </span>{" "}
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2">
             <div>
               <div className="text-xs font-semibold text-[var(--text-primary)]">
@@ -392,7 +421,7 @@ export function VisualVibesEditor() {
           <PanelHeader
             eyebrow="Inspector"
             title="Vibe Step"
-            description="View/Edit the selected node."
+            description="Edit the selected node."
           />
 
           <div className="min-h-0 flex-1 overflow-auto">

@@ -69,11 +69,16 @@ export function VibeCanvas({
 
   const contentHeight =
     graph.nodes.length > 0
-      ? Math.max(...graph.nodes.map((node) => node.y + NODE_HEIGHT)) + 120
+      ? Math.max(...graph.nodes.map((node) => node.y + NODE_HEIGHT)) + 160
       : 700;
 
   const incomingNodeIds = new Set(graph.edges.map((edge) => edge.target));
   const outgoingNodeIds = new Set(graph.edges.map((edge) => edge.source));
+  const errorTargetNodeIds = new Set(
+    graph.edges
+      .filter((edge) => edge.type === "error")
+      .map((edge) => edge.target),
+  );
 
   function isFirstNode(nodeId: string) {
     return !incomingNodeIds.has(nodeId);
@@ -81,6 +86,10 @@ export function VibeCanvas({
 
   function isFinalNode(nodeId: string) {
     return !outgoingNodeIds.has(nodeId);
+  }
+
+  function isErrorNode(nodeId: string) {
+    return errorTargetNodeIds.has(nodeId);
   }
 
   function startEditingMetadata(field: MetadataField, currentValue: string) {
@@ -101,6 +110,18 @@ export function VibeCanvas({
   function cancelMetadataEdit() {
     setEditingMetadataField(null);
     setMetadataDraftValue("");
+  }
+
+  function getEdgePath(edge: PositionedVibeGraph["edges"][number]) {
+    if (edge.type === "error") {
+      const verticalMidY = (edge.sourceY + edge.targetY) / 2;
+
+      return `M ${edge.sourceX} ${edge.sourceY} C ${edge.sourceX} ${verticalMidY}, ${edge.targetX} ${verticalMidY}, ${edge.targetX} ${edge.targetY}`;
+    }
+
+    const horizontalMidX = (edge.sourceX + edge.targetX) / 2;
+
+    return `M ${edge.sourceX} ${edge.sourceY} C ${horizontalMidX} ${edge.sourceY}, ${horizontalMidX} ${edge.targetY}, ${edge.targetX} ${edge.targetY}`;
   }
 
   return (
@@ -203,8 +224,8 @@ export function VibeCanvas({
                 Visual Step Flow
               </h3>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Steps are arranged based on references, next-step relationships,
-                and available canvas width.
+                Error edges and handler nodes are highlighted separately from
+                normal flow and data references.
               </p>
             </div>
 
@@ -256,7 +277,7 @@ export function VibeCanvas({
             >
               <defs>
                 <marker
-                  id="arrow"
+                  id="arrow-data"
                   markerWidth="10"
                   markerHeight="10"
                   refX="8"
@@ -266,15 +287,60 @@ export function VibeCanvas({
                 >
                   <path d="M0,0 L0,6 L9,3 z" fill="var(--edge-color)" />
                 </marker>
+
+                <marker
+                  id="arrow-next"
+                  markerWidth="10"
+                  markerHeight="10"
+                  refX="8"
+                  refY="3"
+                  orient="auto"
+                  markerUnits="strokeWidth"
+                >
+                  <path d="M0,0 L0,6 L9,3 z" fill="var(--brand-primary)" />
+                </marker>
+
+                <marker
+                  id="arrow-error"
+                  markerWidth="10"
+                  markerHeight="10"
+                  refX="8"
+                  refY="3"
+                  orient="auto"
+                  markerUnits="strokeWidth"
+                >
+                  <path d="M0,0 L0,6 L9,3 z" fill="var(--danger)" />
+                </marker>
               </defs>
 
               {graph.edges.map((edge) => {
-                const midX = (edge.sourceX + edge.targetX) / 2;
                 const addButtonX = (edge.sourceX + edge.targetX) / 2;
                 const addButtonY = (edge.sourceY + edge.targetY) / 2;
                 const deleteButtonX = addButtonX + 34;
                 const deleteButtonY = addButtonY;
                 const isHovered = hoveredEdgeId === edge.id;
+                const edgePath = getEdgePath(edge);
+
+                const stroke =
+                  edge.type === "error"
+                    ? "var(--danger)"
+                    : edge.type === "next"
+                      ? "var(--brand-primary)"
+                      : "var(--edge-color)";
+
+                const markerEnd =
+                  edge.type === "error"
+                    ? "url(#arrow-error)"
+                    : edge.type === "next"
+                      ? "url(#arrow-next)"
+                      : "url(#arrow-data)";
+
+                const strokeDasharray =
+                  edge.type === "error"
+                    ? "7 5"
+                    : edge.type === "data"
+                      ? "3 5"
+                      : undefined;
 
                 return (
                   <g
@@ -283,7 +349,7 @@ export function VibeCanvas({
                     onMouseLeave={() => setHoveredEdgeId(null)}
                   >
                     <path
-                      d={`M ${edge.sourceX} ${edge.sourceY} C ${midX} ${edge.sourceY}, ${midX} ${edge.targetY}, ${edge.targetX} ${edge.targetY}`}
+                      d={edgePath}
                       fill="none"
                       stroke="transparent"
                       strokeWidth="24"
@@ -291,13 +357,28 @@ export function VibeCanvas({
                     />
 
                     <path
-                      d={`M ${edge.sourceX} ${edge.sourceY} C ${midX} ${edge.sourceY}, ${midX} ${edge.targetY}, ${edge.targetX} ${edge.targetY}`}
+                      d={edgePath}
                       fill="none"
-                      stroke="var(--edge-color)"
-                      strokeWidth="2"
-                      markerEnd="url(#arrow)"
+                      stroke={stroke}
+                      strokeWidth={edge.type === "error" ? "2.5" : "2"}
+                      strokeDasharray={strokeDasharray}
+                      markerEnd={markerEnd}
                       pointerEvents="none"
                     />
+
+                    {edge.type === "error" && (
+                      <text
+                        x={addButtonX}
+                        y={addButtonY - 12}
+                        textAnchor="middle"
+                        fill="var(--danger)"
+                        fontSize="10"
+                        fontWeight="700"
+                        pointerEvents="none"
+                      >
+                        ERROR
+                      </text>
+                    )}
 
                     {isEditing && isHovered && (
                       <>
@@ -317,14 +398,22 @@ export function VibeCanvas({
                           <circle
                             r="14"
                             fill="var(--panel-bg)"
-                            stroke="var(--brand-primary)"
+                            stroke={
+                              edge.type === "error"
+                                ? "var(--danger)"
+                                : "var(--brand-primary)"
+                            }
                             strokeWidth="2"
                           />
                           <text
                             x="0"
                             y="5"
                             textAnchor="middle"
-                            fill="var(--brand-primary)"
+                            fill={
+                              edge.type === "error"
+                                ? "var(--danger)"
+                                : "var(--brand-primary)"
+                            }
                             fontSize="18"
                             fontWeight="700"
                             pointerEvents="none"
@@ -373,6 +462,7 @@ export function VibeCanvas({
               {graph.nodes.map((node) => {
                 const isSelected = selectedStepId === node.id;
                 const isHovered = hoveredNodeId === node.id;
+                const isErrorHandlerNode = isErrorNode(node.id);
 
                 return (
                   <g
@@ -390,14 +480,18 @@ export function VibeCanvas({
                       fill={
                         isSelected
                           ? "var(--node-selected-bg)"
-                          : "var(--node-bg)"
+                          : isErrorHandlerNode
+                            ? "var(--danger-soft)"
+                            : "var(--node-bg)"
                       }
                       stroke={
                         isSelected
                           ? "var(--node-selected-border)"
-                          : "var(--node-border)"
+                          : isErrorHandlerNode
+                            ? "var(--danger)"
+                            : "var(--node-border)"
                       }
-                      strokeWidth="2"
+                      strokeWidth={isErrorHandlerNode ? "2.5" : "2"}
                     />
 
                     {isEditing && isHovered && (
@@ -519,13 +613,17 @@ export function VibeCanvas({
                     <text
                       x="18"
                       y="34"
-                      fill="var(--brand-primary)"
+                      fill={
+                        isErrorHandlerNode
+                          ? "var(--danger)"
+                          : "var(--brand-primary)"
+                      }
                       fontSize="11"
                       fontWeight="700"
                       letterSpacing="1.4"
                       pointerEvents="none"
                     >
-                      VIBE STEP
+                      {isErrorHandlerNode ? "ERROR STEP" : "VIBE STEP"}
                     </text>
 
                     <text

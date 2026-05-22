@@ -3,18 +3,19 @@
 import { useState } from "react";
 import type { VibeStep, VisualVibe } from "@/lib/visual-vibes/schema";
 
+type StepUpdate = {
+  id: string;
+  functionName: string;
+  input: Record<string, unknown>;
+  onErrorStepId?: string;
+  onErrorMessage?: string;
+};
+
 type VibeInspectorProps = {
   vibe: VisualVibe | null;
   selectedStepId: string | null;
   isEditing: boolean;
-  onUpdateStep: (
-    originalStepId: string,
-    updates: {
-      id: string;
-      functionName: string;
-      input: Record<string, unknown>;
-    },
-  ) => void;
+  onUpdateStep: (originalStepId: string, updates: StepUpdate) => void;
   onStepEditDirtyChange: (hasUnsavedChanges: boolean) => void;
 };
 
@@ -59,14 +60,7 @@ export function VibeInspector({
 type VibeStepEditorProps = {
   selectedStep: VibeStep;
   isEditing: boolean;
-  onUpdateStep: (
-    originalStepId: string,
-    updates: {
-      id: string;
-      functionName: string;
-      input: Record<string, unknown>;
-    },
-  ) => void;
+  onUpdateStep: (originalStepId: string, updates: StepUpdate) => void;
   onStepEditDirtyChange: (hasUnsavedChanges: boolean) => void;
 };
 
@@ -83,6 +77,12 @@ function VibeStepEditor({
   const [draftInputText, setDraftInputText] = useState(
     JSON.stringify(selectedStep.input, null, 2),
   );
+  const [draftOnErrorStepId, setDraftOnErrorStepId] = useState(
+    selectedStep.on_error_step_id ?? "",
+  );
+  const [draftOnErrorMessage, setDraftOnErrorMessage] = useState(
+    selectedStep.on_error_message ?? "",
+  );
   const [inputError, setInputError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
@@ -95,6 +95,8 @@ function VibeStepEditor({
     setDraftStepId(selectedStep.id);
     setDraftFunctionName(selectedStep.function);
     setDraftInputText(JSON.stringify(selectedStep.input, null, 2));
+    setDraftOnErrorStepId(selectedStep.on_error_step_id ?? "");
+    setDraftOnErrorMessage(selectedStep.on_error_message ?? "");
     setInputError(null);
     setHasUnsavedChanges(false);
     onStepEditDirtyChange(false);
@@ -133,6 +135,8 @@ function VibeStepEditor({
       id: draftStepId.trim(),
       functionName: draftFunctionName.trim(),
       input: parsedInput as Record<string, unknown>,
+      onErrorStepId: draftOnErrorStepId.trim() || undefined,
+      onErrorMessage: draftOnErrorMessage.trim() || undefined,
     });
 
     setInputError(null);
@@ -205,6 +209,47 @@ function VibeStepEditor({
             {inputError}
           </div>
         )}
+      </div>
+
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] p-3">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
+          Error Handling
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              on_error_step_id
+            </label>
+            <input
+              value={draftOnErrorStepId}
+              readOnly={!isEditing}
+              placeholder="Optional error step ID"
+              onChange={(event) => {
+                setDraftOnErrorStepId(event.target.value);
+                markChanged();
+              }}
+              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--danger)]"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+              on_error_message
+            </label>
+            <textarea
+              value={draftOnErrorMessage}
+              readOnly={!isEditing}
+              placeholder="Optional custom error message"
+              rows={3}
+              onChange={(event) => {
+                setDraftOnErrorMessage(event.target.value);
+                markChanged();
+              }}
+              className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 text-sm leading-5 text-[var(--text-primary)] outline-none focus:border-[var(--danger)]"
+            />
+          </div>
+        </div>
       </div>
 
       {isEditing && (
