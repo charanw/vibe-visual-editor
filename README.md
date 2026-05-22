@@ -1,36 +1,182 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Visual Vibes
 
-## Getting Started
+Visual Vibes is a visual editor for proprietary Vibe templates.
 
-First, run the development server:
+A Vibe is a structured workflow template that defines steps, inputs, routing, error handling, and completion behavior. This app makes Vibes easier to read, edit, validate, and debug through an interactive visual interface.
+
+## What This App Does
+
+Visual Vibes lets you:
+
+- Upload and view Vibe files
+- Edit Vibe source directly
+- Visualize workflow steps as an interactive graph
+- Switch between Flow View and Error View
+- Inspect and edit individual steps
+- Edit step inputs using Key/Value fields or raw JSON
+- Add, remove, and connect workflow steps
+- View error paths, error handlers, and terminating errors
+- Zoom, pan, recenter, and fullscreen the canvas
+- Export updated Vibes
+
+## What Is a Vibe?
+
+A Vibe is a proprietary workflow template used to define how a process should run.
+
+Each Vibe contains:
+
+- Workflow metadata
+- Step definitions
+- Step inputs
+- Main flow routing
+- Error handling paths
+- Completion behavior
+
+Example Vibe structure:
+
+```yaml
+workflow:
+  id: example_workflow
+  name: Example Workflow
+  description: A simple workflow example
+  steps:
+    - id: normalize_request
+      function: setVariable
+      input:
+        type: fixed
+        channel: web
+      next_step_id: get_customer_profile
+
+    - id: get_customer_profile
+      function: apiRequest
+      input:
+        endpoint: /customers/profile
+      on_error_step_id: customer_profile_error
+
+    - id: customer_profile_error
+      function: setVariable
+      input:
+        error: customer profile lookup failed
+```
+
+## Views
+
+### Flow View
+
+Flow View shows the main execution path of the Vibe.
+
+It uses a serpentine layout so larger Vibes can remain readable on one page:
+
+```txt
+1  →  2  →  3  →  4  →  5
+                         ↓
+10 ←  9  ←  8  ←  7  ←  6
+↓
+11 → 12 → 13 → 14 → 15
+```
+
+### Error View
+
+Error View shows error paths as vertical chains.
+
+Each error path is organized into its own column, making it easier to see:
+
+- Which step has an error path
+- Where the error path goes
+- Which steps are error handlers
+- Which paths end in terminating errors
+- Which paths recover back into the normal flow
+
+## Visual Conventions
+
+The canvas uses color and shape to make Vibes easier to understand:
+
+- Blue nodes represent normal Vibe steps.
+- Yellow nodes represent error handlers.
+- Yellow dashed edges represent error paths.
+- Red nodes represent terminating errors.
+- Red dashed edges point into terminating errors.
+- Green nodes represent conclusions.
+- A checkered flag marks starting points in the main Flow View.
+
+## Editing a Vibe
+
+To edit a step:
+
+1. Select a node on the canvas.
+2. Unlock step editing from the canvas or the pencil icon in the Inspector.
+3. Update the step ID, function, description, input, or error handling fields.
+4. Save the step.
+
+The Inspector supports two input editing modes:
+
+### Key/Value Mode
+
+Best for simple top-level input fields.
+
+### Raw JSON Mode
+
+Best for nested objects or advanced input structures.
+
+## Error Handling
+
+The Inspector includes error handling fields for each step.
+
+A step can define:
+
+- An error step ID
+- An error message
+
+When a step has an error path, the Error View shows the related chain visually.
+
+## Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Build for production:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Run the production build:
 
-## Learn More
+```bash
+npm start
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```txt
+src/
+  components/
+    visual-vibes/
+      VisualVibesEditor.tsx
+      VibeCanvas.tsx
+      VibeInspector.tsx
+      VibeFileControls.tsx
+      VibeYamlEditor.tsx
+  lib/
+    visual-vibes/
+      graph.ts
+      layout.ts
+      validation.ts
+      yaml.ts
+      schema.ts
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notes
 
-## Deploy on Vercel
+Visual Vibes keeps the Vibe source as the source of truth while providing a clearer visual editing experience.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The goal is to make proprietary Vibe templates easier to understand, update, and troubleshoot without losing the structure of the original template.
