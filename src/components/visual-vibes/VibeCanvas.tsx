@@ -8,6 +8,8 @@ import {
 } from "@/lib/visual-vibes/layout";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
 
+type MetadataField = "id" | "name" | "description";
+
 type VibeCanvasProps = {
   vibe: VisualVibe | null;
   graph: PositionedVibeGraph;
@@ -31,6 +33,7 @@ type VibeCanvasProps = {
   }) => void;
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
+  onUpdateVibeMetadata: (field: MetadataField, value: string) => void;
 };
 
 export function VibeCanvas({
@@ -48,12 +51,16 @@ export function VibeCanvas({
   onDeleteEdge,
   onAppendStepAfter,
   onPrependStepBefore,
+  onUpdateVibeMetadata,
 }: VibeCanvasProps) {
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [connectingFromStepId, setConnectingFromStepId] = useState<
     string | null
   >(null);
+  const [editingMetadataField, setEditingMetadataField] =
+    useState<MetadataField | null>(null);
+  const [metadataDraftValue, setMetadataDraftValue] = useState("");
 
   const contentWidth =
     graph.nodes.length > 0
@@ -74,6 +81,26 @@ export function VibeCanvas({
 
   function isFinalNode(nodeId: string) {
     return !outgoingNodeIds.has(nodeId);
+  }
+
+  function startEditingMetadata(field: MetadataField, currentValue: string) {
+    setEditingMetadataField(field);
+    setMetadataDraftValue(currentValue);
+  }
+
+  function saveMetadataEdit() {
+    if (!editingMetadataField) {
+      return;
+    }
+
+    onUpdateVibeMetadata(editingMetadataField, metadataDraftValue);
+    setEditingMetadataField(null);
+    setMetadataDraftValue("");
+  }
+
+  function cancelMetadataEdit() {
+    setEditingMetadataField(null);
+    setMetadataDraftValue("");
   }
 
   return (
@@ -114,37 +141,55 @@ export function VibeCanvas({
               Visual Vibe
             </div>
             <div className="mt-1 text-xs text-[var(--text-muted)]">
-              {isEditing ? "Editing enabled" : "Editing locked"}
+              Metadata can be edited directly. Step editing is{" "}
+              {isEditing ? "enabled" : "locked"}.
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                Vibe ID
-              </div>
-              <div className="mt-1 break-words text-sm font-semibold text-[var(--text-primary)]">
-                {vibe?.workflow.id ?? "No vibe loaded"}
-              </div>
-            </div>
+          <div className="space-y-4">
+            <EditableMetadataField
+              label="Vibe ID"
+              field="id"
+              value={vibe?.workflow.id ?? ""}
+              fallbackValue="No vibe loaded"
+              canEditMetadata={true}
+              editingMetadataField={editingMetadataField}
+              metadataDraftValue={metadataDraftValue}
+              onStartEditing={startEditingMetadata}
+              onChangeDraft={setMetadataDraftValue}
+              onSave={saveMetadataEdit}
+              onCancel={cancelMetadataEdit}
+            />
 
-            <div>
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                Name
-              </div>
-              <div className="mt-1 break-words text-lg font-semibold text-[var(--text-primary)]">
-                {vibe?.workflow.name ?? "Untitled Visual Vibe"}
-              </div>
-            </div>
+            <EditableMetadataField
+              label="Name"
+              field="name"
+              value={vibe?.workflow.name ?? ""}
+              fallbackValue="Untitled Visual Vibe"
+              canEditMetadata={true}
+              editingMetadataField={editingMetadataField}
+              metadataDraftValue={metadataDraftValue}
+              onStartEditing={startEditingMetadata}
+              onChangeDraft={setMetadataDraftValue}
+              onSave={saveMetadataEdit}
+              onCancel={cancelMetadataEdit}
+              isLarge
+            />
 
-            <div>
-              <div className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                Description
-              </div>
-              <p className="mt-1 max-w-4xl whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]">
-                {vibe?.workflow.description ?? "No description available."}
-              </p>
-            </div>
+            <EditableMetadataField
+              label="Description"
+              field="description"
+              value={vibe?.workflow.description ?? ""}
+              fallbackValue="No description available."
+              canEditMetadata={true}
+              editingMetadataField={editingMetadataField}
+              metadataDraftValue={metadataDraftValue}
+              onStartEditing={startEditingMetadata}
+              onChangeDraft={setMetadataDraftValue}
+              onSave={saveMetadataEdit}
+              onCancel={cancelMetadataEdit}
+              multiline
+            />
           </div>
         </div>
 
@@ -196,7 +241,7 @@ export function VibeCanvas({
                   className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
                 >
                   <LockIcon />
-                  Unlock editing
+                  Unlock step editing
                 </button>
               )}
             </div>
@@ -511,6 +556,141 @@ export function VibeCanvas({
         </div>
       </div>
     </div>
+  );
+}
+
+type EditableMetadataFieldProps = {
+  label: string;
+  field: MetadataField;
+  value: string;
+  fallbackValue: string;
+  canEditMetadata: boolean;
+  editingMetadataField: MetadataField | null;
+  metadataDraftValue: string;
+  onStartEditing: (field: MetadataField, currentValue: string) => void;
+  onChangeDraft: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  multiline?: boolean;
+  isLarge?: boolean;
+};
+
+function EditableMetadataField({
+  label,
+  field,
+  value,
+  fallbackValue,
+  canEditMetadata,
+  editingMetadataField,
+  metadataDraftValue,
+  onStartEditing,
+  onChangeDraft,
+  onSave,
+  onCancel,
+  multiline = false,
+  isLarge = false,
+}: EditableMetadataFieldProps) {
+  const isEditingThisField = editingMetadataField === field;
+  const displayValue = value || fallbackValue;
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center gap-2">
+        <div className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">
+          {label}
+        </div>
+
+        {canEditMetadata && !isEditingThisField && (
+          <button
+            type="button"
+            onClick={() => onStartEditing(field, value)}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--panel-bg)] text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+            aria-label={`Edit ${label}`}
+            title={`Edit ${label}`}
+          >
+            <PencilIcon />
+          </button>
+        )}
+      </div>
+
+      {isEditingThisField ? (
+        <div className="space-y-2">
+          {multiline ? (
+            <textarea
+              value={metadataDraftValue}
+              onChange={(event) => onChangeDraft(event.target.value)}
+              rows={4}
+              className="w-full resize-none rounded-lg border border-[var(--brand-primary)] bg-[var(--panel-muted-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none"
+            />
+          ) : (
+            <input
+              value={metadataDraftValue}
+              onChange={(event) => onChangeDraft(event.target.value)}
+              className={`w-full rounded-lg border border-[var(--brand-primary)] bg-[var(--panel-muted-bg)] px-3 py-2 text-[var(--text-primary)] outline-none ${
+                isLarge ? "text-lg font-semibold" : "text-sm font-semibold"
+              }`}
+            />
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
+            >
+              <CancelIcon />
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={onSave}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              <SaveIcon />
+              Save
+            </button>
+          </div>
+        </div>
+      ) : multiline ? (
+        <p className="mt-1 max-w-4xl whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]">
+          {displayValue}
+        </p>
+      ) : (
+        <div
+          className={`mt-1 break-words text-[var(--text-primary)] ${
+            isLarge ? "text-lg font-semibold" : "text-sm font-semibold"
+          }`}
+        >
+          {displayValue}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M4 20h4.5L19 9.5 14.5 5 4 15.5V20Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13.5 6 18 10.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 

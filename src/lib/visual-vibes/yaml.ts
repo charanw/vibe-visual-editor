@@ -10,6 +10,18 @@ export function stringifyVisualVibe(vibe: VisualVibe): string {
   return YAML.stringify(vibe);
 }
 
+export function updateVibeMetadataInYaml(
+  yamlText: string,
+  field: "id" | "name" | "description",
+  value: string,
+): string {
+  const vibe = parseVisualVibeYaml(yamlText);
+
+  vibe.workflow[field] = value;
+
+  return YAML.stringify(vibe);
+}
+
 type AddStepOnEdgeOptions = {
   sourceStepId: string;
   targetStepId: string;
@@ -52,13 +64,15 @@ export function addStepOnEdgeInYaml(
     sourceStep.on_error_step_id = newStepId;
   }
 
-  const insertIndex = targetStepIndex;
-  steps.splice(insertIndex, 0, newStep);
+  steps.splice(targetStepIndex, 0, newStep);
 
   return YAML.stringify(vibe);
 }
 
-export function deleteStepInYaml(yamlText: string, stepIdToDelete: string): string {
+export function deleteStepInYaml(
+  yamlText: string,
+  stepIdToDelete: string,
+): string {
   const vibe = parseVisualVibeYaml(yamlText);
   const steps = vibe.workflow.steps;
 
@@ -69,7 +83,6 @@ export function deleteStepInYaml(yamlText: string, stepIdToDelete: string): stri
   }
 
   const fallbackNextStepId = stepToDelete.next_step_id;
-
   const remainingSteps = steps.filter((step) => step.id !== stepIdToDelete);
 
   for (const step of remainingSteps) {
@@ -93,20 +106,6 @@ export function deleteStepInYaml(yamlText: string, stepIdToDelete: string): stri
   vibe.workflow.steps = remainingSteps;
 
   return YAML.stringify(vibe);
-}
-
-function createUniqueStepId(existingStepIds: string[]): string {
-  const existing = new Set(existingStepIds);
-
-  let counter = existingStepIds.length + 1;
-  let candidate = `new_step_${counter}`;
-
-  while (existing.has(candidate)) {
-    counter += 1;
-    candidate = `new_step_${counter}`;
-  }
-
-  return candidate;
 }
 
 type AddEdgeOptions = {
@@ -139,6 +138,41 @@ export function addEdgeInYaml(
   }
 
   sourceStep.next_step_id = targetStep.id;
+
+  return YAML.stringify(vibe);
+}
+
+export function deleteEdgeInYaml(
+  yamlText: string,
+  options: DeleteEdgeOptions,
+): string {
+  const vibe = parseVisualVibeYaml(yamlText);
+  const steps = vibe.workflow.steps;
+
+  const sourceStep = steps.find((step) => step.id === options.sourceStepId);
+  const targetStep = steps.find((step) => step.id === options.targetStepId);
+
+  if (!sourceStep || !targetStep) {
+    return yamlText;
+  }
+
+  if (options.edgeType === "next" && sourceStep.next_step_id === targetStep.id) {
+    delete sourceStep.next_step_id;
+  }
+
+  if (
+    options.edgeType === "error" &&
+    sourceStep.on_error_step_id === targetStep.id
+  ) {
+    delete sourceStep.on_error_step_id;
+  }
+
+  if (options.edgeType === "data") {
+    targetStep.input = removeStepReferencesFromValue(
+      targetStep.input,
+      sourceStep.id,
+    ) as Record<string, unknown>;
+  }
 
   return YAML.stringify(vibe);
 }
@@ -204,42 +238,10 @@ export function prependStepBeforeInYaml(
   return YAML.stringify(vibe);
 }
 
-export function deleteEdgeInYaml(
-  yamlText: string,
-  options: DeleteEdgeOptions,
-): string {
-  const vibe = parseVisualVibeYaml(yamlText);
-  const steps = vibe.workflow.steps;
-
-  const sourceStep = steps.find((step) => step.id === options.sourceStepId);
-  const targetStep = steps.find((step) => step.id === options.targetStepId);
-
-  if (!sourceStep || !targetStep) {
-    return yamlText;
-  }
-
-  if (options.edgeType === "next" && sourceStep.next_step_id === targetStep.id) {
-    delete sourceStep.next_step_id;
-  }
-
-  if (
-    options.edgeType === "error" &&
-    sourceStep.on_error_step_id === targetStep.id
-  ) {
-    delete sourceStep.on_error_step_id;
-  }
-
-  if (options.edgeType === "data") {
-    targetStep.input = removeStepReferencesFromValue(
-      targetStep.input,
-      sourceStep.id,
-    ) as Record<string, unknown>;
-  }
-
-  return YAML.stringify(vibe);
-}
-
-function removeStepReferencesFromValue(value: unknown, sourceStepId: string): unknown {
+function removeStepReferencesFromValue(
+  value: unknown,
+  sourceStepId: string,
+): unknown {
   const referenceText = `\${steps.${sourceStepId}.`;
 
   if (typeof value === "string") {
@@ -271,6 +273,104 @@ function removeStepReferencesFromValue(value: unknown, sourceStepId: string): un
     }
 
     return nextObject;
+  }
+
+  return value;
+}
+
+function createUniqueStepId(existingStepIds: string[]): string {
+  const existing = new Set(existingStepIds);
+
+  let counter = existingStepIds.length + 1;
+  let candidate = `new_step_${counter}`;
+
+  while (existing.has(candidate)) {
+    counter += 1;
+    candidate = `new_step_${counter}`;
+  }
+
+  return candidate;
+}
+
+export function updateVibeStepInYaml(
+  yamlText: string,
+  originalStepId: string,
+  updates: {
+    id: string;
+    functionName: string;
+    input: Record<string, unknown>;
+  },
+): string {
+  const vibe = parseVisualVibeYaml(yamlText);
+  const steps = vibe.workflow.steps;
+
+  const step = steps.find((currentStep) => currentStep.id === originalStepId);
+
+  if (!step) {
+    return yamlText;
+  }
+
+  const nextStepId = updates.id.trim();
+
+  if (!nextStepId) {
+    return yamlText;
+  }
+
+  const duplicateStep = steps.find(
+    (currentStep) =>
+      currentStep.id === nextStepId && currentStep.id !== originalStepId,
+  );
+
+  if (duplicateStep) {
+    return yamlText;
+  }
+
+  step.id = nextStepId;
+  step.function = updates.functionName.trim() || step.function;
+  step.input = updates.input;
+
+  if (nextStepId !== originalStepId) {
+    updateStepIdReferences(steps, originalStepId, nextStepId);
+  }
+
+  return YAML.stringify(vibe);
+}
+
+function updateStepIdReferences(
+  value: unknown,
+  originalStepId: string,
+  nextStepId: string,
+): unknown {
+  const originalReference = `\${steps.${originalStepId}.`;
+  const nextReference = `\${steps.${nextStepId}.`;
+
+  if (typeof value === "string") {
+    return value.replaceAll(originalReference, nextReference);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      updateStepIdReferences(item, originalStepId, nextStepId),
+    );
+  }
+
+  if (value && typeof value === "object") {
+    for (const [key, nestedValue] of Object.entries(value)) {
+      const record = value as Record<string, unknown>;
+
+      if (
+        (key === "next_step_id" || key === "on_error_step_id") &&
+        nestedValue === originalStepId
+      ) {
+        record[key] = nextStepId;
+      } else {
+        record[key] = updateStepIdReferences(
+          nestedValue,
+          originalStepId,
+          nextStepId,
+        );
+      }
+    }
   }
 
   return value;

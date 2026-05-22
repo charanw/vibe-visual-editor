@@ -9,9 +9,12 @@ import {
   deleteStepInYaml,
   parseVisualVibeYaml,
   prependStepBeforeInYaml,
+  updateVibeMetadataInYaml,
+  updateVibeStepInYaml,
 } from "@/lib/visual-vibes/yaml";
 import { visualVibeToGraph } from "@/lib/visual-vibes/graph";
 import { layoutVibeGraph } from "@/lib/visual-vibes/layout";
+import { visualVibesAppConfig } from "@/lib/visual-vibes/appConfig";
 import { VibeFileControls } from "./VibeFileControls";
 import { VibeYamlEditor } from "./VibeYamlEditor";
 import { VibeCanvas } from "./VibeCanvas";
@@ -24,10 +27,12 @@ export function VisualVibesEditor() {
   const [sourceType, setSourceType] = useState<"default" | "upload">("default");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(1000);
+
   const [isCanvasEditing, setIsCanvasEditing] = useState(false);
   const [canvasEditSnapshot, setCanvasEditSnapshot] = useState<string | null>(
     null,
   );
+  const [hasUnsavedStepEdits, setHasUnsavedStepEdits] = useState(false);
 
   const [isYamlEditing, setIsYamlEditing] = useState(false);
   const [yamlEditSnapshot, setYamlEditSnapshot] = useState<string | null>(null);
@@ -128,7 +133,7 @@ export function VisualVibesEditor() {
 
   function handleDeleteStep(stepId: string) {
     const confirmed = window.confirm(
-      `Delete "${stepId}"? This will remove all connections to this step.`,
+      `Delete "${stepId}"? This will remove the step from the YAML.`,
     );
 
     if (!confirmed) {
@@ -140,6 +145,8 @@ export function VisualVibesEditor() {
     setSelectedStepId((currentSelectedStepId) =>
       currentSelectedStepId === stepId ? null : currentSelectedStepId,
     );
+
+    setHasUnsavedStepEdits(false);
   }
 
   function handleAddEdge(options: {
@@ -167,17 +174,69 @@ export function VisualVibesEditor() {
     );
   }
 
+  function handleAppendStepAfter(sourceStepId: string) {
+    setYamlText((currentYamlText) =>
+      appendStepAfterInYaml(currentYamlText, sourceStepId),
+    );
+  }
+
+  function handlePrependStepBefore(targetStepId: string) {
+    setYamlText((currentYamlText) =>
+      prependStepBeforeInYaml(currentYamlText, targetStepId),
+    );
+  }
+
+  function handleUpdateVibeMetadata(
+    field: "id" | "name" | "description",
+    value: string,
+  ) {
+    setYamlText((currentYamlText) =>
+      updateVibeMetadataInYaml(currentYamlText, field, value),
+    );
+
+    setCanvasEditSnapshot((currentSnapshot) =>
+      currentSnapshot
+        ? updateVibeMetadataInYaml(currentSnapshot, field, value)
+        : currentSnapshot,
+    );
+  }
+
+  function handleUpdateVibeStep(
+    originalStepId: string,
+    updates: {
+      id: string;
+      functionName: string;
+      input: Record<string, unknown>;
+    },
+  ) {
+    setYamlText((currentYamlText) =>
+      updateVibeStepInYaml(currentYamlText, originalStepId, updates),
+    );
+
+    setSelectedStepId(updates.id);
+    setHasUnsavedStepEdits(false);
+  }
+
   function handleStartCanvasEditing() {
     setCanvasEditSnapshot(yamlText);
     setIsCanvasEditing(true);
+    setHasUnsavedStepEdits(false);
   }
 
   function handleSaveCanvasEditing() {
     setCanvasEditSnapshot(null);
     setIsCanvasEditing(false);
+    setHasUnsavedStepEdits(false);
   }
 
   function handleCancelCanvasEditing() {
+    if (hasUnsavedStepEdits) {
+      window.alert(
+        "You have unsaved step edits in the Inspector. Please save or cancel those step edits before cancelling canvas editing.",
+      );
+      return;
+    }
+
     if (canvasEditSnapshot !== null) {
       setYamlText(canvasEditSnapshot);
     }
@@ -185,6 +244,7 @@ export function VisualVibesEditor() {
     setCanvasEditSnapshot(null);
     setIsCanvasEditing(false);
     setSelectedStepId(null);
+    setHasUnsavedStepEdits(false);
   }
 
   function handleStartYamlEditing() {
@@ -204,18 +264,6 @@ export function VisualVibesEditor() {
 
     setYamlEditSnapshot(null);
     setIsYamlEditing(false);
-  }
-
-  function handleAppendStepAfter(sourceStepId: string) {
-    setYamlText((currentYamlText) =>
-      appendStepAfterInYaml(currentYamlText, sourceStepId),
-    );
-  }
-
-  function handlePrependStepBefore(targetStepId: string) {
-    setYamlText((currentYamlText) =>
-      prependStepBeforeInYaml(currentYamlText, targetStepId),
-    );
   }
 
   return (
@@ -240,6 +288,9 @@ export function VisualVibesEditor() {
               setSelectedStepId(null);
               setIsYamlEditing(false);
               setYamlEditSnapshot(null);
+              setIsCanvasEditing(false);
+              setCanvasEditSnapshot(null);
+              setHasUnsavedStepEdits(false);
             }}
             onError={setLoadError}
           />
@@ -290,7 +341,7 @@ export function VisualVibesEditor() {
                 onClick={handleStartYamlEditing}
                 className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
               >
-                Edit Vibe
+                Unlock YAML
               </button>
             )}
           </div>
@@ -330,21 +381,27 @@ export function VisualVibesEditor() {
               onDeleteEdge={handleDeleteEdge}
               onAppendStepAfter={handleAppendStepAfter}
               onPrependStepBefore={handlePrependStepBefore}
+              onUpdateVibeMetadata={handleUpdateVibeMetadata}
             />
           </div>
+
+          <AppFooter />
         </section>
 
         <section className="flex min-h-0 flex-col bg-[var(--panel-bg)]">
           <PanelHeader
             eyebrow="Inspector"
             title="Vibe Step"
-            description="Edit the selected node."
+            description="View/Edit the selected node."
           />
 
           <div className="min-h-0 flex-1 overflow-auto">
             <VibeInspector
               vibe={parsedResult.vibe}
               selectedStepId={selectedStepId}
+              isEditing={isCanvasEditing}
+              onUpdateStep={handleUpdateVibeStep}
+              onStepEditDirtyChange={setHasUnsavedStepEdits}
             />
           </div>
         </section>
@@ -370,5 +427,17 @@ function PanelHeader({ eyebrow, title, description }: PanelHeaderProps) {
       </h2>
       <p className="mt-1 text-xs text-[var(--text-muted)]">{description}</p>
     </div>
+  );
+}
+
+function AppFooter() {
+  return (
+    <footer className="border-t border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2 text-[10px] text-[var(--text-muted)]">
+      <div className="flex items-center justify-between gap-3">
+        <span>Author: {visualVibesAppConfig.authorName}</span>
+        <span>Version {visualVibesAppConfig.version}</span>
+        <span>Last updated: {visualVibesAppConfig.lastUpdated}</span>
+      </div>
+    </footer>
   );
 }
