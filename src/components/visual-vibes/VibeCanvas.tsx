@@ -529,8 +529,8 @@ export function VibeCanvas({
     <div
       className={`relative bg-[var(--canvas-bg)] ${
         isFullscreenCanvas
-          ? "h-screen w-screen overflow-hidden p-6"
-          : "h-full w-full overflow-hidden p-8"
+          ? "h-screen w-screen overflow-hidden p-2 sm:p-4 lg:p-6"
+          : "h-full w-full overflow-hidden p-0 lg:p-8"
       }`}
     >
       {graph.nodes.length === 0 && (
@@ -557,9 +557,9 @@ export function VibeCanvas({
         </div>
       )}
 
-      <div className="flex h-full min-h-[640px] flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--canvas-inner-bg)] shadow-sm">
+      <div className="flex h-full min-h-[640px] flex-col rounded-none border-0 border-[var(--border-subtle)] bg-[var(--canvas-inner-bg)] shadow-none lg:rounded-2xl lg:border lg:shadow-sm">
         {!isFullscreenCanvas && (
-          <div className="border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-5 py-4">
+          <div className="border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-3 lg:px-5 lg:py-4">
             <div className="mb-4">
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
                 Visual Vibe
@@ -618,7 +618,7 @@ export function VibeCanvas({
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col p-6">
+        <div className="flex min-h-0 flex-1 flex-col p-3 lg:p-6">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">

@@ -25,10 +25,7 @@ import {
 import { validateVisualVibeYaml } from "@/lib/visual-vibes/validation";
 import { visualVibeToGraph } from "@/lib/visual-vibes/graph";
 import type { VibeGraph } from "@/lib/visual-vibes/graph";
-import {
-  layoutVibeGraph,
-  type PositionedVibeGraph,
-} from "@/lib/visual-vibes/layout";
+import { layoutVibeGraph } from "@/lib/visual-vibes/layout";
 import { visualVibesAppConfig } from "@/lib/visual-vibes/appConfig";
 import { VibeFileControls } from "./VibeFileControls";
 import { VibeYamlEditor } from "./VibeYamlEditor";
@@ -38,6 +35,10 @@ import { VibeInspector } from "./VibeInspector";
 const MIN_LEFT_PANE_WIDTH = 280;
 const MIN_RIGHT_PANE_WIDTH = 280;
 const MIN_CENTER_PANE_WIDTH = 420;
+
+type MobilePaneId = "source" | "canvas" | "inspector";
+
+type MobileCollapsedPanes = Record<MobilePaneId, boolean>;
 
 export function VisualVibesEditor() {
   const [yamlText, setYamlText] = useState("");
@@ -56,6 +57,21 @@ export function VisualVibesEditor() {
   const [rightPaneWidth, setRightPaneWidth] = useState(360);
   const [isLeftPaneCollapsed, setIsLeftPaneCollapsed] = useState(false);
   const [isRightPaneCollapsed, setIsRightPaneCollapsed] = useState(false);
+
+  const [mobileCollapsedPanes, setMobileCollapsedPanes] =
+    useState<MobileCollapsedPanes>({
+      source: false,
+      canvas: false,
+      inspector: false,
+    });
+
+  const [isDesktopLayout, setIsDesktopLayout] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    return window.matchMedia("(min-width: 1024px)").matches;
+  });
 
   const [isCanvasEditing, setIsCanvasEditing] = useState(false);
   const [canvasEditSnapshot, setCanvasEditSnapshot] = useState<string | null>(
@@ -148,6 +164,10 @@ export function VisualVibesEditor() {
     isRightPaneCollapsed ? 0 : rightPaneWidth
   }px`;
 
+  const shouldRenderMobileSourcePane = !mobileCollapsedPanes.source;
+  const shouldRenderMobileCanvasPane = !mobileCollapsedPanes.canvas;
+  const shouldRenderMobileInspectorPane = !mobileCollapsedPanes.inspector;
+
   useEffect(() => {
     async function loadDefaultVibeYaml() {
       try {
@@ -174,6 +194,21 @@ export function VisualVibesEditor() {
   }, []);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+
+    function updateIsDesktopLayout() {
+      setIsDesktopLayout(mediaQuery.matches);
+    }
+
+    updateIsDesktopLayout();
+    mediaQuery.addEventListener("change", updateIsDesktopLayout);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updateIsDesktopLayout);
+    };
+  }, []);
+
+  useEffect(() => {
     const element = canvasPanelRef.current;
 
     if (!element) {
@@ -193,7 +228,28 @@ export function VisualVibesEditor() {
     observer.observe(element);
 
     return () => observer.disconnect();
-  }, []);
+  }, [isDesktopLayout, mobileCollapsedPanes.canvas]);
+
+  function toggleMobilePane(paneId: MobilePaneId) {
+    setMobileCollapsedPanes((currentPanes) => {
+      const nextPanes = {
+        ...currentPanes,
+        [paneId]: !currentPanes[paneId],
+      };
+
+      const areAllPanesCollapsed =
+        nextPanes.source && nextPanes.canvas && nextPanes.inspector;
+
+      if (areAllPanesCollapsed) {
+        return {
+          ...nextPanes,
+          canvas: false,
+        };
+      }
+
+      return nextPanes;
+    });
+  }
 
   function requestCenterOnStep(stepId: string) {
     setSelectedStepId(stepId);
@@ -292,6 +348,11 @@ export function VisualVibesEditor() {
     setSelectedStepId((currentStepId) =>
       currentStepId === stepId ? null : stepId,
     );
+
+    setMobileCollapsedPanes((currentPanes) => ({
+      ...currentPanes,
+      inspector: false,
+    }));
   }
 
   function handleClearSelectedStep() {
@@ -515,6 +576,209 @@ export function VisualVibesEditor() {
     setIsYamlEditing(false);
   }
 
+  const sourcePaneBody = (
+    <>
+      <VibeFileControls
+        fileName={fileName}
+        sourceType={sourceType}
+        yamlText={yamlText}
+        onUploadYaml={(uploadedFileName, uploadedYamlText) => {
+          setYamlText(uploadedYamlText);
+          setFileName(uploadedFileName);
+          setSourceType("upload");
+          setLoadError(null);
+          setSelectedStepId(null);
+          setCenterRequest(null);
+          setIsYamlEditing(false);
+          setYamlEditSnapshot(null);
+          setIsCanvasEditing(false);
+          setCanvasEditSnapshot(null);
+          setHasUnsavedStepEdits(false);
+          setCanvasViewMode("flow");
+        }}
+        onError={setLoadError}
+      />
+
+      {loadError && (
+        <div className="border-b border-[var(--border-subtle)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
+          {loadError}
+        </div>
+      )}
+
+      {parsedResult.error && (
+        <div className="border-b border-[var(--border-subtle)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
+          {parsedResult.error}
+        </div>
+      )}
+
+      {validationIssues.length > 0 && (
+        <div className="max-h-40 overflow-auto border-b border-[var(--border-subtle)] bg-yellow-500/10 px-4 py-3 text-xs text-yellow-700 dark:text-yellow-300">
+          <div className="mb-2 font-semibold">
+            Vibe validation found {validationIssues.length}{" "}
+            {validationIssues.length === 1 ? "issue" : "issues"}:
+          </div>
+
+          <ul className="space-y-1">
+            {validationIssues.map((issue, index) => (
+              <li key={`${issue.level}-${issue.stepId ?? "workflow"}-${index}`}>
+                <span className="font-semibold uppercase">{issue.level}:</span>{" "}
+                {issue.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2">
+        <div>
+          <div className="text-xs font-semibold text-[var(--text-primary)]">
+            YAML Editing
+          </div>
+          <div className="text-xs text-[var(--text-muted)]">
+            {isYamlEditing ? "Editing enabled" : "Editing locked"}
+          </div>
+        </div>
+
+        {isYamlEditing ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCancelYamlEditing}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveYamlEditing}
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white"
+            >
+              Save
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleStartYamlEditing}
+            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+          >
+            Unlock YAML
+          </button>
+        )}
+      </div>
+
+      <div className="h-[420px] min-h-[420px] overflow-hidden lg:h-auto lg:min-h-0 lg:flex-1">
+        <VibeYamlEditor
+          key={isDesktopLayout ? "desktop-yaml-editor" : "mobile-yaml-editor"}
+          value={yamlText}
+          readOnly={!isYamlEditing}
+          onChange={setYamlText}
+        />
+      </div>
+    </>
+  );
+
+  const canvasPaneBody = (
+    <>
+      <div className="min-h-[560px] flex-1 lg:min-h-0" ref={canvasPanelRef}>
+        <VibeCanvas
+          vibe={parsedResult.vibe}
+          graph={positionedGraph}
+          classificationGraph={positionedDisplayGraph}
+          selectedStepId={selectedStepId}
+          centerRequest={centerRequest}
+          viewMode={canvasViewMode}
+          isEditing={isCanvasEditing}
+          onSelectStep={handleSelectStep}
+          onClearSelectedStep={handleClearSelectedStep}
+          onChangeViewMode={setCanvasViewMode}
+          onStartEditing={handleStartCanvasEditing}
+          onSaveEditing={handleSaveCanvasEditing}
+          onCancelEditing={handleCancelCanvasEditing}
+          onAddStandaloneStep={handleAddStandaloneStep}
+          onAddErrorHandlerNode={handleAddErrorHandlerNode}
+          onAddStepOnEdge={handleAddStepOnEdge}
+          onDeleteStep={handleDeleteStep}
+          onAddEdge={handleAddEdge}
+          onDeleteEdge={handleDeleteEdge}
+          onAppendStepAfter={handleAppendStepAfter}
+          onPrependStepBefore={handlePrependStepBefore}
+          onUpdateVibeMetadata={handleUpdateVibeMetadata}
+        />
+      </div>
+
+      <AppFooter />
+    </>
+  );
+
+  const inspectorPaneBody = (
+    <div className="min-h-[480px] flex-1 overflow-auto lg:min-h-0">
+      <VibeInspector
+        vibe={parsedResult.vibe}
+        selectedStepId={selectedStepId}
+        selectedStepDescription={selectedStepDescription}
+        isEditing={isCanvasEditing}
+        onStartEditing={handleStartCanvasEditing}
+        onUpdateStep={handleUpdateVibeStep}
+        onUpdateStepDescription={handleUpdateStepDescription}
+        onStepEditDirtyChange={setHasUnsavedStepEdits}
+      />
+    </div>
+  );
+
+  if (!isDesktopLayout) {
+    return (
+      <main className="min-h-screen w-full overflow-x-hidden bg-[var(--app-bg)] text-[var(--text-primary)]">
+        <div className="mx-auto flex min-h-screen w-full max-w-[900px] flex-col border-x border-[var(--border-subtle)]">
+          <section className="flex flex-col border-b border-[var(--border-subtle)] bg-[var(--panel-bg)]">
+            <PanelHeader
+              eyebrow="YAML"
+              title="Vibe YAML"
+              description="Edit the Visual Vibe definition directly."
+              isCollapsedOnMobile={mobileCollapsedPanes.source}
+              onToggleMobileCollapse={() => toggleMobilePane("source")}
+            />
+
+            {shouldRenderMobileSourcePane && (
+              <div className="flex min-h-[420px] flex-1 flex-col">
+                {sourcePaneBody}
+              </div>
+            )}
+          </section>
+
+          <section className="flex flex-col border-b border-[var(--border-subtle)] bg-[var(--canvas-bg)]">
+            <PanelHeader
+              eyebrow="Visualizer"
+              title="Vibe Canvas"
+              description="A custom view of the YAML structure."
+              isCollapsedOnMobile={mobileCollapsedPanes.canvas}
+              onToggleMobileCollapse={() => toggleMobilePane("canvas")}
+            />
+
+            {shouldRenderMobileCanvasPane && (
+              <div className="flex min-h-[560px] flex-1 flex-col">
+                {canvasPaneBody}
+              </div>
+            )}
+          </section>
+
+          <section className="flex flex-col bg-[var(--panel-bg)]">
+            <PanelHeader
+              eyebrow="Inspector"
+              title="Vibe Step"
+              description="Edit the selected node."
+              isCollapsedOnMobile={mobileCollapsedPanes.inspector}
+              onToggleMobileCollapse={() => toggleMobilePane("inspector")}
+            />
+
+            {shouldRenderMobileInspectorPane && inspectorPaneBody}
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="h-screen w-screen overflow-hidden bg-[var(--app-bg)] text-[var(--text-primary)]">
       <div
@@ -536,107 +800,7 @@ export function VisualVibesEditor() {
               description="Edit the Visual Vibe definition directly."
             />
 
-            <VibeFileControls
-              fileName={fileName}
-              sourceType={sourceType}
-              yamlText={yamlText}
-              onUploadYaml={(uploadedFileName, uploadedYamlText) => {
-                setYamlText(uploadedYamlText);
-                setFileName(uploadedFileName);
-                setSourceType("upload");
-                setLoadError(null);
-                setSelectedStepId(null);
-                setCenterRequest(null);
-                setIsYamlEditing(false);
-                setYamlEditSnapshot(null);
-                setIsCanvasEditing(false);
-                setCanvasEditSnapshot(null);
-                setHasUnsavedStepEdits(false);
-                setCanvasViewMode("flow");
-              }}
-              onError={setLoadError}
-            />
-
-            {loadError && (
-              <div className="border-b border-[var(--border-subtle)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
-                {loadError}
-              </div>
-            )}
-
-            {parsedResult.error && (
-              <div className="border-b border-[var(--border-subtle)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
-                {parsedResult.error}
-              </div>
-            )}
-
-            {validationIssues.length > 0 && (
-              <div className="max-h-40 overflow-auto border-b border-[var(--border-subtle)] bg-yellow-500/10 px-4 py-3 text-xs text-yellow-700 dark:text-yellow-300">
-                <div className="mb-2 font-semibold">
-                  Vibe validation found {validationIssues.length}{" "}
-                  {validationIssues.length === 1 ? "issue" : "issues"}:
-                </div>
-
-                <ul className="space-y-1">
-                  {validationIssues.map((issue, index) => (
-                    <li
-                      key={`${issue.level}-${issue.stepId ?? "workflow"}-${index}`}
-                    >
-                      <span className="font-semibold uppercase">
-                        {issue.level}:
-                      </span>{" "}
-                      {issue.message}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2">
-              <div>
-                <div className="text-xs font-semibold text-[var(--text-primary)]">
-                  YAML Editing
-                </div>
-                <div className="text-xs text-[var(--text-muted)]">
-                  {isYamlEditing ? "Editing enabled" : "Editing locked"}
-                </div>
-              </div>
-
-              {isYamlEditing ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCancelYamlEditing}
-                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveYamlEditing}
-                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white"
-                  >
-                    Save
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleStartYamlEditing}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-                >
-                  Unlock YAML
-                </button>
-              )}
-            </div>
-
-            <div className="min-h-0 flex-1">
-              <VibeYamlEditor
-                value={yamlText}
-                readOnly={!isYamlEditing}
-                onChange={setYamlText}
-              />
-            </div>
+            {sourcePaneBody}
           </div>
         </section>
 
@@ -649,44 +813,14 @@ export function VisualVibesEditor() {
           }
         />
 
-        <section
-          ref={canvasPanelRef}
-          className="flex min-h-0 min-w-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--canvas-bg)]"
-        >
+        <section className="flex min-h-0 min-w-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--canvas-bg)]">
           <PanelHeader
             eyebrow="Visualizer"
             title="Vibe Canvas"
             description="A custom view of the YAML structure."
           />
 
-          <div className="min-h-0 flex-1">
-            <VibeCanvas
-              vibe={parsedResult.vibe}
-              graph={positionedGraph}
-              classificationGraph={positionedDisplayGraph}
-              selectedStepId={selectedStepId}
-              centerRequest={centerRequest}
-              viewMode={canvasViewMode}
-              isEditing={isCanvasEditing}
-              onSelectStep={handleSelectStep}
-              onClearSelectedStep={handleClearSelectedStep}
-              onChangeViewMode={setCanvasViewMode}
-              onStartEditing={handleStartCanvasEditing}
-              onSaveEditing={handleSaveCanvasEditing}
-              onCancelEditing={handleCancelCanvasEditing}
-              onAddStandaloneStep={handleAddStandaloneStep}
-              onAddErrorHandlerNode={handleAddErrorHandlerNode}
-              onAddStepOnEdge={handleAddStepOnEdge}
-              onDeleteStep={handleDeleteStep}
-              onAddEdge={handleAddEdge}
-              onDeleteEdge={handleDeleteEdge}
-              onAppendStepAfter={handleAppendStepAfter}
-              onPrependStepBefore={handlePrependStepBefore}
-              onUpdateVibeMetadata={handleUpdateVibeMetadata}
-            />
-          </div>
-
-          <AppFooter />
+          {canvasPaneBody}
         </section>
 
         <PaneResizeHandle
@@ -712,18 +846,7 @@ export function VisualVibesEditor() {
               description="Edit the selected node."
             />
 
-            <div className="min-h-0 flex-1 overflow-auto">
-              <VibeInspector
-                vibe={parsedResult.vibe}
-                selectedStepId={selectedStepId}
-                selectedStepDescription={selectedStepDescription}
-                isEditing={isCanvasEditing}
-                onStartEditing={handleStartCanvasEditing}
-                onUpdateStep={handleUpdateVibeStep}
-                onUpdateStepDescription={handleUpdateStepDescription}
-                onStepEditDirtyChange={setHasUnsavedStepEdits}
-              />
-            </div>
+            {inspectorPaneBody}
           </div>
         </section>
       </div>
@@ -933,26 +1056,77 @@ type PanelHeaderProps = {
   eyebrow: string;
   title: string;
   description: string;
+  isCollapsedOnMobile?: boolean;
+  onToggleMobileCollapse?: () => void;
 };
 
-function PanelHeader({ eyebrow, title, description }: PanelHeaderProps) {
+function PanelHeader({
+  eyebrow,
+  title,
+  description,
+  isCollapsedOnMobile = false,
+  onToggleMobileCollapse,
+}: PanelHeaderProps) {
   return (
     <div className="border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-3">
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
-        {eyebrow}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
+            {eyebrow}
+          </div>
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+            {title}
+          </h2>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">{description}</p>
+        </div>
+
+        {onToggleMobileCollapse && (
+          <button
+            type="button"
+            onClick={onToggleMobileCollapse}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+            aria-label={
+              isCollapsedOnMobile
+                ? `Expand ${title} panel`
+                : `Collapse ${title} panel`
+            }
+            title={isCollapsedOnMobile ? "Expand panel" : "Collapse panel"}
+          >
+            <ChevronIcon isCollapsed={isCollapsedOnMobile} />
+          </button>
+        )}
       </div>
-      <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-        {title}
-      </h2>
-      <p className="mt-1 text-xs text-[var(--text-muted)]">{description}</p>
     </div>
+  );
+}
+
+function ChevronIcon({ isCollapsed }: { isCollapsed: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className={`transition-transform ${
+        isCollapsed ? "-rotate-90" : "rotate-0"
+      }`}
+    >
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
 function AppFooter() {
   return (
-    <footer className="border-t border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2 text-[10px] text-[var(--text-muted)]">
-      <div className="flex items-center justify-between gap-3">
+    <footer className="sticky bottom-0 z-20 border-t border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2 text-[10px] text-[var(--text-muted)] shadow-[0_-8px_18px_rgba(0,0,0,0.18)] lg:static lg:shadow-none">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <span>Author: {visualVibesAppConfig.authorName}</span>
         <span>Version {visualVibesAppConfig.version}</span>
         <span>Last updated: {visualVibesAppConfig.lastUpdated}</span>
