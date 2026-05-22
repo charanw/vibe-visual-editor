@@ -10,16 +10,48 @@ export function stringifyVisualVibe(vibe: VisualVibe): string {
   return YAML.stringify(vibe);
 }
 
+export function getStepDescriptionFromYaml(
+  yamlText: string,
+  stepId: string,
+): string {
+  return collectStepDescriptionsFromYaml(yamlText).get(stepId) ?? "";
+}
+
+export function updateStepDescriptionInYaml(
+  yamlText: string,
+  stepId: string,
+  description: string,
+): string {
+  const vibe = parseVisualVibeYaml(yamlText);
+  const stepExists = vibe.workflow.steps.some((step) => step.id === stepId);
+
+  if (!stepExists) {
+    return yamlText;
+  }
+
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const nextDescription = description.trim();
+
+  if (nextDescription) {
+    descriptions.set(stepId, nextDescription);
+  } else {
+    descriptions.delete(stepId);
+  }
+
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+}
+
 export function updateVibeMetadataInYaml(
   yamlText: string,
   field: "id" | "name" | "description",
   value: string,
 ): string {
-  const vibe = parseVisualVibeYaml(yamlText);
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYamlOrCreateBlank(yamlText);
 
   vibe.workflow[field] = value;
 
-  return YAML.stringify(vibe);
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
 export function updateVibeStepInYaml(
@@ -33,6 +65,7 @@ export function updateVibeStepInYaml(
     onErrorMessage?: string;
   },
 ): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
   const vibe = parseVisualVibeYaml(yamlText);
   const steps = vibe.workflow.steps;
 
@@ -100,9 +133,60 @@ export function updateVibeStepInYaml(
 
   if (nextStepId !== originalStepId) {
     updateStepIdReferences(steps, originalStepId, nextStepId);
+
+    const existingDescription = descriptions.get(originalStepId);
+    descriptions.delete(originalStepId);
+
+    if (existingDescription) {
+      descriptions.set(nextStepId, existingDescription);
+    }
   }
 
-  return YAML.stringify(vibe);
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+}
+
+export function addErrorHandlerNodeInYaml(
+  yamlText: string,
+  sourceStepId: string,
+): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYaml(yamlText);
+  const steps = vibe.workflow.steps;
+
+  const sourceStepIndex = steps.findIndex((step) => step.id === sourceStepId);
+  const sourceStep = steps[sourceStepIndex];
+
+  if (!sourceStep) {
+    return yamlText;
+  }
+
+  const existingStepIds = steps.map((step) => step.id);
+  const errorStepId = createUniqueStepIdFromBase(
+    `${sourceStepId}_error_handler`,
+    existingStepIds,
+  );
+
+  sourceStep.on_error_step_id = errorStepId;
+
+  if (!sourceStep.on_error_message) {
+    sourceStep.on_error_message = `Error while running ${sourceStepId}. Please review the failed step output.`;
+  }
+
+  steps.splice(sourceStepIndex + 1, 0, {
+    id: errorStepId,
+    function: "sendResponse",
+    input: {
+      type: "fixed",
+      message: `Something went wrong while running ${sourceStepId}. Please review the failed step output.`,
+    },
+  });
+
+  descriptions.set(
+    errorStepId,
+    `Handles errors from ${sourceStepId} and provides a fallback response.`,
+  );
+
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
 type AddStepOnEdgeOptions = {
@@ -115,6 +199,7 @@ export function addStepOnEdgeInYaml(
   yamlText: string,
   options: AddStepOnEdgeOptions,
 ): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
   const vibe = parseVisualVibeYaml(yamlText);
   const steps = vibe.workflow.steps;
 
@@ -149,13 +234,34 @@ export function addStepOnEdgeInYaml(
 
   steps.splice(targetStepIndex, 0, newStep);
 
-  return YAML.stringify(vibe);
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+}
+
+export function addStandaloneStepInYaml(yamlText: string): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYamlOrCreateBlank(yamlText);
+  const steps = vibe.workflow.steps;
+  const newStepId = createUniqueStepId(steps.map((step) => step.id));
+
+  steps.push({
+    id: newStepId,
+    function: "setVariable",
+    input: {
+      variable_name: newStepId,
+      value: "",
+    },
+  });
+
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
 export function deleteStepInYaml(
   yamlText: string,
   stepIdToDelete: string,
 ): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  descriptions.delete(stepIdToDelete);
+
   const vibe = parseVisualVibeYaml(yamlText);
   const steps = vibe.workflow.steps;
 
@@ -189,7 +295,7 @@ export function deleteStepInYaml(
 
   vibe.workflow.steps = remainingSteps;
 
-  return YAML.stringify(vibe);
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
 type AddEdgeOptions = {
@@ -207,6 +313,7 @@ export function addEdgeInYaml(
   yamlText: string,
   options: AddEdgeOptions,
 ): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
   const vibe = parseVisualVibeYaml(yamlText);
   const steps = vibe.workflow.steps;
 
@@ -223,13 +330,14 @@ export function addEdgeInYaml(
 
   sourceStep.next_step_id = targetStep.id;
 
-  return YAML.stringify(vibe);
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
 export function deleteEdgeInYaml(
   yamlText: string,
   options: DeleteEdgeOptions,
 ): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
   const vibe = parseVisualVibeYaml(yamlText);
   const steps = vibe.workflow.steps;
 
@@ -258,13 +366,14 @@ export function deleteEdgeInYaml(
     ) as Record<string, unknown>;
   }
 
-  return YAML.stringify(vibe);
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
 export function appendStepAfterInYaml(
   yamlText: string,
   sourceStepId: string,
 ): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
   const vibe = parseVisualVibeYaml(yamlText);
   const steps = vibe.workflow.steps;
 
@@ -289,13 +398,14 @@ export function appendStepAfterInYaml(
   sourceStep.next_step_id = newStepId;
   steps.splice(sourceStepIndex + 1, 0, newStep);
 
-  return YAML.stringify(vibe);
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
 
 export function prependStepBeforeInYaml(
   yamlText: string,
   targetStepId: string,
 ): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
   const vibe = parseVisualVibeYaml(yamlText);
   const steps = vibe.workflow.steps;
 
@@ -319,7 +429,110 @@ export function prependStepBeforeInYaml(
 
   steps.splice(targetStepIndex, 0, newStep);
 
-  return YAML.stringify(vibe);
+  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+}
+
+function parseVisualVibeYamlOrCreateBlank(yamlText: string): VisualVibe {
+  if (yamlText.trim().length === 0) {
+    return createBlankVibe();
+  }
+
+  try {
+    return parseVisualVibeYaml(yamlText);
+  } catch {
+    return createBlankVibe();
+  }
+}
+
+function createBlankVibe(): VisualVibe {
+  return {
+    workflow: {
+      id: "new-vibe",
+      name: "New Vibe",
+      description: "",
+      steps: [],
+    },
+  };
+}
+
+function collectStepDescriptionsFromYaml(yamlText: string) {
+  const descriptions = new Map<string, string>();
+  const lines = yamlText.split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const stepInfo = getStepIdLineInfo(lines[index]);
+
+    if (!stepInfo) {
+      continue;
+    }
+
+    const commentLines: string[] = [];
+    let commentIndex = index - 1;
+
+    while (commentIndex >= 0) {
+      const line = lines[commentIndex];
+      const commentMatch = line.match(/^(\s*)#\s?(.*)$/);
+
+      if (!commentMatch) {
+        break;
+      }
+
+      if (commentMatch[1] !== stepInfo.indent) {
+        break;
+      }
+
+      commentLines.unshift(commentMatch[2]);
+      commentIndex -= 1;
+    }
+
+    if (commentLines.length > 0) {
+      descriptions.set(stepInfo.stepId, commentLines.join("\n").trim());
+    }
+  }
+
+  return descriptions;
+}
+
+function applyStepDescriptionsToYaml(
+  yamlText: string,
+  descriptions: Map<string, string>,
+) {
+  const outputLines: string[] = [];
+  const lines = yamlText.split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const stepInfo = getStepIdLineInfo(line);
+    const description = stepInfo ? descriptions.get(stepInfo.stepId) : null;
+
+    if (stepInfo && description) {
+      const commentLines = description
+        .split(/\r?\n/)
+        .map((commentLine) => `${stepInfo.indent}# ${commentLine.trim()}`);
+
+      outputLines.push(...commentLines);
+    }
+
+    outputLines.push(line);
+  }
+
+  return outputLines.join("\n");
+}
+
+function getStepIdLineInfo(line: string) {
+  const match = line.match(/^(\s*)-\s+id:\s*(.+?)\s*$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const rawStepId = match[2].trim();
+  const stepId = rawStepId.replace(/^["']|["']$/g, "");
+
+  return {
+    indent: match[1],
+    stepId,
+  };
 }
 
 function updateStepIdReferences(
@@ -413,6 +626,32 @@ function createUniqueStepId(existingStepIds: string[]): string {
   while (existing.has(candidate)) {
     counter += 1;
     candidate = `new_step_${counter}`;
+  }
+
+  return candidate;
+}
+
+function createUniqueStepIdFromBase(
+  baseStepId: string,
+  existingStepIds: string[],
+): string {
+  const existing = new Set(existingStepIds);
+  const normalizedBaseStepId =
+    baseStepId
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "error_handler";
+
+  if (!existing.has(normalizedBaseStepId)) {
+    return normalizedBaseStepId;
+  }
+
+  let counter = 2;
+  let candidate = `${normalizedBaseStepId}_${counter}`;
+
+  while (existing.has(candidate)) {
+    counter += 1;
+    candidate = `${normalizedBaseStepId}_${counter}`;
   }
 
   return candidate;

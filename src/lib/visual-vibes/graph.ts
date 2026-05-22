@@ -3,6 +3,8 @@ import type { VisualVibe } from "./schema";
 export type VibeGraphNode = {
   id: string;
   functionName: string;
+  kind?: "step" | "errorHub";
+  memberCount?: number;
 };
 
 export type VibeGraphEdge = {
@@ -25,6 +27,7 @@ export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
   const nodes: VibeGraphNode[] = steps.map((step) => ({
     id: step.id,
     functionName: step.function,
+    kind: "step",
   }));
 
   const edgeByKey = new Map<string, VibeGraphEdge>();

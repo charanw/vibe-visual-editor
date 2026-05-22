@@ -1,39 +1,62 @@
 "use client";
 
-import { useState } from "react";
-import type { VibeStep, VisualVibe } from "@/lib/visual-vibes/schema";
-
-type StepUpdate = {
-  id: string;
-  functionName: string;
-  input: Record<string, unknown>;
-  onErrorStepId?: string;
-  onErrorMessage?: string;
-};
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { VisualVibe, VibeStep } from "@/lib/visual-vibes/schema";
 
 type VibeInspectorProps = {
   vibe: VisualVibe | null;
   selectedStepId: string | null;
+  selectedStepDescription: string;
   isEditing: boolean;
-  onUpdateStep: (originalStepId: string, updates: StepUpdate) => void;
-  onStepEditDirtyChange: (hasUnsavedChanges: boolean) => void;
+  onStartEditing: () => void;
+  onUpdateStep: (
+    originalStepId: string,
+    updates: {
+      id: string;
+      functionName: string;
+      input: Record<string, unknown>;
+      onErrorStepId?: string;
+      onErrorMessage?: string;
+    },
+  ) => void;
+  onUpdateStepDescription: (stepId: string, description: string) => void;
+  onStepEditDirtyChange: (isDirty: boolean) => void;
+};
+
+type InputEditorMode = "keyValue" | "json";
+type InputValueType = "string" | "number" | "boolean" | "null" | "json";
+
+type InputKeyValueRow = {
+  id: string;
+  key: string;
+  value: string;
+  type: InputValueType;
 };
 
 export function VibeInspector({
   vibe,
   selectedStepId,
+  selectedStepDescription,
   isEditing,
+  onStartEditing,
   onUpdateStep,
+  onUpdateStepDescription,
   onStepEditDirtyChange,
 }: VibeInspectorProps) {
-  const selectedStep = vibe?.workflow.steps.find(
-    (step) => step.id === selectedStepId,
-  );
+  const selectedStep = useMemo(() => {
+    if (!vibe || !selectedStepId) {
+      return null;
+    }
 
-  if (!selectedStepId) {
+    return (
+      vibe.workflow.steps.find((step) => step.id === selectedStepId) ?? null
+    );
+  }, [vibe, selectedStepId]);
+
+  if (!vibe) {
     return (
       <div className="p-4 text-sm text-[var(--text-muted)]">
-        Select a Vibe Step from the canvas.
+        Load or create a Vibe to inspect steps.
       </div>
     );
   }
@@ -41,238 +64,843 @@ export function VibeInspector({
   if (!selectedStep) {
     return (
       <div className="p-4 text-sm text-[var(--text-muted)]">
-        The selected step could not be found.
+        Select a step on the canvas to inspect and edit its YAML-backed details.
       </div>
     );
   }
 
   return (
-    <VibeStepEditor
-      key={selectedStep.id}
+    <VibeInspectorForm
+      key={`${selectedStep.id}:${selectedStepDescription}`}
       selectedStep={selectedStep}
+      selectedStepDescription={selectedStepDescription}
       isEditing={isEditing}
+      onStartEditing={onStartEditing}
       onUpdateStep={onUpdateStep}
+      onUpdateStepDescription={onUpdateStepDescription}
       onStepEditDirtyChange={onStepEditDirtyChange}
     />
   );
 }
 
-type VibeStepEditorProps = {
+type VibeInspectorFormProps = {
   selectedStep: VibeStep;
+  selectedStepDescription: string;
   isEditing: boolean;
-  onUpdateStep: (originalStepId: string, updates: StepUpdate) => void;
-  onStepEditDirtyChange: (hasUnsavedChanges: boolean) => void;
+  onStartEditing: () => void;
+  onUpdateStep: (
+    originalStepId: string,
+    updates: {
+      id: string;
+      functionName: string;
+      input: Record<string, unknown>;
+      onErrorStepId?: string;
+      onErrorMessage?: string;
+    },
+  ) => void;
+  onUpdateStepDescription: (stepId: string, description: string) => void;
+  onStepEditDirtyChange: (isDirty: boolean) => void;
 };
 
-function VibeStepEditor({
+function VibeInspectorForm({
   selectedStep,
+  selectedStepDescription,
   isEditing,
+  onStartEditing,
   onUpdateStep,
+  onUpdateStepDescription,
   onStepEditDirtyChange,
-}: VibeStepEditorProps) {
-  const [draftStepId, setDraftStepId] = useState(selectedStep.id);
-  const [draftFunctionName, setDraftFunctionName] = useState(
+}: VibeInspectorFormProps) {
+  const originalInputJson = useMemo(() => {
+    return JSON.stringify(selectedStep.input ?? {}, null, 2);
+  }, [selectedStep.input]);
+
+  const originalInputRows = useMemo(() => {
+    return inputObjectToRows(selectedStep.input ?? {});
+  }, [selectedStep.input]);
+
+  const [stepIdDraft, setStepIdDraft] = useState(selectedStep.id);
+  const [functionNameDraft, setFunctionNameDraft] = useState(
     selectedStep.function,
   );
-  const [draftInputText, setDraftInputText] = useState(
-    JSON.stringify(selectedStep.input, null, 2),
+  const [descriptionDraft, setDescriptionDraft] = useState(
+    selectedStepDescription,
   );
-  const [draftOnErrorStepId, setDraftOnErrorStepId] = useState(
+  const [inputEditorMode, setInputEditorMode] =
+    useState<InputEditorMode>("keyValue");
+  const [inputDraft, setInputDraft] = useState(originalInputJson);
+  const [inputRows, setInputRows] =
+    useState<InputKeyValueRow[]>(originalInputRows);
+  const [onErrorStepIdDraft, setOnErrorStepIdDraft] = useState(
     selectedStep.on_error_step_id ?? "",
   );
-  const [draftOnErrorMessage, setDraftOnErrorMessage] = useState(
+  const [onErrorMessageDraft, setOnErrorMessageDraft] = useState(
     selectedStep.on_error_message ?? "",
   );
   const [inputError, setInputError] = useState<string | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  function markChanged() {
-    setHasUnsavedChanges(true);
-    onStepEditDirtyChange(true);
-  }
+  const originalInputRowsSignature = useMemo(() => {
+    return JSON.stringify(originalInputRows.map(stripInputRowId));
+  }, [originalInputRows]);
 
-  function handleCancel() {
-    setDraftStepId(selectedStep.id);
-    setDraftFunctionName(selectedStep.function);
-    setDraftInputText(JSON.stringify(selectedStep.input, null, 2));
-    setDraftOnErrorStepId(selectedStep.on_error_step_id ?? "");
-    setDraftOnErrorMessage(selectedStep.on_error_message ?? "");
+  const inputRowsSignature = useMemo(() => {
+    return JSON.stringify(inputRows.map(stripInputRowId));
+  }, [inputRows]);
+
+  const isDirty = useMemo(() => {
+    return (
+      stepIdDraft !== selectedStep.id ||
+      functionNameDraft !== selectedStep.function ||
+      descriptionDraft !== selectedStepDescription ||
+      inputDraft !== originalInputJson ||
+      inputRowsSignature !== originalInputRowsSignature ||
+      onErrorStepIdDraft !== (selectedStep.on_error_step_id ?? "") ||
+      onErrorMessageDraft !== (selectedStep.on_error_message ?? "")
+    );
+  }, [
+    selectedStep.id,
+    selectedStep.function,
+    selectedStep.on_error_step_id,
+    selectedStep.on_error_message,
+    selectedStepDescription,
+    originalInputJson,
+    originalInputRowsSignature,
+    stepIdDraft,
+    functionNameDraft,
+    descriptionDraft,
+    inputDraft,
+    inputRowsSignature,
+    onErrorStepIdDraft,
+    onErrorMessageDraft,
+  ]);
+
+  useEffect(() => {
+    onStepEditDirtyChange(isDirty);
+  }, [isDirty, onStepEditDirtyChange]);
+
+  function resetDrafts() {
+    setStepIdDraft(selectedStep.id);
+    setFunctionNameDraft(selectedStep.function);
+    setDescriptionDraft(selectedStepDescription);
+    setInputEditorMode("keyValue");
+    setInputDraft(originalInputJson);
+    setInputRows(originalInputRows);
+    setOnErrorStepIdDraft(selectedStep.on_error_step_id ?? "");
+    setOnErrorMessageDraft(selectedStep.on_error_message ?? "");
     setInputError(null);
-    setHasUnsavedChanges(false);
     onStepEditDirtyChange(false);
   }
 
-  function handleSave() {
-    let parsedInput: unknown;
+  function handleResetDrafts() {
+    if (isDirty) {
+      const confirmed = window.confirm(
+        "Discard your unsaved Inspector changes for this step?",
+      );
 
-    try {
-      parsedInput = JSON.parse(draftInputText);
-    } catch {
-      setInputError("Input must be valid JSON.");
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    resetDrafts();
+  }
+
+  function switchInputEditorMode(nextMode: InputEditorMode) {
+    if (nextMode === inputEditorMode) {
       return;
     }
 
-    if (
-      !parsedInput ||
-      typeof parsedInput !== "object" ||
-      Array.isArray(parsedInput)
-    ) {
-      setInputError("Input must be a JSON object.");
+    if (nextMode === "keyValue") {
+      const parsed = parseJsonInputDraft(inputDraft);
+
+      if (!parsed.ok) {
+        setInputError(parsed.error);
+        return;
+      }
+
+      setInputRows(inputObjectToRows(parsed.value));
+      setInputEditorMode("keyValue");
+      setInputError(null);
       return;
     }
 
-    if (!draftStepId.trim()) {
+    const parsed = parseInputRows(inputRows);
+
+    if (!parsed.ok) {
+      setInputError(parsed.error);
+      return;
+    }
+
+    setInputDraft(JSON.stringify(parsed.value, null, 2));
+    setInputEditorMode("json");
+    setInputError(null);
+  }
+
+  function updateInputRow(
+    rowId: string,
+    updates: Partial<Omit<InputKeyValueRow, "id">>,
+  ) {
+    setInputRows((currentRows) =>
+      currentRows.map((row) =>
+        row.id === rowId
+          ? normalizeInputRowAfterUpdate({ ...row, ...updates })
+          : row,
+      ),
+    );
+    setInputError(null);
+  }
+
+  function addInputRow() {
+    setInputRows((currentRows) => [...currentRows, createEmptyInputRow()]);
+    setInputError(null);
+  }
+
+  function removeInputRow(rowId: string) {
+    setInputRows((currentRows) => {
+      const nextRows = currentRows.filter((row) => row.id !== rowId);
+
+      return nextRows.length > 0 ? nextRows : [createEmptyInputRow()];
+    });
+
+    setInputError(null);
+  }
+
+  function saveStep() {
+    let parsedInput: Record<string, unknown>;
+
+    if (inputEditorMode === "json") {
+      const parsed = parseJsonInputDraft(inputDraft);
+
+      if (!parsed.ok) {
+        setInputError(parsed.error);
+        return;
+      }
+
+      parsedInput = parsed.value;
+      setInputRows(inputObjectToRows(parsed.value));
+    } else {
+      const parsed = parseInputRows(inputRows);
+
+      if (!parsed.ok) {
+        setInputError(parsed.error);
+        return;
+      }
+
+      parsedInput = parsed.value;
+      setInputDraft(JSON.stringify(parsed.value, null, 2));
+    }
+
+    const nextStepId = stepIdDraft.trim();
+
+    if (!nextStepId) {
       setInputError("Step ID is required.");
       return;
     }
 
-    if (!draftFunctionName.trim()) {
-      setInputError("Function is required.");
-      return;
-    }
-
     onUpdateStep(selectedStep.id, {
-      id: draftStepId.trim(),
-      functionName: draftFunctionName.trim(),
-      input: parsedInput as Record<string, unknown>,
-      onErrorStepId: draftOnErrorStepId.trim() || undefined,
-      onErrorMessage: draftOnErrorMessage.trim() || undefined,
+      id: nextStepId,
+      functionName: functionNameDraft,
+      input: parsedInput,
+      onErrorStepId: onErrorStepIdDraft,
+      onErrorMessage: onErrorMessageDraft,
     });
 
+    onUpdateStepDescription(nextStepId, descriptionDraft);
     setInputError(null);
-    setHasUnsavedChanges(false);
     onStepEditDirtyChange(false);
   }
 
   return (
     <div className="space-y-5 p-4">
-      <div
-        className={`rounded-lg border px-3 py-2 text-xs ${
-          isEditing
-            ? "border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] text-[var(--text-muted)]"
-            : "border-yellow-500/40 bg-yellow-500/10 text-yellow-700 dark:text-yellow-300"
-        }`}
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
+              Selected Step
+            </div>
+            <div className="break-words text-sm font-semibold text-[var(--text-primary)]">
+              {selectedStep.id}
+            </div>
+            <div className="mt-1 break-words text-xs text-[var(--text-muted)]">
+              {selectedStep.function}
+            </div>
+          </div>
+
+          {!isEditing && (
+            <button
+              type="button"
+              onClick={onStartEditing}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+              aria-label="Unlock step editing"
+              title="Unlock step editing"
+            >
+              <PencilIcon />
+            </button>
+          )}
+        </div>
+
+        {!isEditing && (
+          <div className="mt-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs leading-5 text-[var(--text-muted)]">
+            Step editing is locked. Use the pencil to unlock editing from the
+            Inspector.
+          </div>
+        )}
+      </div>
+
+      <InspectorField label="Step ID">
+        <input
+          value={stepIdDraft}
+          onChange={(event) => setStepIdDraft(event.target.value)}
+          disabled={!isEditing}
+          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+        />
+      </InspectorField>
+
+      <InspectorField label="Function">
+        <input
+          value={functionNameDraft}
+          onChange={(event) => setFunctionNameDraft(event.target.value)}
+          disabled={!isEditing}
+          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+        />
+      </InspectorField>
+
+      <InspectorField
+        label="Description"
+        helperText="Stored as a YAML comment directly above this step."
       >
-        {isEditing
-          ? "Step editing is enabled. Make changes below, then save."
-          : "Unlock step editing from the canvas to edit this step."}
-      </div>
-
-      <div>
-        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-          Step ID
-        </label>
-        <input
-          value={draftStepId}
-          readOnly={!isEditing}
-          onChange={(event) => {
-            setDraftStepId(event.target.value);
-            markChanged();
-          }}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
-        />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-          Function
-        </label>
-        <input
-          value={draftFunctionName}
-          readOnly={!isEditing}
-          onChange={(event) => {
-            setDraftFunctionName(event.target.value);
-            markChanged();
-          }}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--brand-primary)]"
-        />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-          Input
-        </label>
         <textarea
-          value={draftInputText}
-          readOnly={!isEditing}
-          rows={14}
-          onChange={(event) => {
-            setDraftInputText(event.target.value);
-            setInputError(null);
-            markChanged();
-          }}
-          className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 font-mono text-xs leading-5 text-[var(--text-secondary)] outline-none focus:border-[var(--brand-primary)]"
+          value={descriptionDraft}
+          onChange={(event) => setDescriptionDraft(event.target.value)}
+          disabled={!isEditing}
+          rows={4}
+          placeholder="Describe what this step does..."
+          className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
         />
+      </InspectorField>
+
+      <InspectorField
+        label="Input"
+        helperText="Use Key/Value for simple top-level inputs. Use JSON for nested objects or advanced input structures."
+      >
+        <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)]">
+          <div className="flex border-b border-[var(--border-subtle)] bg-[var(--panel-bg)]">
+            <button
+              type="button"
+              onClick={() => switchInputEditorMode("keyValue")}
+              className={`flex-1 px-3 py-2 text-xs font-semibold ${
+                inputEditorMode === "keyValue"
+                  ? "bg-[var(--brand-primary)] text-white"
+                  : "text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+              }`}
+            >
+              Key/Value
+            </button>
+
+            <button
+              type="button"
+              onClick={() => switchInputEditorMode("json")}
+              className={`flex-1 border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold ${
+                inputEditorMode === "json"
+                  ? "bg-[var(--brand-primary)] text-white"
+                  : "text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+              }`}
+            >
+              Raw JSON
+            </button>
+          </div>
+
+          {inputEditorMode === "keyValue" ? (
+            <div className="p-3">
+              <div className="overflow-x-auto">
+                <div className="min-w-[620px] space-y-2">
+                  <div className="grid grid-cols-[1.1fr_1.35fr_120px_40px] gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                    <div>Key</div>
+                    <div>Value</div>
+                    <div>Type</div>
+                    <div />
+                  </div>
+
+                  <div className="space-y-2">
+                    {inputRows.map((row, index) => (
+                      <InputKeyValueRowEditor
+                        key={row.id}
+                        row={row}
+                        rowNumber={index + 1}
+                        disabled={!isEditing}
+                        onUpdate={(updates) => updateInputRow(row.id, updates)}
+                        onRemove={() => removeInputRow(row.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={addInputRow}
+                disabled={!isEditing}
+                className="mt-3 inline-flex items-center justify-center rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                + Add input field
+              </button>
+            </div>
+          ) : (
+            <div className="p-3">
+              <textarea
+                value={inputDraft}
+                onChange={(event) => {
+                  setInputDraft(event.target.value);
+                  setInputError(null);
+                }}
+                disabled={!isEditing}
+                rows={12}
+                className="w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 font-mono text-xs leading-5 text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+              />
+            </div>
+          )}
+        </div>
 
         {inputError && (
           <div className="mt-2 rounded-lg border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2 text-xs text-[var(--danger)]">
             {inputError}
           </div>
         )}
-      </div>
+      </InspectorField>
 
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] p-3">
-        <div className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--danger)]">
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-4">
+        <div className="mb-3 text-xs font-semibold text-[var(--text-primary)]">
           Error Handling
         </div>
 
-        <div className="space-y-3">
-          <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              on_error_step_id
-            </label>
+        <div className="space-y-4">
+          <InspectorField label="Error Step ID">
             <input
-              value={draftOnErrorStepId}
-              readOnly={!isEditing}
-              placeholder="Optional error step ID"
-              onChange={(event) => {
-                setDraftOnErrorStepId(event.target.value);
-                markChanged();
-              }}
-              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--danger)]"
+              value={onErrorStepIdDraft}
+              onChange={(event) => setOnErrorStepIdDraft(event.target.value)}
+              disabled={!isEditing}
+              placeholder="error_handler"
+              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
             />
-          </div>
+          </InspectorField>
 
-          <div>
-            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-              on_error_message
-            </label>
+          <InspectorField label="Error Message">
             <textarea
-              value={draftOnErrorMessage}
-              readOnly={!isEditing}
-              placeholder="Optional custom error message"
+              value={onErrorMessageDraft}
+              onChange={(event) => setOnErrorMessageDraft(event.target.value)}
+              disabled={!isEditing}
               rows={3}
-              onChange={(event) => {
-                setDraftOnErrorMessage(event.target.value);
-                markChanged();
-              }}
-              className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 text-sm leading-5 text-[var(--text-primary)] outline-none focus:border-[var(--danger)]"
+              placeholder="What should happen if this step fails?"
+              className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
             />
-          </div>
+          </InspectorField>
         </div>
       </div>
 
-      {isEditing && (
-        <div className="flex items-center justify-end gap-2 border-t border-[var(--border-subtle)] pt-4">
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={!hasUnsavedChanges}
-            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Cancel
-          </button>
+      <div className="sticky bottom-0 -mx-4 border-t border-[var(--border-subtle)] bg-[var(--panel-bg)] p-4">
+        {isEditing ? (
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleResetDrafts}
+              disabled={!isDirty}
+              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reset
+            </button>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!hasUnsavedChanges}
-            className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Save Step
-          </button>
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={saveStep}
+              disabled={!isDirty}
+              className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Save Step
+            </button>
+          </div>
+        ) : (
+          <div className="text-xs text-[var(--text-muted)]">
+            Unlock step editing on the canvas or use the pencil above to edit
+            this step.
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+type InputKeyValueRowEditorProps = {
+  row: InputKeyValueRow;
+  rowNumber: number;
+  disabled: boolean;
+  onUpdate: (updates: Partial<Omit<InputKeyValueRow, "id">>) => void;
+  onRemove: () => void;
+};
+
+function InputKeyValueRowEditor({
+  row,
+  rowNumber,
+  disabled,
+  onUpdate,
+  onRemove,
+}: InputKeyValueRowEditorProps) {
+  return (
+    <div className="grid grid-cols-[1.1fr_1.35fr_120px_40px] items-start gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] p-2">
+      <input
+        value={row.key}
+        onChange={(event) => onUpdate({ key: event.target.value })}
+        disabled={disabled}
+        placeholder="customer_name"
+        className="h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+        aria-label={`Input key ${rowNumber}`}
+      />
+
+      {row.type === "boolean" ? (
+        <select
+          value={row.value}
+          onChange={(event) => onUpdate({ value: event.target.value })}
+          disabled={disabled}
+          className="h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+          aria-label={`Input value ${rowNumber}`}
+        >
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      ) : row.type === "null" ? (
+        <input
+          value="null"
+          disabled
+          className="h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 text-sm text-[var(--text-muted)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+          aria-label={`Input value ${rowNumber}`}
+        />
+      ) : row.type === "json" ? (
+        <textarea
+          value={row.value}
+          onChange={(event) => onUpdate({ value: event.target.value })}
+          disabled={disabled}
+          rows={4}
+          placeholder='{"nested": true}'
+          className="w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 font-mono text-xs leading-5 text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+          aria-label={`Input JSON value ${rowNumber}`}
+        />
+      ) : (
+        <input
+          value={row.value}
+          onChange={(event) => onUpdate({ value: event.target.value })}
+          disabled={disabled}
+          placeholder={row.type === "number" ? "0" : "value"}
+          className="h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+          aria-label={`Input value ${rowNumber}`}
+        />
+      )}
+
+      <select
+        value={row.type}
+        onChange={(event) =>
+          onUpdate({ type: event.target.value as InputValueType })
+        }
+        disabled={disabled}
+        className="h-10 w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+        aria-label={`Input type ${rowNumber}`}
+      >
+        <option value="string">string</option>
+        <option value="number">number</option>
+        <option value="boolean">boolean</option>
+        <option value="null">null</option>
+        <option value="json">JSON</option>
+      </select>
+
+      <button
+        type="button"
+        onClick={onRemove}
+        disabled={disabled}
+        className="flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] text-sm font-bold text-[var(--text-muted)] hover:border-[var(--danger)] hover:text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label={`Remove input row ${rowNumber}`}
+        title="Remove input field"
+      >
+        ×
+      </button>
+    </div>
+  );
+}
+
+type InspectorFieldProps = {
+  label: string;
+  helperText?: string;
+  children: ReactNode;
+};
+
+function InspectorField({ label, helperText, children }: InspectorFieldProps) {
+  return (
+    <label className="block">
+      <div className="mb-1 text-xs font-semibold text-[var(--text-primary)]">
+        {label}
+      </div>
+
+      {helperText && (
+        <div className="mb-2 text-xs leading-5 text-[var(--text-muted)]">
+          {helperText}
+        </div>
+      )}
+
+      {children}
+    </label>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M4 20h4.5L19 9.5 14.5 5 4 15.5V20Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13.5 6 18 10.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function parseJsonInputDraft(
+  inputDraft: string,
+):
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; error: string } {
+  try {
+    const parsed = JSON.parse(inputDraft);
+
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {
+        ok: false,
+        error: "Input must be a JSON object.",
+      };
+    }
+
+    return {
+      ok: true,
+      value: parsed as Record<string, unknown>,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error ? error.message : "Input must be valid JSON.",
+    };
+  }
+}
+
+function parseInputRows(
+  rows: InputKeyValueRow[],
+):
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; error: string } {
+  const parsedInput: Record<string, unknown> = {};
+  const usedKeys = new Set<string>();
+
+  for (const [index, row] of rows.entries()) {
+    const key = row.key.trim();
+    const rowLabel = `Input row ${index + 1}`;
+
+    const hasMeaningfulValue =
+      row.value.trim().length > 0 || row.type === "null";
+
+    if (!key && !hasMeaningfulValue && row.type === "string") {
+      continue;
+    }
+
+    if (!key) {
+      return {
+        ok: false,
+        error: `${rowLabel}: Key is required.`,
+      };
+    }
+
+    if (usedKeys.has(key)) {
+      return {
+        ok: false,
+        error: `${rowLabel}: "${key}" is already used.`,
+      };
+    }
+
+    usedKeys.add(key);
+
+    const parsedValue = parseInputRowValue(row, rowLabel);
+
+    if (!parsedValue.ok) {
+      return parsedValue;
+    }
+
+    parsedInput[key] = parsedValue.value;
+  }
+
+  return {
+    ok: true,
+    value: parsedInput,
+  };
+}
+
+function parseInputRowValue(
+  row: InputKeyValueRow,
+  rowLabel: string,
+): { ok: true; value: unknown } | { ok: false; error: string } {
+  if (row.type === "string") {
+    return {
+      ok: true,
+      value: row.value,
+    };
+  }
+
+  if (row.type === "number") {
+    const value = Number(row.value);
+
+    if (row.value.trim() === "" || Number.isNaN(value)) {
+      return {
+        ok: false,
+        error: `${rowLabel}: Enter a valid number.`,
+      };
+    }
+
+    return {
+      ok: true,
+      value,
+    };
+  }
+
+  if (row.type === "boolean") {
+    if (row.value !== "true" && row.value !== "false") {
+      return {
+        ok: false,
+        error: `${rowLabel}: Boolean values must be true or false.`,
+      };
+    }
+
+    return {
+      ok: true,
+      value: row.value === "true",
+    };
+  }
+
+  if (row.type === "null") {
+    return {
+      ok: true,
+      value: null,
+    };
+  }
+
+  try {
+    return {
+      ok: true,
+      value: JSON.parse(row.value),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof Error
+          ? `${rowLabel}: ${error.message}`
+          : `${rowLabel}: Value must be valid JSON.`,
+    };
+  }
+}
+
+function inputObjectToRows(input: Record<string, unknown>) {
+  const entries = Object.entries(input);
+
+  if (entries.length === 0) {
+    return [createEmptyInputRow()];
+  }
+
+  return entries.map(([key, value]) => {
+    const valueType = getInputValueType(value);
+
+    return {
+      id: createInputRowId(),
+      key,
+      type: valueType,
+      value: stringifyInputValue(value, valueType),
+    };
+  });
+}
+
+function getInputValueType(value: unknown): InputValueType {
+  if (value === null) {
+    return "null";
+  }
+
+  if (typeof value === "number") {
+    return "number";
+  }
+
+  if (typeof value === "boolean") {
+    return "boolean";
+  }
+
+  if (typeof value === "object") {
+    return "json";
+  }
+
+  return "string";
+}
+
+function stringifyInputValue(value: unknown, valueType: InputValueType) {
+  if (valueType === "null") {
+    return "";
+  }
+
+  if (valueType === "json") {
+    return JSON.stringify(value, null, 2);
+  }
+
+  return String(value);
+}
+
+function normalizeInputRowAfterUpdate(row: InputKeyValueRow) {
+  if (row.type === "boolean" && row.value !== "true" && row.value !== "false") {
+    return {
+      ...row,
+      value: "true",
+    };
+  }
+
+  if (row.type === "null") {
+    return {
+      ...row,
+      value: "",
+    };
+  }
+
+  return row;
+}
+
+function createEmptyInputRow(): InputKeyValueRow {
+  return {
+    id: createInputRowId(),
+    key: "",
+    value: "",
+    type: "string",
+  };
+}
+
+function createInputRowId() {
+  return `input-row-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function stripInputRowId(row: InputKeyValueRow) {
+  return {
+    key: row.key,
+    value: row.value,
+    type: row.type,
+  };
 }

@@ -1,55 +1,326 @@
 workflow:
-  id: help-desk-intake-forwarder
-  name: "Help Desk · Intake Forwarder (with approved-answers priority)"
-  description: >
-    Triggered by an incoming email on the help-desk bot's email
-    listener. Queries the bot's APPROVED-ANSWERS KB first — if any
-    prior approved Q+A matches, Studio uses it to auto-reply without
-    sending to a reviewer. Otherwise the email goes through the
-    normal review queue.
-  steps:
-    # ─── 1. Priority lookup: approved-answers label only ───────────
-    - id: query_approved_answers
-      function: queryKnowledgebase
-      on_error_step_id: forward_to_intake
-      on_error_message: "approved-answers query failed — intake will run normal review"
-      input:
-        query_string: "${uniqueData.subject}\n\n${uniqueData.body}"
-        labels: ["approved-answers"]
+  id: customer-support-triage-and-resolution
+  name: Customer Support Triage and Resolution
+  description: |
+    Handles an incoming customer support request from email or chat.
+    Enriches the request with customer data, checks approved answers,
+    classifies urgency, creates or updates a ticket, sends a customer response,
+    and routes failures through centralized error handling.
 
-    # ─── 2. Forward email + approved-answer hits to Studio intake ──
-    - id: forward_to_intake
-      function: apiRequest
-      on_error_step_id: log_error
-      on_error_message: "Failed to forward email to help-desk intake"
+  steps:
+    - id: normalize_request
+      function: setVariable
+      next_step_id: get_customer_profile
+      on_error_step_id: log_normalization_error
+      on_error_message: "Failed to normalize incoming request payload."
       input:
-        endpoint: https://www.studiox-ai.com/studio/api/help-desk/intake/email?org=default&instance=hr-assistant
+        variable_name: normalizedRequest
+        value:
+          message_id: ${uniqueData.messageId}
+          source: ${uniqueData.source}
+          sender_email: ${uniqueData.senderEmail}
+          sender_name: ${uniqueData.senderName}
+          subject: ${uniqueData.subject}
+          body: ${uniqueData.body}
+          received_at: ${uniqueData.timestamp}
+          attachments: ${uniqueData.attachments}
+
+    - id: get_customer_profile
+      function: apiRequest
+      next_step_id: query_approved_answers
+      on_error_step_id: create_guest_profile
+      on_error_message: "Customer profile lookup failed. Falling back to guest profile."
+      input:
+        endpoint: https://api.example.com/customers/lookup
         method: POST
         headers:
           Content-Type: application/json
-          Authorization: Bearer 7084e02873b67e89d63d894c3177c41cb7286aa85d3c68c5ce03ab3ff30a76d2
-          x-business-slug: studiox-ai
+          Authorization: Bearer ${secrets.customerApiToken}
         body:
-          messageId: ${uniqueData.emailThreadId}
-          from:
-            email: ${uniqueData.senderEmail}
-            name: ${uniqueData.senderName}
-          to: ${uniqueData.toEmails}
-          cc: ${uniqueData.ccList}
-          receivedAt: ${uniqueData.timestamp}
-          subject: ${uniqueData.subject}
-          body: ${uniqueData.body}
-          attachments: ${uniqueData.attachments}
-          # If non-empty `results`, Studio uses these to auto-reply
-          # without reviewer involvement. If empty, normal flow.
-          approvedAnswerHits: ${steps.query_approved_answers.output}
+          email: ${steps.normalize_request.output.value.sender_email}
+          name: ${steps.normalize_request.output.value.sender_name}
+
+    - id: create_guest_profile
+      function: setVariable
+      next_step_id: query_approved_answers
+      on_error_step_id: fatal_error
+      on_error_message: "Could not create guest profile fallback."
+      input:
+        variable_name: customerProfile
+        value:
+          customer_id: guest
+          customer_type: unknown
+          email: ${steps.normalize_request.output.value.sender_email}
+          name: ${steps.normalize_request.output.value.sender_name}
+          account_status: guest
+
+    - id: query_approved_answers
+      function: queryKnowledgebase
+      next_step_id: classify_request
+      on_error_step_id: classify_request
+      on_error_message: "Approved-answer lookup failed. Continuing with normal classification."
+      input:
+        query_string: |
+          Subject: ${steps.normalize_request.output.value.subject}
+
+          Body:
+          ${steps.normalize_request.output.value.body}
+        labels:
+          - approved-answers
+          - customer-support
+        max_results: 5
+
+    - id: classify_request
+      function: aiProcessing
+      next_step_id: check_auto_reply_eligibility
+      on_error_step_id: manual_review_ticket
+      on_error_message: "AI classification failed. Sending request to manual review."
+      input:
+        output_type: json
+        temperature: 0
+        prompt: |
+          Classify this customer support request.
+
+          Customer Profile:
+          ${steps.get_customer_profile.output || steps.create_guest_profile.output.value}
+
+          Approved Answer Matches:
+          ${steps.query_approved_answers.output}
+
+          Request:
+          Subject: ${steps.normalize_request.output.value.subject}
+          Body: ${steps.normalize_request.output.value.body}
+
+          Return JSON with exactly these keys:
+          {
+            "category": "billing | technical | account | cancellation | general",
+            "urgency": "low | medium | high | critical",
+            "sentiment": "positive | neutral | frustrated | angry",
+            "can_auto_reply": true,
+            "needs_human_review": false,
+            "summary": "short internal summary",
+            "recommended_reply": "customer-facing reply draft"
+          }
+
+          Rules:
+          - can_auto_reply should only be true if the approved answer matches clearly answer the customer's question.
+          - needs_human_review must be true for angry sentiment, cancellation, refund requests, legal threats, or unclear requests.
+          - Never promise refunds, credits, cancellations, or technical fixes without human review.
+
+    - id: check_auto_reply_eligibility
+      function: aiProcessing
+      next_step_id: create_ticket
+      on_error_step_id: manual_review_ticket
+      on_error_message: "Auto-reply eligibility check failed. Sending request to manual review."
+      input:
+        output_type: json
+        temperature: 0
+        prompt: |
+          Decide the handling path for this support request.
+
+          Classification:
+          ${steps.classify_request.output}
+
+          Approved Answer Matches:
+          ${steps.query_approved_answers.output}
+
+          Return JSON:
+          {
+            "route": "auto_reply | manual_review | urgent_review",
+            "reason": "brief reason"
+          }
+
+          Routing rules:
+          - urgent_review if urgency is high or critical.
+          - manual_review if needs_human_review is true.
+          - auto_reply only if can_auto_reply is true and approved-answer matches are strong.
+          - otherwise manual_review.
+
+    - id: create_ticket
+      function: apiRequest
+      next_step_id: route_ticket
+      on_error_step_id: fatal_error
+      on_error_message: "Failed to create support ticket."
+      input:
+        endpoint: https://api.example.com/support/tickets
+        method: POST
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer ${secrets.supportApiToken}
+        body:
+          external_message_id: ${steps.normalize_request.output.value.message_id}
+          source: ${steps.normalize_request.output.value.source}
+          customer:
+            profile: ${steps.get_customer_profile.output || steps.create_guest_profile.output.value}
+            email: ${steps.normalize_request.output.value.sender_email}
+            name: ${steps.normalize_request.output.value.sender_name}
+          subject: ${steps.normalize_request.output.value.subject}
+          body: ${steps.normalize_request.output.value.body}
+          attachments: ${steps.normalize_request.output.value.attachments}
+          classification: ${steps.classify_request.output}
+          routing_decision: ${steps.check_auto_reply_eligibility.output}
+          status: open
+
+    - id: route_ticket
+      function: apiRequest
+      next_step_id: send_customer_response
+      on_error_step_id: log_routing_error
+      on_error_message: "Ticket routing failed. Ticket was created but may need manual routing."
+      input:
+        endpoint: https://api.example.com/support/tickets/${steps.create_ticket.output.ticket_id}/route
+        method: POST
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer ${secrets.supportApiToken}
+        body:
+          route: ${steps.check_auto_reply_eligibility.output.route}
+          category: ${steps.classify_request.output.category}
+          urgency: ${steps.classify_request.output.urgency}
+          reason: ${steps.check_auto_reply_eligibility.output.reason}
+
+    - id: log_routing_error
+      function: setVariable
+      next_step_id: send_customer_response
+      on_error_step_id: fatal_error
+      on_error_message: "Failed to record routing error fallback."
+      input:
+        variable_name: routingError
+        value:
+          ticket_id: ${steps.create_ticket.output.ticket_id}
+          message: "Routing failed. Continuing with customer acknowledgment."
+          original_error: ${steps.route_ticket.output.error.message}
+
+    - id: send_customer_response
+      function: sendResponse
+      next_step_id: update_ticket_status
+      on_error_step_id: log_response_error
+      on_error_message: "Failed to send customer response."
+      input:
+        type: dynamic
+        channel: ${steps.normalize_request.output.value.source}
+        recipient:
+          email: ${steps.normalize_request.output.value.sender_email}
+          name: ${steps.normalize_request.output.value.sender_name}
+        message: |
+          Hi ${steps.normalize_request.output.value.sender_name},
+
+          Thanks for reaching out. We received your request and created ticket #${steps.create_ticket.output.ticket_number}.
+
+          ${steps.classify_request.output.recommended_reply}
+
+          If anything changes, reply directly to this message and we will keep everything connected to your ticket.
+
+    - id: log_response_error
+      function: setVariable
+      next_step_id: update_ticket_status
+      on_error_step_id: fatal_error
+      on_error_message: "Failed to record response delivery error."
+      input:
+        variable_name: responseDeliveryError
+        value:
+          ticket_id: ${steps.create_ticket.output.ticket_id}
+          customer_email: ${steps.normalize_request.output.value.sender_email}
+          error: ${steps.send_customer_response.output.error.message}
+
+    - id: update_ticket_status
+      function: apiRequest
+      next_step_id: done
+      on_error_step_id: fatal_error
+      on_error_message: "Failed to update final ticket status."
+      input:
+        endpoint: https://api.example.com/support/tickets/${steps.create_ticket.output.ticket_id}
+        method: PATCH
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer ${secrets.supportApiToken}
+        body:
+          status: '${steps.check_auto_reply_eligibility.output.route == "auto_reply" ? "auto_replied" : "pending_review"}'
+          response_sent: true
+          response_error: ${steps.log_response_error.output.value || null}
+          routing_error: ${steps.log_routing_error.output.value || null}
+
+    - id: manual_review_ticket
+      function: apiRequest
+      next_step_id: manual_review_response
+      on_error_step_id: fatal_error
+      on_error_message: "Failed to create manual review ticket."
+      input:
+        endpoint: https://api.example.com/support/tickets
+        method: POST
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer ${secrets.supportApiToken}
+        body:
+          external_message_id: ${steps.normalize_request.output.value.message_id}
+          source: ${steps.normalize_request.output.value.source}
+          customer_email: ${steps.normalize_request.output.value.sender_email}
+          customer_name: ${steps.normalize_request.output.value.sender_name}
+          subject: ${steps.normalize_request.output.value.subject}
+          body: ${steps.normalize_request.output.value.body}
+          status: pending_review
+          priority: manual_review
+          reason: '${steps.classify_request.output.error.message || steps.check_auto_reply_eligibility.output.error.message || "Manual review required"}'
+
+    - id: manual_review_response
+      function: sendResponse
+      next_step_id: done
+      on_error_step_id: fatal_error
+      on_error_message: "Failed to send manual review acknowledgment."
+      input:
+        type: fixed
+        channel: ${steps.normalize_request.output.value.source}
+        recipient:
+          email: ${steps.normalize_request.output.value.sender_email}
+          name: ${steps.normalize_request.output.value.sender_name}
+        message: |
+          Hi ${steps.normalize_request.output.value.sender_name},
+
+          Thanks for reaching out. We received your request and sent it to our support team for review.
+
+          Ticket: #${steps.manual_review_ticket.output.ticket_number}
+
+          A team member will follow up with you as soon as possible.
+
+    - id: fatal_error
+      function: setVariable
+      next_step_id: fatal_error_response
+      input:
+        variable_name: fatalWorkflowError
+        value:
+          message_id: ${steps.normalize_request.output.value.message_id || uniqueData.messageId}
+          sender_email: ${steps.normalize_request.output.value.sender_email || uniqueData.senderEmail}
+          failed_at: ${system.timestamp}
+          error_message: ${steps.normalize_request.output.error.message || steps.create_ticket.output.error.message || steps.update_ticket_status.output.error.message || steps.manual_review_ticket.output.error.message}
+          fallback_message: "The support workflow failed before completion."
+
+    - id: fatal_error_response
+      function: sendResponse
+      input:
+        type: fixed
+        channel: ${uniqueData.source}
+        recipient:
+          email: ${uniqueData.senderEmail}
+          name: ${uniqueData.senderName}
+        message: |
+          Hi ${uniqueData.senderName},
+
+          We received your message, but something went wrong while creating your support request.
+
+          Please try again or contact support directly if this continues.
+
+    - id: log_normalization_error
+      function: setVariable
+      next_step_id: fatal_error_response
+      input:
+        variable_name: normalizationError
+        value:
+          message_id: ${uniqueData.messageId}
+          sender_email: ${uniqueData.senderEmail}
+          error: ${steps.normalize_request.output.error.message}
 
     - id: done
       function: concludeWorkflow
-
-    - id: log_error
-      function: setVariable
       input:
-        variable_name: forwardError
-        value: "Intake forward failed for messageId=${uniqueData.emailThreadId}"
-      next_step_id: done
+        status: completed
+        ticket_id: ${steps.create_ticket.output.ticket_id || steps.manual_review_ticket.output.ticket_id}
+        route: ${steps.check_auto_reply_eligibility.output.route || "manual_review"}

@@ -1,6 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import {
   NODE_HEIGHT,
   NODE_WIDTH,
@@ -10,12 +17,19 @@ import type { VisualVibe } from "@/lib/visual-vibes/schema";
 
 type MetadataField = "id" | "name" | "description";
 
-export type CanvasViewMode = "flow" | "dependency";
+export type CanvasViewMode = "flow" | "errors";
+
+type CenterRequest = {
+  stepId: string;
+  requestId: number;
+} | null;
 
 type VibeCanvasProps = {
   vibe: VisualVibe | null;
   graph: PositionedVibeGraph;
+  classificationGraph: PositionedVibeGraph;
   selectedStepId: string | null;
+  centerRequest: CenterRequest;
   viewMode: CanvasViewMode;
   isEditing: boolean;
   onSelectStep: (stepId: string) => void;
@@ -24,6 +38,8 @@ type VibeCanvasProps = {
   onStartEditing: () => void;
   onSaveEditing: () => void;
   onCancelEditing: () => void;
+  onAddStandaloneStep: () => void;
+  onAddErrorHandlerNode: (sourceStepId: string) => void;
   onAddStepOnEdge: (options: {
     sourceStepId: string;
     targetStepId: string;
@@ -41,10 +57,22 @@ type VibeCanvasProps = {
   onUpdateVibeMetadata: (field: MetadataField, value: string) => void;
 };
 
+const CANVAS_VIEWPORT_WIDTH = 1200;
+const CANVAS_VIEWPORT_HEIGHT = 720;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 2.5;
+
+const SIDE_ROUTE_OFFSET = 72;
+const SIDE_ROUTE_LABEL_OFFSET = 70;
+const SIDE_ROUTE_EPSILON = 1;
+const HORIZONTAL_LABEL_Y_OFFSET = 18;
+
 export function VibeCanvas({
   vibe,
   graph,
+  classificationGraph,
   selectedStepId,
+  centerRequest,
   viewMode,
   isEditing,
   onSelectStep,
@@ -53,6 +81,7 @@ export function VibeCanvas({
   onStartEditing,
   onSaveEditing,
   onCancelEditing,
+  onAddStandaloneStep,
   onAddStepOnEdge,
   onDeleteStep,
   onAddEdge,
@@ -69,37 +98,152 @@ export function VibeCanvas({
   const [editingMetadataField, setEditingMetadataField] =
     useState<MetadataField | null>(null);
   const [metadataDraftValue, setMetadataDraftValue] = useState("");
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isFullscreenCanvas, setIsFullscreenCanvas] = useState(false);
+  const [panStart, setPanStart] = useState<{
+    clientX: number;
+    clientY: number;
+    panX: number;
+    panY: number;
+  } | null>(null);
 
-  const contentWidth =
+  const worldWidth =
     graph.nodes.length > 0
-      ? Math.max(...graph.nodes.map((node) => node.x + NODE_WIDTH)) + 120
-      : 1200;
+      ? Math.max(...graph.nodes.map((node) => node.x + NODE_WIDTH)) + 320
+      : CANVAS_VIEWPORT_WIDTH;
 
-  const contentHeight =
+  const worldHeight =
     graph.nodes.length > 0
-      ? Math.max(...graph.nodes.map((node) => node.y + NODE_HEIGHT)) + 160
-      : 700;
+      ? Math.max(...graph.nodes.map((node) => node.y + NODE_HEIGHT)) + 320
+      : CANVAS_VIEWPORT_HEIGHT;
 
-  const incomingNodeIds = new Set(graph.edges.map((edge) => edge.target));
-  const outgoingNodeIds = new Set(graph.edges.map((edge) => edge.source));
-  const errorTargetNodeIds = new Set(
-    graph.edges
-      .filter((edge) => edge.type === "error")
-      .map((edge) => edge.target),
+  const nodeById = new Map(
+    classificationGraph.nodes.map((node) => [node.id, node]),
   );
+
+  const outgoingNodeIds = new Set(
+    classificationGraph.edges.map((edge) => edge.source),
+  );
+  const errorLaneNodeIds = getErrorLaneNodeIds(classificationGraph);
+  const normalFlowNodeIds = getNormalFlowNodeIds(
+    classificationGraph,
+    errorLaneNodeIds,
+  );
+  const errorBranchSourceNodeIds =
+    getErrorBranchSourceNodeIds(classificationGraph);
+  const startingFlowNodeIds = getStartingFlowNodeIds(graph);
 
   const isSelectionMode = Boolean(selectedStepId);
 
-  function isFirstNode(nodeId: string) {
-    return !incomingNodeIds.has(nodeId);
-  }
+  const getGraphBounds = useCallback(() => {
+    if (graph.nodes.length === 0) {
+      return null;
+    }
 
-  function isFinalNode(nodeId: string) {
+    const minX = Math.min(...graph.nodes.map((node) => node.x));
+    const maxX = Math.max(...graph.nodes.map((node) => node.x + NODE_WIDTH));
+    const minY = Math.min(...graph.nodes.map((node) => node.y));
+    const maxY = Math.max(...graph.nodes.map((node) => node.y + NODE_HEIGHT));
+
+    return {
+      minX,
+      maxX,
+      minY,
+      maxY,
+      width: maxX - minX,
+      height: maxY - minY,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2,
+    };
+  }, [graph.nodes]);
+
+  const centerGraph = useCallback(() => {
+    const bounds = getGraphBounds();
+
+    if (!bounds) {
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+
+    setPan({
+      x: CANVAS_VIEWPORT_WIDTH / 2 / zoom - bounds.centerX,
+      y: CANVAS_VIEWPORT_HEIGHT / 2 / zoom - bounds.centerY,
+    });
+  }, [getGraphBounds, zoom]);
+
+  const centerNode = useCallback(
+    (node: PositionedVibeGraph["nodes"][number]) => {
+      setPan({
+        x: CANVAS_VIEWPORT_WIDTH / 2 / zoom - (node.x + NODE_WIDTH / 2),
+        y: CANVAS_VIEWPORT_HEIGHT / 2 / zoom - (node.y + NODE_HEIGHT / 2),
+      });
+    },
+    [zoom],
+  );
+
+  useEffect(() => {
+    if (!centerRequest) {
+      return;
+    }
+
+    const targetNode = graph.nodes.find(
+      (node) => node.id === centerRequest.stepId,
+    );
+
+    if (!targetNode) {
+      return;
+    }
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      centerNode(targetNode);
+    });
+
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [centerNode, centerRequest, graph.nodes]);
+
+  function isTerminalNode(nodeId: string) {
     return !outgoingNodeIds.has(nodeId);
   }
 
-  function isErrorNode(nodeId: string) {
-    return errorTargetNodeIds.has(nodeId);
+  function isConclusionLikeNode(nodeId: string, functionName: string) {
+    return (
+      functionName === "concludeWorkflow" ||
+      nodeId === "done" ||
+      nodeId.endsWith("_done") ||
+      nodeId.endsWith("_complete") ||
+      nodeId.endsWith("_completed")
+    );
+  }
+
+  function isTerminatingErrorNode(nodeId: string, functionName: string) {
+    if (isConclusionLikeNode(nodeId, functionName)) {
+      return false;
+    }
+
+    return errorLaneNodeIds.has(nodeId) && isTerminalNode(nodeId);
+  }
+
+  function isConcludingNode(nodeId: string, functionName: string) {
+    if (isTerminatingErrorNode(nodeId, functionName)) {
+      return false;
+    }
+
+    return isConclusionLikeNode(nodeId, functionName) || isTerminalNode(nodeId);
+  }
+
+  function isErrorHandlerOnlyNode(nodeId: string) {
+    const node = nodeById.get(nodeId);
+
+    return node?.kind === "errorHub";
+  }
+
+  function shouldLabelAsErrorHandler(nodeId: string) {
+    return isErrorHandlerOnlyNode(nodeId);
+  }
+
+  function hasErrorPath(nodeId: string) {
+    return viewMode === "errors" && errorBranchSourceNodeIds.has(nodeId);
   }
 
   function isDimmedNode(nodeId: string) {
@@ -107,13 +251,103 @@ export function VibeCanvas({
       return false;
     }
 
-    if (nodeId === selectedStepId) {
-      return false;
+    return nodeId !== selectedStepId;
+  }
+
+  function getNodeLabel(options: {
+    nodeId: string;
+    isTerminalError: boolean;
+    isConclusion: boolean;
+    hasErrorPathBranch: boolean;
+  }) {
+    const { nodeId, isTerminalError, isConclusion, hasErrorPathBranch } =
+      options;
+
+    if (isTerminalError) {
+      return "TERMINATING ERROR";
     }
 
-    return !graph.edges.some(
-      (edge) => edge.source === nodeId || edge.target === nodeId,
-    );
+    if (isConclusion) {
+      return "CONCLUSION";
+    }
+
+    if (hasErrorPathBranch) {
+      return "VIBE STEP · HAS ERROR PATH";
+    }
+
+    if (shouldLabelAsErrorHandler(nodeId)) {
+      return "ERROR HANDLER";
+    }
+
+    return "VIBE STEP";
+  }
+
+  function getNodeColors(options: {
+    isSelected: boolean;
+    isTerminalError: boolean;
+    isConclusion: boolean;
+    isErrorHandler: boolean;
+  }) {
+    const { isSelected, isTerminalError, isConclusion, isErrorHandler } =
+      options;
+
+    if (isSelected) {
+      return {
+        fill: "var(--node-selected-bg)",
+        stroke: "var(--node-selected-border)",
+        labelFill: "var(--brand-primary)",
+        strokeWidth: "2.5",
+      };
+    }
+
+    if (isTerminalError) {
+      return {
+        fill: "var(--danger-soft)",
+        stroke: "var(--danger)",
+        labelFill: "var(--danger)",
+        strokeWidth: "2.5",
+      };
+    }
+
+    if (isConclusion) {
+      return {
+        fill: "rgba(34, 197, 94, 0.12)",
+        stroke: "#22c55e",
+        labelFill: "#16a34a",
+        strokeWidth: "2.5",
+      };
+    }
+
+    if (isErrorHandler) {
+      return {
+        fill: "rgba(245, 158, 11, 0.12)",
+        stroke: "#f59e0b",
+        labelFill: "#b45309",
+        strokeWidth: "2.5",
+      };
+    }
+
+    return {
+      fill: "var(--node-bg)",
+      stroke: "var(--node-border)",
+      labelFill: "var(--brand-primary)",
+      strokeWidth: "2",
+    };
+  }
+
+  function getEdgeFunctionLabel(edge: PositionedVibeGraph["edges"][number]) {
+    const targetNode = nodeById.get(edge.target);
+    const sourceNode = nodeById.get(edge.source);
+
+    if (targetNode?.functionName) {
+      return targetNode.functionName;
+    }
+
+    if (sourceNode?.functionName) {
+      return sourceNode.functionName;
+    }
+
+    return edge.type;
   }
 
   function startEditingMetadata(field: MetadataField, currentValue: string) {
@@ -136,7 +370,138 @@ export function VibeCanvas({
     setMetadataDraftValue("");
   }
 
+  function zoomIn() {
+    setZoom((currentZoom) => clamp(currentZoom * 1.2, MIN_ZOOM, MAX_ZOOM));
+  }
+
+  function zoomOut() {
+    setZoom((currentZoom) => clamp(currentZoom / 1.2, MIN_ZOOM, MAX_ZOOM));
+  }
+
+  function resetZoom() {
+    setZoom(1);
+  }
+
+  function resetZoomAndPan() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function handleWheelZoom(event: ReactWheelEvent<SVGSVGElement>) {
+    event.preventDefault();
+
+    const svgElement = event.currentTarget;
+    const svgRect = svgElement.getBoundingClientRect();
+
+    const mouseX =
+      ((event.clientX - svgRect.left) / svgRect.width) * CANVAS_VIEWPORT_WIDTH;
+    const mouseY =
+      ((event.clientY - svgRect.top) / svgRect.height) *
+      CANVAS_VIEWPORT_HEIGHT;
+
+    const worldMouseX = mouseX / zoom - pan.x;
+    const worldMouseY = mouseY / zoom - pan.y;
+
+    const zoomFactor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+    const nextZoom = clamp(zoom * zoomFactor, MIN_ZOOM, MAX_ZOOM);
+
+    setZoom(nextZoom);
+    setPan({
+      x: mouseX / nextZoom - worldMouseX,
+      y: mouseY / nextZoom - worldMouseY,
+    });
+  }
+
+  function recenterCanvas() {
+    if (graph.nodes.length === 0) {
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+
+    const selectedNode = selectedStepId
+      ? graph.nodes.find((node) => node.id === selectedStepId)
+      : null;
+
+    if (selectedNode) {
+      centerNode(selectedNode);
+      return;
+    }
+
+    centerGraph();
+  }
+
+  function startPanning(event: ReactMouseEvent<SVGRectElement>) {
+    setPanStart({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    });
+  }
+
+  function continuePanning(event: ReactMouseEvent<SVGSVGElement>) {
+    if (!panStart) {
+      return;
+    }
+
+    const deltaX = (event.clientX - panStart.clientX) / zoom;
+    const deltaY = (event.clientY - panStart.clientY) / zoom;
+
+    setPan({
+      x: panStart.panX + deltaX,
+      y: panStart.panY + deltaY,
+    });
+  }
+
+  function stopPanning() {
+    setPanStart(null);
+  }
+
+  function isSideRoutedVerticalEdge(edge: PositionedVibeGraph["edges"][number]) {
+    return (
+      Math.abs(edge.sourceX - edge.targetX) <= SIDE_ROUTE_EPSILON &&
+      Math.abs(edge.sourceY - edge.targetY) > NODE_HEIGHT / 2
+    );
+  }
+
+  function getSideRouteDirection(edge: PositionedVibeGraph["edges"][number]) {
+    return edge.type === "error" ? -1 : 1;
+  }
+
+  function getSideRouteBendX(edge: PositionedVibeGraph["edges"][number]) {
+    return edge.sourceX + getSideRouteDirection(edge) * SIDE_ROUTE_OFFSET;
+  }
+
+  function getEdgeLabelPoint(edge: PositionedVibeGraph["edges"][number]) {
+    if (isSideRoutedVerticalEdge(edge)) {
+      const direction = getSideRouteDirection(edge);
+
+      return {
+        x:
+          getSideRouteBendX(edge) +
+          direction * SIDE_ROUTE_LABEL_OFFSET,
+        y: (edge.sourceY + edge.targetY) / 2,
+      };
+    }
+
+    const isMostlyHorizontal =
+      Math.abs(edge.sourceY - edge.targetY) <= SIDE_ROUTE_EPSILON;
+
+    return {
+      x: (edge.sourceX + edge.targetX) / 2,
+      y:
+        (edge.sourceY + edge.targetY) / 2 -
+        (isMostlyHorizontal ? HORIZONTAL_LABEL_Y_OFFSET : 0),
+    };
+  }
+
   function getEdgePath(edge: PositionedVibeGraph["edges"][number]) {
+    if (isSideRoutedVerticalEdge(edge)) {
+      const bendX = getSideRouteBendX(edge);
+
+      return `M ${edge.sourceX} ${edge.sourceY} L ${bendX} ${edge.sourceY} L ${bendX} ${edge.targetY} L ${edge.targetX} ${edge.targetY}`;
+    }
+
     if (edge.type === "error") {
       const verticalMidY = (edge.sourceY + edge.targetY) / 2;
 
@@ -148,20 +513,26 @@ export function VibeCanvas({
     return `M ${edge.sourceX} ${edge.sourceY} C ${horizontalMidX} ${edge.sourceY}, ${horizontalMidX} ${edge.targetY}, ${edge.targetX} ${edge.targetY}`;
   }
 
-  return (
-    <div className="relative h-full w-full overflow-auto bg-[var(--canvas-bg)] p-8">
+  const canvasContent = (
+    <div
+      className={`relative bg-[var(--canvas-bg)] ${
+        isFullscreenCanvas
+          ? "h-screen w-screen overflow-hidden p-6"
+          : "h-full w-full overflow-hidden p-8"
+      }`}
+    >
       {graph.nodes.length === 0 && (
         <div className="mb-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-4 py-3 text-sm text-[var(--text-muted)]">
-          No Vibe Steps found. Check that the YAML has a valid workflow.steps
-          list.
+          No Vibe Steps found. Unlock step editing and add a standalone step to
+          start a new Vibe.
         </div>
       )}
 
       {connectingFromStepId && (
         <div className="mb-3 flex items-center justify-between rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-4 py-2 text-sm text-[var(--text-primary)]">
           <span>
-            Connecting from <strong>{connectingFromStepId}</strong>. Click a
-            left-side bubble on another node to finish.
+            Linking from <strong>{connectingFromStepId}</strong>. Click a
+            left-side link handle on another node to finish.
           </span>
 
           <button
@@ -174,71 +545,68 @@ export function VibeCanvas({
         </div>
       )}
 
-      <div
-        className="min-h-[640px] rounded-2xl border border-[var(--border-subtle)] bg-[var(--canvas-inner-bg)] shadow-sm"
-        style={{
-          minWidth: Math.max(contentWidth, 760),
-        }}
-      >
-        <div className="border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-5 py-4">
-          <div className="mb-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
-              Visual Vibe
+      <div className="flex h-full min-h-[640px] flex-col rounded-2xl border border-[var(--border-subtle)] bg-[var(--canvas-inner-bg)] shadow-sm">
+        {!isFullscreenCanvas && (
+          <div className="border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-5 py-4">
+            <div className="mb-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
+                Visual Vibe
+              </div>
+              <div className="mt-1 text-xs text-[var(--text-muted)]">
+                Metadata can be edited directly. Step editing is{" "}
+                {isEditing ? "enabled" : "locked"}.
+              </div>
             </div>
-            <div className="mt-1 text-xs text-[var(--text-muted)]">
-              Metadata can be edited directly. Step editing is{" "}
-              {isEditing ? "enabled" : "locked"}.
+
+            <div className="space-y-4">
+              <EditableMetadataField
+                label="Vibe ID"
+                field="id"
+                value={vibe?.workflow.id ?? ""}
+                fallbackValue="No vibe loaded"
+                canEditMetadata={true}
+                editingMetadataField={editingMetadataField}
+                metadataDraftValue={metadataDraftValue}
+                onStartEditing={startEditingMetadata}
+                onChangeDraft={setMetadataDraftValue}
+                onSave={saveMetadataEdit}
+                onCancel={cancelMetadataEdit}
+              />
+
+              <EditableMetadataField
+                label="Name"
+                field="name"
+                value={vibe?.workflow.name ?? ""}
+                fallbackValue="Untitled Visual Vibe"
+                canEditMetadata={true}
+                editingMetadataField={editingMetadataField}
+                metadataDraftValue={metadataDraftValue}
+                onStartEditing={startEditingMetadata}
+                onChangeDraft={setMetadataDraftValue}
+                onSave={saveMetadataEdit}
+                onCancel={cancelMetadataEdit}
+                isLarge
+              />
+
+              <EditableMetadataField
+                label="Description"
+                field="description"
+                value={vibe?.workflow.description ?? ""}
+                fallbackValue="No description available."
+                canEditMetadata={true}
+                editingMetadataField={editingMetadataField}
+                metadataDraftValue={metadataDraftValue}
+                onStartEditing={startEditingMetadata}
+                onChangeDraft={setMetadataDraftValue}
+                onSave={saveMetadataEdit}
+                onCancel={cancelMetadataEdit}
+                multiline
+              />
             </div>
           </div>
+        )}
 
-          <div className="space-y-4">
-            <EditableMetadataField
-              label="Vibe ID"
-              field="id"
-              value={vibe?.workflow.id ?? ""}
-              fallbackValue="No vibe loaded"
-              canEditMetadata={true}
-              editingMetadataField={editingMetadataField}
-              metadataDraftValue={metadataDraftValue}
-              onStartEditing={startEditingMetadata}
-              onChangeDraft={setMetadataDraftValue}
-              onSave={saveMetadataEdit}
-              onCancel={cancelMetadataEdit}
-            />
-
-            <EditableMetadataField
-              label="Name"
-              field="name"
-              value={vibe?.workflow.name ?? ""}
-              fallbackValue="Untitled Visual Vibe"
-              canEditMetadata={true}
-              editingMetadataField={editingMetadataField}
-              metadataDraftValue={metadataDraftValue}
-              onStartEditing={startEditingMetadata}
-              onChangeDraft={setMetadataDraftValue}
-              onSave={saveMetadataEdit}
-              onCancel={cancelMetadataEdit}
-              isLarge
-            />
-
-            <EditableMetadataField
-              label="Description"
-              field="description"
-              value={vibe?.workflow.description ?? ""}
-              fallbackValue="No description available."
-              canEditMetadata={true}
-              editingMetadataField={editingMetadataField}
-              metadataDraftValue={metadataDraftValue}
-              onStartEditing={startEditingMetadata}
-              onChangeDraft={setMetadataDraftValue}
-              onSave={saveMetadataEdit}
-              onCancel={cancelMetadataEdit}
-              multiline
-            />
-          </div>
-        </div>
-
-        <div className="p-6">
+        <div className="flex min-h-0 flex-1 flex-col p-6">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
@@ -249,10 +617,10 @@ export function VibeCanvas({
               </h3>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
                 {isSelectionMode
-                  ? "Selection mode is showing only edges connected to the selected step."
+                  ? "Selection mode highlights only the selected step while keeping the graph layout stable."
                   : viewMode === "flow"
-                    ? "Flow View shows main execution and error paths."
-                    : "Dependency View also shows data references from step inputs."}
+                    ? "Flow View shows the main execution path."
+                    : "Error View shows each error path as its own vertical chain."}
               </p>
             </div>
 
@@ -282,14 +650,14 @@ export function VibeCanvas({
 
                 <button
                   type="button"
-                  onClick={() => onChangeViewMode("dependency")}
+                  onClick={() => onChangeViewMode("errors")}
                   className={`border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold ${
-                    viewMode === "dependency"
+                    viewMode === "errors"
                       ? "bg-[var(--brand-primary)] text-white"
                       : "text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
                   }`}
                 >
-                  Dependency View
+                  Error View
                 </button>
               </div>
 
@@ -297,6 +665,17 @@ export function VibeCanvas({
                 {graph.nodes.length}{" "}
                 {graph.nodes.length === 1 ? "step" : "steps"}
               </div>
+
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={onAddStandaloneStep}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
+                >
+                  <PlusIcon />
+                  Add standalone step
+                </button>
+              )}
 
               {isEditing ? (
                 <>
@@ -337,21 +716,94 @@ export function VibeCanvas({
               label="Main flow"
             />
             <LegendItem
-              lineClassName="border-[var(--danger)] border-dashed"
-              label="Error path"
+              lineClassName="border-yellow-500"
+              label="Error handler"
             />
             <LegendItem
-              lineClassName="border-[var(--edge-color)] border-dotted"
-              label="Data reference"
+              lineClassName="border-yellow-500 border-dashed"
+              label="Error edge"
             />
+            <LegendItem
+              lineClassName="border-[var(--danger)] border-dashed"
+              label="Terminating error"
+            />
+            <LegendItem lineClassName="border-green-500" label="Conclusion" />
           </div>
 
-          <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--canvas-bg)]">
+          <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--canvas-bg)]">
+            <div className="absolute right-4 top-4 z-10 flex overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] shadow-sm">
+              <button
+                type="button"
+                onClick={zoomOut}
+                className="px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+                title="Zoom out"
+              >
+                −
+              </button>
+
+              <button
+                type="button"
+                onClick={resetZoom}
+                className="border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+                title="Reset zoom"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+
+              <button
+                type="button"
+                onClick={zoomIn}
+                className="border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+                title="Zoom in"
+              >
+                +
+              </button>
+
+              <button
+                type="button"
+                onClick={recenterCanvas}
+                className="border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+                title="Recenter canvas"
+              >
+                Center
+              </button>
+
+              <button
+                type="button"
+                onClick={resetZoomAndPan}
+                className="border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+                title="Reset zoom and pan"
+              >
+                Reset
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setIsFullscreenCanvas((currentValue) => !currentValue)
+                }
+                className="border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+                title={
+                  isFullscreenCanvas
+                    ? "Exit canvas fullscreen"
+                    : "Canvas fullscreen"
+                }
+              >
+                {isFullscreenCanvas ? "Exit" : "Full"}
+              </button>
+            </div>
+
             <svg
               width="100%"
-              height={contentHeight}
-              viewBox={`0 0 ${contentWidth} ${contentHeight}`}
-              className="block"
+              height="100%"
+              viewBox={`0 0 ${CANVAS_VIEWPORT_WIDTH} ${CANVAS_VIEWPORT_HEIGHT}`}
+              className={`block h-full min-h-[620px] w-full ${
+                panStart ? "cursor-grabbing" : "cursor-grab"
+              }`}
+              onWheel={handleWheelZoom}
+              onMouseMove={continuePanning}
+              onMouseUp={stopPanning}
+              onMouseLeave={stopPanning}
             >
               <defs>
                 <marker
@@ -387,371 +839,749 @@ export function VibeCanvas({
                   orient="auto"
                   markerUnits="strokeWidth"
                 >
+                  <path d="M0,0 L0,6 L9,3 z" fill="#f59e0b" />
+                </marker>
+
+                <marker
+                  id="arrow-terminal-error"
+                  markerWidth="10"
+                  markerHeight="10"
+                  refX="8"
+                  refY="3"
+                  orient="auto"
+                  markerUnits="strokeWidth"
+                >
                   <path d="M0,0 L0,6 L9,3 z" fill="var(--danger)" />
                 </marker>
               </defs>
 
-              {graph.edges.map((edge) => {
-                const addButtonX = (edge.sourceX + edge.targetX) / 2;
-                const addButtonY = (edge.sourceY + edge.targetY) / 2;
-                const deleteButtonX = addButtonX + 34;
-                const deleteButtonY = addButtonY;
-                const isHovered = hoveredEdgeId === edge.id;
-                const edgePath = getEdgePath(edge);
+              <rect
+                x="-2000"
+                y="-2000"
+                width={Math.max(worldWidth + 4000, 6000)}
+                height={Math.max(worldHeight + 4000, 6000)}
+                fill="transparent"
+                onMouseDown={startPanning}
+              />
 
-                const stroke =
-                  edge.type === "error"
-                    ? "var(--danger)"
-                    : edge.type === "next"
-                      ? "var(--brand-primary)"
-                      : "var(--edge-color)";
-
-                const markerEnd =
-                  edge.type === "error"
-                    ? "url(#arrow-error)"
-                    : edge.type === "next"
-                      ? "url(#arrow-next)"
-                      : "url(#arrow-data)";
-
-                const strokeDasharray =
-                  edge.type === "error"
-                    ? "7 5"
+              <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+                {graph.edges.map((edge) => {
+                  const edgeLabelPoint = getEdgeLabelPoint(edge);
+                  const addButtonX = edgeLabelPoint.x;
+                  const addButtonY = edgeLabelPoint.y;
+                  const edgeActionY = addButtonY + 34;
+                  const deleteButtonX = addButtonX + 38;
+                  const deleteButtonY = edgeActionY;
+                  const isHovered = hoveredEdgeId === edge.id;
+                  const isDimmedBySelection = Boolean(selectedStepId);
+                  const edgeOpacity = isDimmedBySelection
+                    ? "0.12"
                     : edge.type === "data"
-                      ? "3 5"
-                      : undefined;
+                      ? "0.45"
+                      : "1";
+                  const edgePath = getEdgePath(edge);
+                  const targetNode = nodeById.get(edge.target);
+                  const isEdgeToTerminalError = Boolean(
+                    targetNode &&
+                      isTerminatingErrorNode(
+                        targetNode.id,
+                        targetNode.functionName,
+                      ),
+                  );
 
-                return (
-                  <g
-                    key={edge.id}
-                    onMouseEnter={() => setHoveredEdgeId(edge.id)}
-                    onMouseLeave={() => setHoveredEdgeId(null)}
-                  >
-                    <path
-                      d={edgePath}
-                      fill="none"
-                      stroke="transparent"
-                      strokeWidth="24"
-                      pointerEvents="stroke"
-                    />
+                  const edgeLabel = getEdgeFunctionLabel(edge);
+                  const labelWidth = Math.min(
+                    190,
+                    Math.max(76, edgeLabel.length * 6.5 + 20),
+                  );
 
-                    <path
-                      d={edgePath}
-                      fill="none"
-                      stroke={stroke}
-                      strokeWidth={edge.type === "error" ? "2.5" : "2"}
-                      strokeDasharray={strokeDasharray}
-                      markerEnd={markerEnd}
-                      opacity={edge.type === "data" ? "0.45" : "1"}
-                      pointerEvents="none"
-                    />
+                  const stroke = isEdgeToTerminalError
+                    ? "var(--danger)"
+                    : edge.type === "error"
+                      ? "#f59e0b"
+                      : edge.type === "next"
+                        ? "var(--brand-primary)"
+                        : "var(--edge-color)";
 
-                    {edge.type === "error" && (
-                      <text
-                        x={addButtonX}
-                        y={addButtonY - 12}
-                        textAnchor="middle"
-                        fill="var(--danger)"
-                        fontSize="10"
-                        fontWeight="700"
-                        pointerEvents="none"
-                      >
-                        ERROR
-                      </text>
-                    )}
+                  const markerEnd = isEdgeToTerminalError
+                    ? "url(#arrow-terminal-error)"
+                    : edge.type === "error"
+                      ? "url(#arrow-error)"
+                      : edge.type === "next"
+                        ? "url(#arrow-next)"
+                        : "url(#arrow-data)";
 
-                    {edge.type === "data" && (
-                      <text
-                        x={addButtonX}
-                        y={addButtonY - 12}
-                        textAnchor="middle"
-                        fill="var(--edge-color)"
-                        fontSize="10"
-                        fontWeight="700"
-                        opacity="0.6"
-                        pointerEvents="none"
-                      >
-                        DATA
-                      </text>
-                    )}
+                  const strokeDasharray = isEdgeToTerminalError
+                    ? "7 5"
+                    : edge.type === "error"
+                      ? "7 5"
+                      : edge.type === "data"
+                        ? "3 5"
+                        : undefined;
 
-                    {isEditing && isHovered && (
-                      <>
-                        <g
-                          transform={`translate(${addButtonX}, ${addButtonY})`}
-                          onClick={(event) => {
-                            event.stopPropagation();
+                  return (
+                    <g
+                      key={edge.id}
+                      onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                      onMouseLeave={() => setHoveredEdgeId(null)}
+                      onMouseDown={(event) => event.stopPropagation()}
+                    >
+                      <path
+                        d={edgePath}
+                        fill="none"
+                        stroke="transparent"
+                        strokeWidth="44"
+                        pointerEvents="stroke"
+                      />
 
-                            onAddStepOnEdge({
-                              sourceStepId: edge.source,
-                              targetStepId: edge.target,
-                              edgeType: edge.type,
-                            });
-                          }}
-                          className="cursor-pointer"
-                        >
-                          <circle
-                            r="14"
-                            fill="var(--panel-bg)"
-                            stroke={
-                              edge.type === "error"
-                                ? "var(--danger)"
-                                : "var(--brand-primary)"
-                            }
-                            strokeWidth="2"
-                          />
-                          <text
-                            x="0"
-                            y="5"
-                            textAnchor="middle"
-                            fill={
-                              edge.type === "error"
-                                ? "var(--danger)"
-                                : "var(--brand-primary)"
-                            }
-                            fontSize="18"
-                            fontWeight="700"
-                            pointerEvents="none"
-                          >
-                            +
-                          </text>
-                        </g>
-
-                        <g
-                          transform={`translate(${deleteButtonX}, ${deleteButtonY})`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-
-                            onDeleteEdge({
-                              sourceStepId: edge.source,
-                              targetStepId: edge.target,
-                              edgeType: edge.type,
-                            });
-                          }}
-                          className="cursor-pointer"
-                        >
-                          <circle
-                            r="14"
-                            fill="var(--danger-soft)"
-                            stroke="var(--danger)"
-                            strokeWidth="2"
-                          />
-                          <text
-                            x="0"
-                            y="5"
-                            textAnchor="middle"
-                            fill="var(--danger)"
-                            fontSize="16"
-                            fontWeight="700"
-                            pointerEvents="none"
-                          >
-                            ×
-                          </text>
-                        </g>
-                      </>
-                    )}
-                  </g>
-                );
-              })}
-
-              {graph.nodes.map((node) => {
-                const isSelected = selectedStepId === node.id;
-                const isHovered = hoveredNodeId === node.id;
-                const isErrorHandlerNode = isErrorNode(node.id);
-                const isDimmed = isDimmedNode(node.id);
-
-                return (
-                  <g
-                    key={node.id}
-                    transform={`translate(${node.x}, ${node.y})`}
-                    onMouseEnter={() => setHoveredNodeId(node.id)}
-                    onMouseLeave={() => setHoveredNodeId(null)}
-                    onClick={() => onSelectStep(node.id)}
-                    className="cursor-pointer"
-                    opacity={isDimmed ? "0.28" : "1"}
-                  >
-                    <rect
-                      width={NODE_WIDTH}
-                      height={NODE_HEIGHT}
-                      rx="16"
-                      fill={
-                        isSelected
-                          ? "var(--node-selected-bg)"
-                          : isErrorHandlerNode
-                            ? "var(--danger-soft)"
-                            : "var(--node-bg)"
-                      }
-                      stroke={
-                        isSelected
-                          ? "var(--node-selected-border)"
-                          : isErrorHandlerNode
-                            ? "var(--danger)"
-                            : "var(--node-border)"
-                      }
-                      strokeWidth={
-                        isSelected || isErrorHandlerNode ? "2.5" : "2"
-                      }
-                    />
-
-                    {isEditing && isHovered && (
-                      <g
-                        transform={`translate(${NODE_WIDTH - 18}, 18)`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onDeleteStep(node.id);
-                        }}
-                        className="cursor-pointer"
-                      >
-                        <circle
-                          r="12"
-                          fill="var(--danger-soft)"
-                          stroke="var(--danger)"
-                          strokeWidth="2"
+                      {isEditing && isHovered && (
+                        <rect
+                          x={addButtonX - 76}
+                          y={addButtonY - 22}
+                          width="160"
+                          height="86"
+                          rx="18"
+                          fill="transparent"
+                          pointerEvents="all"
+                          onMouseEnter={() => setHoveredEdgeId(edge.id)}
                         />
+                      )}
+
+                      <path
+                        d={edgePath}
+                        fill="none"
+                        stroke={stroke}
+                        strokeWidth={
+                          edge.type === "error" || isEdgeToTerminalError
+                            ? "2.5"
+                            : "2"
+                        }
+                        strokeDasharray={strokeDasharray}
+                        markerEnd={markerEnd}
+                        opacity={edgeOpacity}
+                        pointerEvents="none"
+                      />
+
+                      <g pointerEvents="none" opacity={edgeOpacity}>
+                        <rect
+                          x={addButtonX - labelWidth / 2}
+                          y={addButtonY - 11}
+                          width={labelWidth}
+                          height="22"
+                          rx="11"
+                          fill="var(--panel-bg)"
+                          stroke={stroke}
+                          strokeWidth="1"
+                          opacity="0.92"
+                        />
+
                         <text
-                          x="0"
-                          y="4"
+                          x={addButtonX}
+                          y={addButtonY + 4}
+                          textAnchor="middle"
+                          fill={
+                            isEdgeToTerminalError
+                              ? "var(--danger)"
+                              : edge.type === "error"
+                                ? "#b45309"
+                                : edge.type === "next"
+                                  ? "var(--brand-primary)"
+                                  : "var(--edge-color)"
+                          }
+                          fontSize="10"
+                          fontWeight="700"
+                        >
+                          {edgeLabel}
+                        </text>
+                      </g>
+
+                      {isHovered && isEdgeToTerminalError && (
+                        <text
+                          x={addButtonX}
+                          y={addButtonY - 20}
                           textAnchor="middle"
                           fill="var(--danger)"
-                          fontSize="15"
+                          fontSize="10"
                           fontWeight="700"
                           pointerEvents="none"
                         >
-                          ×
+                          TERMINATING ERROR
                         </text>
-                      </g>
-                    )}
+                      )}
 
-                    {isEditing && isHovered && (
-                      <>
-                        <g
-                          transform={`translate(${NODE_WIDTH + 10}, ${NODE_HEIGHT / 2})`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-
-                            if (isFinalNode(node.id)) {
-                              onAppendStepAfter(node.id);
-                              return;
-                            }
-
-                            setConnectingFromStepId(node.id);
-                          }}
-                          className="cursor-crosshair"
-                        >
-                          <circle
-                            r="10"
-                            fill="var(--panel-bg)"
-                            stroke="var(--brand-primary)"
-                            strokeWidth="2"
-                          />
+                      {isHovered &&
+                        edge.type === "error" &&
+                        !isEdgeToTerminalError && (
                           <text
-                            x="0"
-                            y="4"
+                            x={addButtonX}
+                            y={addButtonY - 20}
                             textAnchor="middle"
-                            fill="var(--brand-primary)"
-                            fontSize="12"
+                            fill="#f59e0b"
+                            fontSize="10"
                             fontWeight="700"
                             pointerEvents="none"
                           >
-                            +
+                            ERROR PATH
                           </text>
-                        </g>
+                        )}
 
-                        <g
-                          transform={`translate(${-10}, ${NODE_HEIGHT / 2})`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-
-                            if (!connectingFromStepId && isFirstNode(node.id)) {
-                              onPrependStepBefore(node.id);
-                              return;
-                            }
-
-                            if (
-                              !connectingFromStepId ||
-                              connectingFromStepId === node.id
-                            ) {
-                              return;
-                            }
-
-                            onAddEdge({
-                              sourceStepId: connectingFromStepId,
-                              targetStepId: node.id,
-                            });
-
-                            setConnectingFromStepId(null);
-                          }}
-                          className="cursor-crosshair"
+                      {isHovered && edge.type === "data" && (
+                        <text
+                          x={addButtonX}
+                          y={addButtonY - 20}
+                          textAnchor="middle"
+                          fill="var(--edge-color)"
+                          fontSize="10"
+                          fontWeight="700"
+                          opacity="0.6"
+                          pointerEvents="none"
                         >
-                          <circle
-                            r="10"
-                            fill={
+                          DATA
+                        </text>
+                      )}
+
+                      {isEditing && isHovered && (
+                        <>
+                          <g
+                            transform={`translate(${addButtonX}, ${edgeActionY})`}
+                            onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+
+                              onAddStepOnEdge({
+                                sourceStepId: edge.source,
+                                targetStepId: edge.target,
+                                edgeType: edge.type,
+                              });
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <circle
+                              r="16"
+                              fill="var(--panel-bg)"
+                              stroke={stroke}
+                              strokeWidth="2"
+                            />
+                            <text
+                              x="0"
+                              y="5"
+                              textAnchor="middle"
+                              fill={stroke}
+                              fontSize="18"
+                              fontWeight="700"
+                              pointerEvents="none"
+                            >
+                              +
+                            </text>
+                          </g>
+
+                          <g
+                            transform={`translate(${deleteButtonX}, ${deleteButtonY})`}
+                            onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+
+                              onDeleteEdge({
+                                sourceStepId: edge.source,
+                                targetStepId: edge.target,
+                                edgeType: edge.type,
+                              });
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <circle
+                              r="16"
+                              fill="var(--danger-soft)"
+                              stroke="var(--danger)"
+                              strokeWidth="2"
+                            />
+                            <text
+                              x="0"
+                              y="5"
+                              textAnchor="middle"
+                              fill="var(--danger)"
+                              fontSize="16"
+                              fontWeight="700"
+                              pointerEvents="none"
+                            >
+                              ×
+                            </text>
+                          </g>
+                        </>
+                      )}
+                    </g>
+                  );
+                })}
+
+                {graph.nodes.map((node) => {
+                  const isSelected = selectedStepId === node.id;
+                  const isHovered = hoveredNodeId === node.id;
+                  const isTerminalError = isTerminatingErrorNode(
+                    node.id,
+                    node.functionName,
+                  );
+                  const isConclusion = isConcludingNode(
+                    node.id,
+                    node.functionName,
+                  );
+                  const isStartingFlowNode =
+                    viewMode === "flow" &&
+                    startingFlowNodeIds.has(node.id) &&
+                    !isConclusion &&
+                    !isTerminalError;
+                  const hasErrorPathBranch = hasErrorPath(node.id);
+                  const isDimmed = isDimmedNode(node.id);
+                  const isErrorHandler =
+                    shouldLabelAsErrorHandler(node.id) && !isTerminalError;
+
+                  const nodeLabel = getNodeLabel({
+                    nodeId: node.id,
+                    isTerminalError,
+                    isConclusion,
+                    hasErrorPathBranch,
+                  });
+
+                  const nodeColors = getNodeColors({
+                    isSelected,
+                    isTerminalError,
+                    isConclusion,
+                    isErrorHandler,
+                  });
+
+                  return (
+                    <g
+                      key={node.id}
+                      transform={`translate(${node.x}, ${node.y})`}
+                      onMouseEnter={() => setHoveredNodeId(node.id)}
+                      onMouseLeave={() => setHoveredNodeId(null)}
+                      onMouseDown={(event) => event.stopPropagation()}
+                      onClick={() => onSelectStep(node.id)}
+                      className="cursor-pointer"
+                      opacity={isDimmed ? "0.14" : "1"}
+                    >
+                      <rect
+                        x="-34"
+                        y="-14"
+                        width={NODE_WIDTH + 68}
+                        height={NODE_HEIGHT + 82}
+                        rx="24"
+                        fill="transparent"
+                      />
+
+                      <rect
+                        width={NODE_WIDTH}
+                        height={NODE_HEIGHT}
+                        rx="16"
+                        fill={nodeColors.fill}
+                        stroke={nodeColors.stroke}
+                        strokeWidth={nodeColors.strokeWidth}
+                      />
+
+                      {isConclusion && (
+                        <ConclusionBadge x={NODE_WIDTH - 30} y={26} />
+                      )}
+
+                      {isStartingFlowNode && (
+                        <StartingFlagBadge x={NODE_WIDTH - 30} y={26} />
+                      )}
+
+                      {isEditing && isHovered && (
+                        <>
+                          <g
+                            transform={`translate(${NODE_WIDTH - 18}, 18)`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onDeleteStep(node.id);
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <circle
+                              r="12"
+                              fill="var(--danger-soft)"
+                              stroke="var(--danger)"
+                              strokeWidth="2"
+                            />
+                            <text
+                              x="0"
+                              y="4"
+                              textAnchor="middle"
+                              fill="var(--danger)"
+                              fontSize="15"
+                              fontWeight="700"
+                              pointerEvents="none"
+                            >
+                              ×
+                            </text>
+                          </g>
+
+                          <NodeActionButton
+                            x={6}
+                            y={NODE_HEIGHT + 18}
+                            label="+ Before"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onPrependStepBefore(node.id);
+                            }}
+                          />
+
+                          <NodeActionButton
+                            x={112}
+                            y={NODE_HEIGHT + 18}
+                            label="+ After"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onAppendStepAfter(node.id);
+                            }}
+                          />
+                        </>
+                      )}
+
+                      {isEditing && isHovered && (
+                        <>
+                          <g
+                            transform={`translate(${NODE_WIDTH + 10}, ${NODE_HEIGHT / 2})`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setConnectingFromStepId(node.id);
+                            }}
+                            className="cursor-crosshair"
+                          >
+                            <circle
+                              r="10"
+                              fill="var(--panel-bg)"
+                              stroke="var(--brand-primary)"
+                              strokeWidth="2"
+                            />
+                            <path
+                              d="M-4 0h8M2 -4l4 4-4 4"
+                              fill="none"
+                              stroke="var(--brand-primary)"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              pointerEvents="none"
+                            />
+                          </g>
+
+                          <g
+                            transform={`translate(${-10}, ${NODE_HEIGHT / 2})`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+
+                              if (
+                                !connectingFromStepId ||
+                                connectingFromStepId === node.id
+                              ) {
+                                return;
+                              }
+
+                              onAddEdge({
+                                sourceStepId: connectingFromStepId,
+                                targetStepId: node.id,
+                              });
+
+                              setConnectingFromStepId(null);
+                            }}
+                            className={
                               connectingFromStepId &&
                               connectingFromStepId !== node.id
-                                ? "var(--brand-soft)"
-                                : "var(--panel-bg)"
+                                ? "cursor-crosshair"
+                                : "cursor-not-allowed"
                             }
-                            stroke="var(--brand-primary)"
-                            strokeWidth="2"
-                          />
-                          <text
-                            x="0"
-                            y="4"
-                            textAnchor="middle"
-                            fill="var(--brand-primary)"
-                            fontSize="12"
-                            fontWeight="700"
-                            pointerEvents="none"
                           >
-                            +
-                          </text>
-                        </g>
-                      </>
-                    )}
+                            <circle
+                              r="10"
+                              fill={
+                                connectingFromStepId &&
+                                connectingFromStepId !== node.id
+                                  ? "var(--brand-soft)"
+                                  : "var(--panel-bg)"
+                              }
+                              stroke={
+                                connectingFromStepId &&
+                                connectingFromStepId !== node.id
+                                  ? "var(--brand-primary)"
+                                  : "var(--border-subtle)"
+                              }
+                              strokeWidth="2"
+                            />
+                            <path
+                              d="M-4 0h8M-2 -4l-4 4 4 4"
+                              fill="none"
+                              stroke={
+                                connectingFromStepId &&
+                                connectingFromStepId !== node.id
+                                  ? "var(--brand-primary)"
+                                  : "var(--text-muted)"
+                              }
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              pointerEvents="none"
+                            />
+                          </g>
+                        </>
+                      )}
 
-                    <text
-                      x="18"
-                      y="34"
-                      fill={
-                        isErrorHandlerNode
-                          ? "var(--danger)"
-                          : "var(--brand-primary)"
-                      }
-                      fontSize="11"
-                      fontWeight="700"
-                      letterSpacing="1.4"
-                      pointerEvents="none"
-                    >
-                      {isErrorHandlerNode ? "ERROR STEP" : "VIBE STEP"}
-                    </text>
+                      <text
+                        x="18"
+                        y="34"
+                        fill={nodeColors.labelFill}
+                        fontSize="11"
+                        fontWeight="700"
+                        letterSpacing="1.4"
+                        pointerEvents="none"
+                      >
+                        {nodeLabel}
+                      </text>
 
-                    <text
-                      x="18"
-                      y="60"
-                      fill="var(--text-primary)"
-                      fontSize="14"
-                      fontWeight="700"
-                      pointerEvents="none"
-                    >
-                      {node.id}
-                    </text>
+                      <text
+                        x="18"
+                        y="60"
+                        fill="var(--text-primary)"
+                        fontSize="14"
+                        fontWeight="700"
+                        pointerEvents="none"
+                      >
+                        {node.id}
+                      </text>
 
-                    <text
-                      x="18"
-                      y="84"
-                      fill="var(--text-muted)"
-                      fontSize="12"
-                      pointerEvents="none"
-                    >
-                      {node.functionName}
-                    </text>
-                  </g>
-                );
-              })}
+                      <text
+                        x="18"
+                        y="84"
+                        fill="var(--text-muted)"
+                        fontSize="12"
+                        pointerEvents="none"
+                      >
+                        {node.functionName}
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
             </svg>
           </div>
         </div>
       </div>
     </div>
+  );
+
+  if (isFullscreenCanvas && typeof document !== "undefined") {
+    return createPortal(
+      <div className="fixed inset-0 z-[9999] h-screen w-screen overflow-hidden bg-[var(--canvas-bg)]">
+        {canvasContent}
+      </div>,
+      document.body,
+    );
+  }
+
+  return canvasContent;
+}
+
+function getErrorLaneNodeIds(graph: PositionedVibeGraph) {
+  const errorLaneNodeIds = new Set<string>();
+
+  for (const edge of graph.edges) {
+    if (edge.type === "error") {
+      errorLaneNodeIds.add(edge.target);
+    }
+  }
+
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const edge of graph.edges) {
+      if (edge.type !== "next") {
+        continue;
+      }
+
+      if (
+        errorLaneNodeIds.has(edge.source) &&
+        !errorLaneNodeIds.has(edge.target)
+      ) {
+        errorLaneNodeIds.add(edge.target);
+        changed = true;
+      }
+    }
+  }
+
+  return errorLaneNodeIds;
+}
+
+function getNormalFlowNodeIds(
+  graph: PositionedVibeGraph,
+  errorLaneNodeIds: Set<string>,
+) {
+  const normalFlowNodeIds = new Set<string>();
+
+  for (const node of graph.nodes) {
+    if (!errorLaneNodeIds.has(node.id)) {
+      normalFlowNodeIds.add(node.id);
+    }
+  }
+
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const edge of graph.edges) {
+      if (edge.type !== "next") {
+        continue;
+      }
+
+      if (
+        normalFlowNodeIds.has(edge.source) &&
+        !normalFlowNodeIds.has(edge.target)
+      ) {
+        normalFlowNodeIds.add(edge.target);
+        changed = true;
+      }
+    }
+  }
+
+  return normalFlowNodeIds;
+}
+
+function getErrorBranchSourceNodeIds(graph: PositionedVibeGraph) {
+  const errorBranchSourceNodeIds = new Set<string>();
+
+  for (const edge of graph.edges) {
+    if (edge.type === "error") {
+      errorBranchSourceNodeIds.add(edge.source);
+    }
+  }
+
+  return errorBranchSourceNodeIds;
+}
+
+function getStartingFlowNodeIds(graph: PositionedVibeGraph) {
+  const incomingNextTargetIds = new Set(
+    graph.edges
+      .filter((edge) => edge.type === "next")
+      .map((edge) => edge.target),
+  );
+
+  return new Set(
+    graph.nodes
+      .filter((node) => !incomingNextTargetIds.has(node.id))
+      .map((node) => node.id),
+  );
+}
+
+function ConclusionBadge({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      <circle r="15" fill="#22c55e" opacity="0.95" />
+      <path
+        d="M-6 0 -1 5 7 -6"
+        fill="none"
+        stroke="white"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        pointerEvents="none"
+      />
+    </g>
+  );
+}
+
+function StartingFlagBadge({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      <circle
+        r="15"
+        fill="var(--panel-bg)"
+        stroke="var(--brand-primary)"
+        strokeWidth="2"
+        opacity="0.96"
+      />
+
+      <path
+        d="M-6 8V-8"
+        stroke="var(--brand-primary)"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+
+      <path
+        d="M-5 -8 C-1 -10 3 -6 8 -8 V0 C3 2 -1 -2 -5 0 Z"
+        fill="var(--panel-muted-bg)"
+        stroke="var(--brand-primary)"
+        strokeWidth="1"
+      />
+
+      <rect
+        x="-4.5"
+        y="-7.2"
+        width="4"
+        height="4"
+        fill="var(--brand-primary)"
+      />
+      <rect
+        x="3.5"
+        y="-6.6"
+        width="4"
+        height="4"
+        fill="var(--brand-primary)"
+      />
+      <rect
+        x="-0.5"
+        y="-2.8"
+        width="4"
+        height="4"
+        fill="var(--brand-primary)"
+      />
+    </g>
+  );
+}
+
+type NodeActionButtonProps = {
+  x: number;
+  y: number;
+  label: string;
+  onClick: (event: ReactMouseEvent<SVGGElement>) => void;
+};
+
+function NodeActionButton({ x, y, label, onClick }: NodeActionButtonProps) {
+  return (
+    <g
+      transform={`translate(${x}, ${y})`}
+      onClick={onClick}
+      className="cursor-pointer"
+    >
+      <rect
+        x="-4"
+        y="-4"
+        width="104"
+        height="38"
+        rx="17"
+        fill="transparent"
+      />
+
+      <rect
+        width="96"
+        height="30"
+        rx="15"
+        fill="var(--panel-bg)"
+        stroke="var(--brand-primary)"
+        strokeWidth="1.5"
+      />
+
+      <text
+        x="48"
+        y="19"
+        textAnchor="middle"
+        fill="var(--brand-primary)"
+        fontSize="10"
+        fontWeight="700"
+        pointerEvents="none"
+      >
+        {label}
+      </text>
+    </g>
   );
 }
 
@@ -879,6 +1709,25 @@ function EditableMetadataField({
   );
 }
 
+function PlusIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function PencilIcon() {
   return (
     <svg
@@ -969,4 +1818,8 @@ function CancelIcon() {
       />
     </svg>
   );
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
