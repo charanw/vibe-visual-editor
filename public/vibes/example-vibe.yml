@@ -1,0 +1,55 @@
+workflow:
+  id: help-desk-intake-forwarder
+  name: "Help Desk · Intake Forwarder (with approved-answers priority)"
+  description: >
+    Triggered by an incoming email on the help-desk bot's email
+    listener. Queries the bot's APPROVED-ANSWERS KB first — if any
+    prior approved Q+A matches, Studio uses it to auto-reply without
+    sending to a reviewer. Otherwise the email goes through the
+    normal review queue.
+  steps:
+    # ─── 1. Priority lookup: approved-answers label only ───────────
+    - id: query_approved_answers
+      function: queryKnowledgebase
+      on_error_step_id: forward_to_intake
+      on_error_message: "approved-answers query failed — intake will run normal review"
+      input:
+        query_string: "${uniqueData.subject}\n\n${uniqueData.body}"
+        labels: ["approved-answers"]
+
+    # ─── 2. Forward email + approved-answer hits to Studio intake ──
+    - id: forward_to_intake
+      function: apiRequest
+      on_error_step_id: log_error
+      on_error_message: "Failed to forward email to help-desk intake"
+      input:
+        endpoint: https://www.studiox-ai.com/studio/api/help-desk/intake/email?org=default&instance=hr-assistant
+        method: POST
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer 7084e02873b67e89d63d894c3177c41cb7286aa85d3c68c5ce03ab3ff30a76d2
+          x-business-slug: studiox-ai
+        body:
+          messageId: ${uniqueData.emailThreadId}
+          from:
+            email: ${uniqueData.senderEmail}
+            name: ${uniqueData.senderName}
+          to: ${uniqueData.toEmails}
+          cc: ${uniqueData.ccList}
+          receivedAt: ${uniqueData.timestamp}
+          subject: ${uniqueData.subject}
+          body: ${uniqueData.body}
+          attachments: ${uniqueData.attachments}
+          # If non-empty `results`, Studio uses these to auto-reply
+          # without reviewer involvement. If empty, normal flow.
+          approvedAnswerHits: ${steps.query_approved_answers.output}
+
+    - id: done
+      function: concludeWorkflow
+
+    - id: log_error
+      function: setVariable
+      input:
+        variable_name: forwardError
+        value: "Intake forward failed for messageId=${uniqueData.emailThreadId}"
+      next_step_id: done
