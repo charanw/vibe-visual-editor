@@ -8,6 +8,12 @@ type VibeFileControlsProps = {
   onError: (message: string) => void;
 };
 
+/**
+ * File import/export toolbar for Visual Vibe YAML.
+ *
+ * Validates uploaded file extensions before reading text and exports the current
+ * YAML as a browser download using the active file name when available.
+ */
 export function VibeFileControls({
   fileName,
   sourceType,

@@ -149,6 +149,12 @@ Build for production:
 npm run build
 ```
 
+Run lint:
+
+```bash
+npm run lint
+```
+
 Run the production build:
 
 ```bash
@@ -157,23 +163,83 @@ npm start
 
 ## Project Structure
 
+The app uses feature-based architecture. Route-level code imports the Visual Vibes feature through its public entry point:
+
+```ts
+import { VisualVibesEditor } from "@/features/visual-vibes";
+```
+
 ```txt
 src/
-  components/
+  app/
+    page.tsx
+    layout.tsx
+    globals.css
+  features/
     visual-vibes/
-      VisualVibesEditor.tsx
-      VibeCanvas.tsx
-      VibeInspector.tsx
-      VibeFileControls.tsx
-      VibeYamlEditor.tsx
+      index.ts
+      components/
+        VisualVibesEditor.tsx
+        VibeCanvas.tsx
+        VibeInspector.tsx
+        VibeFileControls.tsx
+        VibeYamlEditor.tsx
+        canvas/
+          CanvasBadges.tsx
+          CanvasIcons.tsx
+          CanvasLegend.tsx
+          EditableMetadataField.tsx
+          canvasConstants.ts
+          canvasGraphUtils.ts
+        editor/
+          AppFooter.tsx
+          PanelHeader.tsx
+          PaneResizeHandler.tsx
+          editorGraphFilters.ts
+        inspector/
+          InputKeyValueRowEditor.tsx
+          InspectorField.tsx
+          InspectorIcons.tsx
+          inputTypes.ts
+          inputUtils.ts
+          stepFunctionTemplates.ts
+        panes/
+          CanvasPane.tsx
+          InspectorPane.tsx
+          SourcePane.tsx
+      hooks/
+        useCanvasResizeObserver.ts
+        useDefaultVibeYaml.ts
+        useEditingState.ts
+        useGraphLayout.ts
+        useLayoutState.ts
+        useVibeState.ts
+      utils/
+        editorUtils.ts
+        mobileLayoutUtils.ts
+        paneResizeUtils.ts
   lib/
     visual-vibes/
+      appConfig.ts
       graph.ts
       layout.ts
+      schema.ts
       validation.ts
       yaml.ts
-      schema.ts
+  public/
+    vibes/
+      example-vibe.yml
 ```
+
+### Feature Boundaries
+
+- `features/visual-vibes/index.ts` is the public import surface for the feature.
+- `components/panes` contains the three major workspace regions: source, canvas, and inspector.
+- `components/canvas` contains canvas-specific display helpers, icons, constants, and graph classification utilities.
+- `components/inspector` contains inspector form controls, input parsing, and step-function templates.
+- `hooks` contains state and lifecycle logic for YAML loading, editing modes, responsive layout, graph layout, and canvas resize observation.
+- `utils` contains feature-level helpers shared across the editor shell and panes.
+- `lib/visual-vibes` contains domain logic for parsing, validating, graph conversion, layout, schema, and app metadata.
 
 ## Notes
 

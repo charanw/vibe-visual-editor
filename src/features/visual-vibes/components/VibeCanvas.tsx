@@ -14,9 +14,34 @@ import {
   type PositionedVibeGraph,
 } from "@/lib/visual-vibes/layout";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
+import {
+  CANVAS_VIEWPORT_HEIGHT,
+  CANVAS_VIEWPORT_WIDTH,
+  HORIZONTAL_LABEL_Y_OFFSET,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  SIDE_ROUTE_EPSILON,
+  SIDE_ROUTE_LABEL_OFFSET,
+  SIDE_ROUTE_OFFSET,
+} from "./canvas/canvasConstants";
+import {
+  clamp,
+  getErrorBranchSourceNodeIds,
+  getErrorLaneNodeIds,
+  getStartingFlowNodeIds,
+  hashString,
+} from "./canvas/canvasGraphUtils";
+import { ConclusionBadge, NodeActionButton, StartingFlagBadge } from "./canvas/CanvasBadges";
+import { CancelIcon, LockIcon, PlusIcon, SaveIcon } from "./canvas/CanvasIcons";
+import { LegendItem } from "./canvas/CanvasLegend";
+import { EditableMetadataField } from "./canvas/EditableMetadataField";
 
 type MetadataField = "id" | "name" | "description";
 
+/**
+ * Selects which subset of the workflow graph the canvas should emphasize.
+ * `flow` shows the primary execution path, while `errors` isolates error paths.
+ */
 export type CanvasViewMode = "flow" | "errors";
 
 type CenterRequest = {
@@ -57,16 +82,12 @@ type VibeCanvasProps = {
   onUpdateVibeMetadata: (field: MetadataField, value: string) => void;
 };
 
-const CANVAS_VIEWPORT_WIDTH = 1200;
-const CANVAS_VIEWPORT_HEIGHT = 720;
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 2.5;
-
-const SIDE_ROUTE_OFFSET = 72;
-const SIDE_ROUTE_LABEL_OFFSET = 70;
-const SIDE_ROUTE_EPSILON = 1;
-const HORIZONTAL_LABEL_Y_OFFSET = 18;
-
+/**
+ * Interactive SVG canvas for viewing and editing a Visual Vibe workflow graph.
+ *
+ * Owns canvas-local interaction state such as zoom, pan, hover, metadata drafts,
+ * edge linking, and fullscreen rendering while delegating YAML mutations upward.
+ */
 export function VibeCanvas({
   vibe,
   graph,
@@ -126,10 +147,6 @@ export function VibeCanvas({
     classificationGraph.edges.map((edge) => edge.source),
   );
   const errorLaneNodeIds = getErrorLaneNodeIds(classificationGraph);
-  const normalFlowNodeIds = getNormalFlowNodeIds(
-    classificationGraph,
-    errorLaneNodeIds,
-  );
   const errorBranchSourceNodeIds =
     getErrorBranchSourceNodeIds(classificationGraph);
   const startingFlowNodeIds = getStartingFlowNodeIds(graph);
@@ -396,8 +413,7 @@ export function VibeCanvas({
     const mouseX =
       ((event.clientX - svgRect.left) / svgRect.width) * CANVAS_VIEWPORT_WIDTH;
     const mouseY =
-      ((event.clientY - svgRect.top) / svgRect.height) *
-      CANVAS_VIEWPORT_HEIGHT;
+      ((event.clientY - svgRect.top) / svgRect.height) * CANVAS_VIEWPORT_HEIGHT;
 
     const worldMouseX = mouseX / zoom - pan.x;
     const worldMouseY = mouseY / zoom - pan.y;
@@ -457,7 +473,9 @@ export function VibeCanvas({
     setPanStart(null);
   }
 
-  function isSideRoutedVerticalEdge(edge: PositionedVibeGraph["edges"][number]) {
+  function isSideRoutedVerticalEdge(
+    edge: PositionedVibeGraph["edges"][number],
+  ) {
     return (
       Math.abs(edge.sourceX - edge.targetX) <= SIDE_ROUTE_EPSILON &&
       Math.abs(edge.sourceY - edge.targetY) > NODE_HEIGHT / 2
@@ -895,10 +913,10 @@ export function VibeCanvas({
                   const targetNode = nodeById.get(edge.target);
                   const isEdgeToTerminalError = Boolean(
                     targetNode &&
-                      isTerminatingErrorNode(
-                        targetNode.id,
-                        targetNode.functionName,
-                      ),
+                    isTerminatingErrorNode(
+                      targetNode.id,
+                      targetNode.functionName,
+                    ),
                   );
 
                   const edgeLabel = getEdgeFunctionLabel(edge);
@@ -1388,460 +1406,4 @@ export function VibeCanvas({
   }
 
   return canvasContent;
-}
-
-function getErrorLaneNodeIds(graph: PositionedVibeGraph) {
-  const errorLaneNodeIds = new Set<string>();
-
-  for (const edge of graph.edges) {
-    if (edge.type === "error") {
-      errorLaneNodeIds.add(edge.target);
-    }
-  }
-
-  let changed = true;
-
-  while (changed) {
-    changed = false;
-
-    for (const edge of graph.edges) {
-      if (edge.type !== "next") {
-        continue;
-      }
-
-      if (
-        errorLaneNodeIds.has(edge.source) &&
-        !errorLaneNodeIds.has(edge.target)
-      ) {
-        errorLaneNodeIds.add(edge.target);
-        changed = true;
-      }
-    }
-  }
-
-  return errorLaneNodeIds;
-}
-
-function getNormalFlowNodeIds(
-  graph: PositionedVibeGraph,
-  errorLaneNodeIds: Set<string>,
-) {
-  const normalFlowNodeIds = new Set<string>();
-
-  for (const node of graph.nodes) {
-    if (!errorLaneNodeIds.has(node.id)) {
-      normalFlowNodeIds.add(node.id);
-    }
-  }
-
-  let changed = true;
-
-  while (changed) {
-    changed = false;
-
-    for (const edge of graph.edges) {
-      if (edge.type !== "next") {
-        continue;
-      }
-
-      if (
-        normalFlowNodeIds.has(edge.source) &&
-        !normalFlowNodeIds.has(edge.target)
-      ) {
-        normalFlowNodeIds.add(edge.target);
-        changed = true;
-      }
-    }
-  }
-
-  return normalFlowNodeIds;
-}
-
-function getErrorBranchSourceNodeIds(graph: PositionedVibeGraph) {
-  const errorBranchSourceNodeIds = new Set<string>();
-
-  for (const edge of graph.edges) {
-    if (edge.type === "error") {
-      errorBranchSourceNodeIds.add(edge.source);
-    }
-  }
-
-  return errorBranchSourceNodeIds;
-}
-
-function getStartingFlowNodeIds(graph: PositionedVibeGraph) {
-  const incomingNextTargetIds = new Set(
-    graph.edges
-      .filter((edge) => edge.type === "next")
-      .map((edge) => edge.target),
-  );
-
-  return new Set(
-    graph.nodes
-      .filter((node) => !incomingNextTargetIds.has(node.id))
-      .map((node) => node.id),
-  );
-}
-
-function ConclusionBadge({ x, y }: { x: number; y: number }) {
-  return (
-    <g transform={`translate(${x}, ${y})`}>
-      <circle r="15" fill="#22c55e" opacity="0.95" />
-      <path
-        d="M-6 0 -1 5 7 -6"
-        fill="none"
-        stroke="white"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        pointerEvents="none"
-      />
-    </g>
-  );
-}
-
-function StartingFlagBadge({ x, y }: { x: number; y: number }) {
-  return (
-    <g transform={`translate(${x}, ${y})`}>
-      <circle
-        r="15"
-        fill="var(--panel-bg)"
-        stroke="var(--brand-primary)"
-        strokeWidth="2"
-        opacity="0.96"
-      />
-
-      <path
-        d="M-6 8V-8"
-        stroke="var(--brand-primary)"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-
-      <path
-        d="M-5 -8 C-1 -10 3 -6 8 -8 V0 C3 2 -1 -2 -5 0 Z"
-        fill="var(--panel-muted-bg)"
-        stroke="var(--brand-primary)"
-        strokeWidth="1"
-      />
-
-      <rect
-        x="-4.5"
-        y="-7.2"
-        width="4"
-        height="4"
-        fill="var(--brand-primary)"
-      />
-      <rect
-        x="3.5"
-        y="-6.6"
-        width="4"
-        height="4"
-        fill="var(--brand-primary)"
-      />
-      <rect
-        x="-0.5"
-        y="-2.8"
-        width="4"
-        height="4"
-        fill="var(--brand-primary)"
-      />
-    </g>
-  );
-}
-
-type NodeActionButtonProps = {
-  x: number;
-  y: number;
-  label: string;
-  onClick: (event: ReactMouseEvent<SVGGElement>) => void;
-};
-
-function NodeActionButton({ x, y, label, onClick }: NodeActionButtonProps) {
-  return (
-    <g
-      transform={`translate(${x}, ${y})`}
-      onClick={onClick}
-      className="cursor-pointer"
-    >
-      <rect
-        x="-4"
-        y="-4"
-        width="104"
-        height="38"
-        rx="17"
-        fill="transparent"
-      />
-
-      <rect
-        width="96"
-        height="30"
-        rx="15"
-        fill="var(--panel-bg)"
-        stroke="var(--brand-primary)"
-        strokeWidth="1.5"
-      />
-
-      <text
-        x="48"
-        y="19"
-        textAnchor="middle"
-        fill="var(--brand-primary)"
-        fontSize="10"
-        fontWeight="700"
-        pointerEvents="none"
-      >
-        {label}
-      </text>
-    </g>
-  );
-}
-
-type LegendItemProps = {
-  lineClassName: string;
-  label: string;
-};
-
-function LegendItem({ lineClassName, label }: LegendItemProps) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className={`inline-block w-8 border-t-2 ${lineClassName}`} />
-      <span>{label}</span>
-    </div>
-  );
-}
-
-type EditableMetadataFieldProps = {
-  label: string;
-  field: MetadataField;
-  value: string;
-  fallbackValue: string;
-  canEditMetadata: boolean;
-  editingMetadataField: MetadataField | null;
-  metadataDraftValue: string;
-  onStartEditing: (field: MetadataField, currentValue: string) => void;
-  onChangeDraft: (value: string) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  multiline?: boolean;
-  isLarge?: boolean;
-};
-
-function EditableMetadataField({
-  label,
-  field,
-  value,
-  fallbackValue,
-  canEditMetadata,
-  editingMetadataField,
-  metadataDraftValue,
-  onStartEditing,
-  onChangeDraft,
-  onSave,
-  onCancel,
-  multiline = false,
-  isLarge = false,
-}: EditableMetadataFieldProps) {
-  const isEditingThisField = editingMetadataField === field;
-  const displayValue = value || fallbackValue;
-
-  return (
-    <div>
-      <div className="mb-1 flex items-center gap-2">
-        <div className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--text-muted)]">
-          {label}
-        </div>
-
-        {canEditMetadata && !isEditingThisField && (
-          <button
-            type="button"
-            onClick={() => onStartEditing(field, value)}
-            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border-subtle)] bg-[var(--panel-bg)] text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-            aria-label={`Edit ${label}`}
-            title={`Edit ${label}`}
-          >
-            <PencilIcon />
-          </button>
-        )}
-      </div>
-
-      {isEditingThisField ? (
-        <div className="space-y-2">
-          {multiline ? (
-            <textarea
-              value={metadataDraftValue}
-              onChange={(event) => onChangeDraft(event.target.value)}
-              rows={4}
-              className="w-full resize-none rounded-lg border border-[var(--brand-primary)] bg-[var(--panel-muted-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none"
-            />
-          ) : (
-            <input
-              value={metadataDraftValue}
-              onChange={(event) => onChangeDraft(event.target.value)}
-              className={`w-full rounded-lg border border-[var(--brand-primary)] bg-[var(--panel-muted-bg)] px-3 py-2 text-[var(--text-primary)] outline-none ${
-                isLarge ? "text-lg font-semibold" : "text-sm font-semibold"
-              }`}
-            />
-          )}
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
-            >
-              <CancelIcon />
-              Cancel
-            </button>
-
-            <button
-              type="button"
-              onClick={onSave}
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-white"
-            >
-              <SaveIcon />
-              Save
-            </button>
-          </div>
-        </div>
-      ) : multiline ? (
-        <p className="mt-1 max-w-4xl whitespace-pre-wrap text-sm leading-6 text-[var(--text-secondary)]">
-          {displayValue}
-        </p>
-      ) : (
-        <div
-          className={`mt-1 break-words text-[var(--text-primary)] ${
-            isLarge ? "text-lg font-semibold" : "text-sm font-semibold"
-          }`}
-        >
-          {displayValue}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M12 5v14M5 12h14"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function PencilIcon() {
-  return (
-    <svg
-      width="13"
-      height="13"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M4 20h4.5L19 9.5 14.5 5 4 15.5V20Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M13.5 6 18 10.5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function LockIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <rect
-        x="5"
-        y="10"
-        width="14"
-        height="10"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M8 10V7a4 4 0 0 1 8 0v3"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function SaveIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M5 12.5 10 17l9-10"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CancelIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M7 7l10 10M17 7 7 17"
-        stroke="currentColor"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max);
-}
-
-function hashString(value: string) {
-  let hash = 0;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-
-  return hash;
 }

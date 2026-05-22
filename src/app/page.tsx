@@ -1,4 +1,4 @@
-import { VisualVibesEditor } from "@/components/visual-vibes/VisualVibesEditor";
+import { VisualVibesEditor } from "@/features/visual-vibes";
 
 export default function Home() {
   return <VisualVibesEditor />;

@@ -13,6 +13,12 @@ type VibeYamlEditorProps = {
   onChange: (value: string) => void;
 };
 
+/**
+ * Monaco-backed YAML editor used by the source pane.
+ *
+ * The editor follows the user's system color scheme and leaves source-of-truth
+ * YAML updates to the parent through `onChange`.
+ */
 export function VibeYamlEditor({
   value,
   readOnly,
