@@ -10,12 +10,17 @@ import type { VisualVibe } from "@/lib/visual-vibes/schema";
 
 type MetadataField = "id" | "name" | "description";
 
+export type CanvasViewMode = "flow" | "dependency";
+
 type VibeCanvasProps = {
   vibe: VisualVibe | null;
   graph: PositionedVibeGraph;
   selectedStepId: string | null;
+  viewMode: CanvasViewMode;
   isEditing: boolean;
   onSelectStep: (stepId: string) => void;
+  onClearSelectedStep: () => void;
+  onChangeViewMode: (viewMode: CanvasViewMode) => void;
   onStartEditing: () => void;
   onSaveEditing: () => void;
   onCancelEditing: () => void;
@@ -40,8 +45,11 @@ export function VibeCanvas({
   vibe,
   graph,
   selectedStepId,
+  viewMode,
   isEditing,
   onSelectStep,
+  onClearSelectedStep,
+  onChangeViewMode,
   onStartEditing,
   onSaveEditing,
   onCancelEditing,
@@ -80,6 +88,8 @@ export function VibeCanvas({
       .map((edge) => edge.target),
   );
 
+  const isSelectionMode = Boolean(selectedStepId);
+
   function isFirstNode(nodeId: string) {
     return !incomingNodeIds.has(nodeId);
   }
@@ -90,6 +100,20 @@ export function VibeCanvas({
 
   function isErrorNode(nodeId: string) {
     return errorTargetNodeIds.has(nodeId);
+  }
+
+  function isDimmedNode(nodeId: string) {
+    if (!selectedStepId) {
+      return false;
+    }
+
+    if (nodeId === selectedStepId) {
+      return false;
+    }
+
+    return !graph.edges.some(
+      (edge) => edge.source === nodeId || edge.target === nodeId,
+    );
   }
 
   function startEditingMetadata(field: MetadataField, currentValue: string) {
@@ -215,7 +239,7 @@ export function VibeCanvas({
         </div>
 
         <div className="p-6">
-          <div className="mb-4 flex items-end justify-between gap-4">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
                 Steps
@@ -224,12 +248,51 @@ export function VibeCanvas({
                 Visual Step Flow
               </h3>
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Error edges and handler nodes are highlighted separately from
-                normal flow and data references.
+                {isSelectionMode
+                  ? "Selection mode is showing only edges connected to the selected step."
+                  : viewMode === "flow"
+                    ? "Flow View shows main execution and error paths."
+                    : "Dependency View also shows data references from step inputs."}
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {selectedStepId && (
+                <button
+                  type="button"
+                  onClick={onClearSelectedStep}
+                  className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)]"
+                >
+                  Clear selection
+                </button>
+              )}
+
+              <div className="flex overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)]">
+                <button
+                  type="button"
+                  onClick={() => onChangeViewMode("flow")}
+                  className={`px-3 py-2 text-xs font-semibold ${
+                    viewMode === "flow"
+                      ? "bg-[var(--brand-primary)] text-white"
+                      : "text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+                  }`}
+                >
+                  Flow View
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onChangeViewMode("dependency")}
+                  className={`border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold ${
+                    viewMode === "dependency"
+                      ? "bg-[var(--brand-primary)] text-white"
+                      : "text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
+                  }`}
+                >
+                  Dependency View
+                </button>
+              </div>
+
               <div className="rounded-full border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
                 {graph.nodes.length}{" "}
                 {graph.nodes.length === 1 ? "step" : "steps"}
@@ -266,6 +329,21 @@ export function VibeCanvas({
                 </button>
               )}
             </div>
+          </div>
+
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+            <LegendItem
+              lineClassName="border-[var(--brand-primary)]"
+              label="Main flow"
+            />
+            <LegendItem
+              lineClassName="border-[var(--danger)] border-dashed"
+              label="Error path"
+            />
+            <LegendItem
+              lineClassName="border-[var(--edge-color)] border-dotted"
+              label="Data reference"
+            />
           </div>
 
           <div className="rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--canvas-bg)]">
@@ -363,6 +441,7 @@ export function VibeCanvas({
                       strokeWidth={edge.type === "error" ? "2.5" : "2"}
                       strokeDasharray={strokeDasharray}
                       markerEnd={markerEnd}
+                      opacity={edge.type === "data" ? "0.45" : "1"}
                       pointerEvents="none"
                     />
 
@@ -377,6 +456,21 @@ export function VibeCanvas({
                         pointerEvents="none"
                       >
                         ERROR
+                      </text>
+                    )}
+
+                    {edge.type === "data" && (
+                      <text
+                        x={addButtonX}
+                        y={addButtonY - 12}
+                        textAnchor="middle"
+                        fill="var(--edge-color)"
+                        fontSize="10"
+                        fontWeight="700"
+                        opacity="0.6"
+                        pointerEvents="none"
+                      >
+                        DATA
                       </text>
                     )}
 
@@ -463,6 +557,7 @@ export function VibeCanvas({
                 const isSelected = selectedStepId === node.id;
                 const isHovered = hoveredNodeId === node.id;
                 const isErrorHandlerNode = isErrorNode(node.id);
+                const isDimmed = isDimmedNode(node.id);
 
                 return (
                   <g
@@ -472,6 +567,7 @@ export function VibeCanvas({
                     onMouseLeave={() => setHoveredNodeId(null)}
                     onClick={() => onSelectStep(node.id)}
                     className="cursor-pointer"
+                    opacity={isDimmed ? "0.28" : "1"}
                   >
                     <rect
                       width={NODE_WIDTH}
@@ -491,7 +587,9 @@ export function VibeCanvas({
                             ? "var(--danger)"
                             : "var(--node-border)"
                       }
-                      strokeWidth={isErrorHandlerNode ? "2.5" : "2"}
+                      strokeWidth={
+                        isSelected || isErrorHandlerNode ? "2.5" : "2"
+                      }
                     />
 
                     {isEditing && isHovered && (
@@ -653,6 +751,20 @@ export function VibeCanvas({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+type LegendItemProps = {
+  lineClassName: string;
+  label: string;
+};
+
+function LegendItem({ lineClassName, label }: LegendItemProps) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`inline-block w-8 border-t-2 ${lineClassName}`} />
+      <span>{label}</span>
     </div>
   );
 }

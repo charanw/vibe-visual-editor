@@ -18,7 +18,7 @@ import { layoutVibeGraph } from "@/lib/visual-vibes/layout";
 import { visualVibesAppConfig } from "@/lib/visual-vibes/appConfig";
 import { VibeFileControls } from "./VibeFileControls";
 import { VibeYamlEditor } from "./VibeYamlEditor";
-import { VibeCanvas } from "./VibeCanvas";
+import { VibeCanvas, type CanvasViewMode } from "./VibeCanvas";
 import { VibeInspector } from "./VibeInspector";
 
 export function VisualVibesEditor() {
@@ -28,6 +28,8 @@ export function VisualVibesEditor() {
   const [sourceType, setSourceType] = useState<"default" | "upload">("default");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(1000);
+  const [canvasViewMode, setCanvasViewMode] =
+    useState<CanvasViewMode>("flow");
 
   const [isCanvasEditing, setIsCanvasEditing] = useState(false);
   const [canvasEditSnapshot, setCanvasEditSnapshot] = useState<string | null>(
@@ -71,13 +73,37 @@ export function VisualVibesEditor() {
     return validateVisualVibeYaml(yamlText);
   }, [yamlText]);
 
-  const positionedGraph = useMemo(() => {
+  const visibleGraph = useMemo(() => {
     if (!parsedResult.graph) {
+      return null;
+    }
+
+    if (selectedStepId) {
+      return {
+        nodes: parsedResult.graph.nodes,
+        edges: parsedResult.graph.edges.filter(
+          (edge) => edge.source === selectedStepId || edge.target === selectedStepId,
+        ),
+      };
+    }
+
+    if (canvasViewMode === "flow") {
+      return {
+        nodes: parsedResult.graph.nodes,
+        edges: parsedResult.graph.edges.filter((edge) => edge.type !== "data"),
+      };
+    }
+
+    return parsedResult.graph;
+  }, [parsedResult.graph, selectedStepId, canvasViewMode]);
+
+  const positionedGraph = useMemo(() => {
+    if (!visibleGraph) {
       return { nodes: [], edges: [] };
     }
 
-    return layoutVibeGraph(parsedResult.graph, canvasWidth);
-  }, [parsedResult.graph, canvasWidth]);
+    return layoutVibeGraph(visibleGraph, canvasWidth);
+  }, [visibleGraph, canvasWidth]);
 
   useEffect(() => {
     async function loadDefaultVibeYaml() {
@@ -125,6 +151,16 @@ export function VisualVibesEditor() {
 
     return () => observer.disconnect();
   }, []);
+
+  function handleSelectStep(stepId: string) {
+    setSelectedStepId((currentStepId) =>
+      currentStepId === stepId ? null : stepId,
+    );
+  }
+
+  function handleClearSelectedStep() {
+    setSelectedStepId(null);
+  }
 
   function handleAddStepOnEdge(options: {
     sourceStepId: string;
@@ -399,8 +435,11 @@ export function VisualVibesEditor() {
               vibe={parsedResult.vibe}
               graph={positionedGraph}
               selectedStepId={selectedStepId}
+              viewMode={canvasViewMode}
               isEditing={isCanvasEditing}
-              onSelectStep={setSelectedStepId}
+              onSelectStep={handleSelectStep}
+              onClearSelectedStep={handleClearSelectedStep}
+              onChangeViewMode={setCanvasViewMode}
               onStartEditing={handleStartCanvasEditing}
               onSaveEditing={handleSaveCanvasEditing}
               onCancelEditing={handleCancelCanvasEditing}
