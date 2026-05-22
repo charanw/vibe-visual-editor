@@ -11,3 +11,4 @@ export { useLayoutState } from "./useLayoutState";
 export { useGraphLayout } from "./useGraphLayout";
 export { useDefaultVibeYaml } from "./useDefaultVibeYaml";
 export { useCanvasResizeObserver } from "./useCanvasResizeObserver";
+export { useVisualVibesEditorActions } from "./useVisualVibesEditorActions";

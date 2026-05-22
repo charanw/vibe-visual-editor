@@ -68,11 +68,11 @@ Flow View shows the main execution path of the Vibe.
 It uses a serpentine layout so larger Vibes can remain readable on one page:
 
 ```txt
-1  →  2  →  3  →  4  →  5
-                         ↓
-10 ←  9  ←  8  ←  7  ←  6
-↓
-11 → 12 → 13 → 14 → 15
+1  ->  2  ->  3  ->  4  ->  5
+                         |
+10 <-  9  <-  8  <-  7  <-  6
+|
+11 -> 12 -> 13 -> 14 -> 15
 ```
 
 ### Error View
@@ -155,91 +155,57 @@ Run lint:
 npm run lint
 ```
 
+Run unit tests:
+
+```bash
+npm test
+```
+
 Run the production build:
 
 ```bash
 npm start
 ```
 
-## Project Structure
+## Architecture Overview
 
-The app uses feature-based architecture. Route-level code imports the Visual Vibes feature through its public entry point:
+The app uses feature-based architecture. The Next.js route layer stays thin and imports the Visual Vibes feature through one public entry point:
 
 ```ts
 import { VisualVibesEditor } from "@/features/visual-vibes";
 ```
 
+At a high level:
+
+- `src/app` contains the Next.js shell: route, metadata, fonts, and global tokens.
+- `src/features/visual-vibes` contains the editor experience: panes, canvas UI, inspector UI, hooks, and feature utilities.
+- `src/lib/visual-vibes` contains pure domain logic: schema parsing, YAML mutation, validation, graph extraction, and graph layout.
+- `public/vibes/example-vibe.yml` is the bundled starter Vibe loaded by the editor.
+
 ```txt
 src/
-  app/
-    page.tsx
-    layout.tsx
-    globals.css
+  app/                    Next.js route shell and global styles
   features/
     visual-vibes/
-      index.ts
-      components/
-        VisualVibesEditor.tsx
-        VibeCanvas.tsx
-        VibeInspector.tsx
-        VibeFileControls.tsx
-        VibeYamlEditor.tsx
-        canvas/
-          CanvasBadges.tsx
-          CanvasIcons.tsx
-          CanvasLegend.tsx
-          EditableMetadataField.tsx
-          canvasConstants.ts
-          canvasGraphUtils.ts
-        editor/
-          AppFooter.tsx
-          PanelHeader.tsx
-          PaneResizeHandler.tsx
-          editorGraphFilters.ts
-        inspector/
-          InputKeyValueRowEditor.tsx
-          InspectorField.tsx
-          InspectorIcons.tsx
-          inputTypes.ts
-          inputUtils.ts
-          stepFunctionTemplates.ts
-        panes/
-          CanvasPane.tsx
-          InspectorPane.tsx
-          SourcePane.tsx
-      hooks/
-        useCanvasResizeObserver.ts
-        useDefaultVibeYaml.ts
-        useEditingState.ts
-        useGraphLayout.ts
-        useLayoutState.ts
-        useVibeState.ts
-      utils/
-        editorUtils.ts
-        mobileLayoutUtils.ts
-        paneResizeUtils.ts
+      index.ts             Public feature export
+      components/          Editor shell, panes, canvas controls, inspector controls
+      hooks/               YAML state, edit state, layout state, graph layout, editor actions
+      utils/               Feature-specific helpers
   lib/
-    visual-vibes/
-      appConfig.ts
-      graph.ts
-      layout.ts
-      schema.ts
-      validation.ts
-      yaml.ts
+    visual-vibes/          Domain logic and unit tests
   public/
-    vibes/
-      example-vibe.yml
+    vibes/                 Example YAML loaded by default
 ```
 
-### Feature Boundaries
+### Feature Internals
 
 - `features/visual-vibes/index.ts` is the public import surface for the feature.
-- `components/panes` contains the three major workspace regions: source, canvas, and inspector.
-- `components/canvas` contains canvas-specific display helpers, icons, constants, and graph classification utilities.
-- `components/inspector` contains inspector form controls, input parsing, and step-function templates.
-- `hooks` contains state and lifecycle logic for YAML loading, editing modes, responsive layout, graph layout, and canvas resize observation.
-- `utils` contains feature-level helpers shared across the editor shell and panes.
-- `lib/visual-vibes` contains domain logic for parsing, validating, graph conversion, layout, schema, and app metadata.
+- `VisualVibesEditor` composes the workspace and delegates cross-pane actions to `useVisualVibesEditorActions`.
+- `components/panes` owns the three workspace regions: source, canvas, and inspector.
+- `components/canvas` owns canvas-specific controls, metadata display, icons, badges, constants, and graph classification helpers.
+- `components/inspector` owns form controls, input parsing helpers, and step-function templates.
+- `hooks` owns state and lifecycle logic for YAML loading, edit modes, responsive layout, graph layout, canvas resize observation, and editor actions.
+- `lib/visual-vibes/__tests__` covers the domain layer with Node's built-in test runner.
 
 ## Notes
 

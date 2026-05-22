@@ -1,19 +1,6 @@
 "use client";
 
 import { useRef, type MouseEvent as ReactMouseEvent } from "react";
-import {
-  addEdgeInYaml,
-  addErrorHandlerNodeInYaml,
-  addStandaloneStepInYaml,
-  addStepOnEdgeInYaml,
-  appendStepAfterInYaml,
-  deleteEdgeInYaml,
-  deleteStepInYaml,
-  prependStepBeforeInYaml,
-  updateStepDescriptionInYaml,
-  updateVibeMetadataInYaml,
-  updateVibeStepInYaml,
-} from "@/lib/visual-vibes/yaml";
 import { PanelHeader } from "./editor/PanelHeader";
 import { PaneResizeHandle } from "./editor/PaneResizeHandler";
 import { SourcePane, CanvasPane, InspectorPane } from "./panes";
@@ -24,15 +11,9 @@ import {
   useGraphLayout,
   useDefaultVibeYaml,
   useCanvasResizeObserver,
+  useVisualVibesEditorActions,
 } from "../hooks";
-import {
-  findAddedStepId,
-  updateCanvasEditSnapshot,
-  toggleMobilePane,
-  revealMobileInspector,
-  startPaneResize,
-  calculateGridTemplateColumns,
-} from "../utils";
+import { toggleMobilePane } from "../utils";
 
 /**
  * VisualVibesEditor Component
@@ -71,371 +52,35 @@ export function VisualVibesEditor() {
     isMobileCanvasCollapsed: layoutState.mobileCollapsedPanes.canvas,
   });
 
-  /**
-   * Handles file upload and resets editor state
-   */
-  function handleUploadYaml(
-    uploadedFileName: string,
-    uploadedYamlText: string,
-  ) {
-    vibeState.setYamlText(uploadedYamlText);
-    vibeState.setFileName(uploadedFileName);
-    vibeState.setSourceType("upload");
-    vibeState.setLoadError(null);
-    vibeState.setSelectedStepId(null);
-    editingState.setIsYamlEditing(false);
-    editingState.setYamlEditSnapshot(null);
-    editingState.setIsCanvasEditing(false);
-    editingState.setCanvasEditSnapshot(null);
-    editingState.setHasUnsavedStepEdits(false);
-    graphLayout.setCanvasViewMode("flow");
-  }
-
-  /**
-   * Handles step selection, with mobile layout support
-   */
-  function handleSelectStep(stepId: string) {
-    vibeState.setSelectedStepId((currentStepId) =>
-      currentStepId === stepId ? null : stepId,
-    );
-
-    // On mobile, selecting a node should reveal the inspector
-    layoutState.setMobileCollapsedPanes((currentPanes) =>
-      revealMobileInspector(currentPanes),
-    );
-  }
-
-  /**
-   * Handles adding a standalone step and centers it on canvas
-   */
-  function handleAddStandaloneStep() {
-    const nextYamlText = addStandaloneStepInYaml(vibeState.yamlText);
-    const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
-
-    vibeState.setYamlText(nextYamlText);
-    editingState.setIsCanvasEditing(true);
-
-    if (addedStepId) {
-      vibeState.setSelectedStepId(addedStepId);
-      graphLayout.setCenterRequest((currentRequest) => ({
-        stepId: addedStepId,
-        requestId: (currentRequest?.requestId ?? 0) + 1,
-      }));
-    }
-  }
-
-  /**
-   * Handles adding an error handler node for a given source step
-   */
-  function handleAddErrorHandlerNode(sourceStepId: string) {
-    const nextYamlText = addErrorHandlerNodeInYaml(
-      vibeState.yamlText,
-      sourceStepId,
-    );
-    const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
-
-    vibeState.setYamlText(nextYamlText);
-    editingState.setIsCanvasEditing(true);
-
-    if (addedStepId) {
-      vibeState.setSelectedStepId(addedStepId);
-      graphLayout.setCenterRequest((currentRequest) => ({
-        stepId: addedStepId,
-        requestId: (currentRequest?.requestId ?? 0) + 1,
-      }));
-    }
-  }
-
-  /**
-   * Handles adding a step on an edge
-   */
-  function handleAddStepOnEdge(options: {
-    sourceStepId: string;
-    targetStepId: string;
-    edgeType: "data" | "next" | "error";
-  }) {
-    const nextYamlText = addStepOnEdgeInYaml(vibeState.yamlText, options);
-    const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
-
-    vibeState.setYamlText(nextYamlText);
-
-    if (addedStepId) {
-      vibeState.setSelectedStepId(addedStepId);
-      graphLayout.setCenterRequest((currentRequest) => ({
-        stepId: addedStepId,
-        requestId: (currentRequest?.requestId ?? 0) + 1,
-      }));
-    }
-  }
-
-  /**
-   * Handles deleting a step with confirmation
-   */
-  function handleDeleteStep(stepId: string) {
-    const confirmed = window.confirm(
-      `Delete "${stepId}"? This will remove the step from the YAML.`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    vibeState.setYamlText((currentYamlText) =>
-      deleteStepInYaml(currentYamlText, stepId),
-    );
-
-    if (vibeState.selectedStepId === stepId) {
-      vibeState.setSelectedStepId(null);
-    }
-
-    editingState.setHasUnsavedStepEdits(false);
-  }
-
-  /**
-   * Handles deleting an edge with confirmation
-   */
-  function handleDeleteEdge(options: {
-    sourceStepId: string;
-    targetStepId: string;
-    edgeType: "data" | "next" | "error";
-  }) {
-    const confirmed = window.confirm(
-      `Delete edge from "${options.sourceStepId}" to "${options.targetStepId}"?`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    vibeState.setYamlText((currentYamlText) =>
-      deleteEdgeInYaml(currentYamlText, options),
-    );
-  }
-
-  /**
-   * Handles appending a step after a given source step
-   */
-  function handleAppendStepAfter(sourceStepId: string) {
-    const nextYamlText = appendStepAfterInYaml(
-      vibeState.yamlText,
-      sourceStepId,
-    );
-    const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
-
-    vibeState.setYamlText(nextYamlText);
-
-    if (addedStepId) {
-      vibeState.setSelectedStepId(addedStepId);
-      graphLayout.setCenterRequest((currentRequest) => ({
-        stepId: addedStepId,
-        requestId: (currentRequest?.requestId ?? 0) + 1,
-      }));
-    }
-  }
-
-  /**
-   * Handles prepending a step before a given target step
-   */
-  function handlePrependStepBefore(targetStepId: string) {
-    const nextYamlText = prependStepBeforeInYaml(
-      vibeState.yamlText,
-      targetStepId,
-    );
-    const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
-
-    vibeState.setYamlText(nextYamlText);
-
-    if (addedStepId) {
-      vibeState.setSelectedStepId(addedStepId);
-      graphLayout.setCenterRequest((currentRequest) => ({
-        stepId: addedStepId,
-        requestId: (currentRequest?.requestId ?? 0) + 1,
-      }));
-    }
-  }
-
-  /**
-   * Handles updating vibe metadata (id, name, description)
-   */
-  function handleUpdateVibeMetadata(
-    field: "id" | "name" | "description",
-    value: string,
-  ) {
-    vibeState.setYamlText((currentYamlText) =>
-      updateVibeMetadataInYaml(currentYamlText, field, value),
-    );
-
-    // Keep the cancellation snapshot aligned when metadata is edited during canvas editing
-    editingState.setCanvasEditSnapshot((currentSnapshot) =>
-      updateCanvasEditSnapshot(currentSnapshot, field, value),
-    );
-  }
-
-  /**
-   * Handles updating a step with new properties
-   */
-  function handleUpdateVibeStep(
-    originalStepId: string,
-    updates: {
-      id: string;
-      functionName: string;
-      input: Record<string, unknown>;
-      onErrorStepId?: string;
-      onErrorMessage?: string;
-    },
-  ) {
-    vibeState.setYamlText((currentYamlText) =>
-      updateVibeStepInYaml(currentYamlText, originalStepId, updates),
-    );
-
-    vibeState.setSelectedStepId(updates.id);
-    editingState.setHasUnsavedStepEdits(false);
-  }
-
-  /**
-   * Handles updating step description/notes
-   */
-  function handleUpdateStepDescription(stepId: string, description: string) {
-    vibeState.setYamlText((currentYamlText) =>
-      updateStepDescriptionInYaml(currentYamlText, stepId, description),
-    );
-
-    editingState.setHasUnsavedStepEdits(false);
-  }
-
-  /**
-   * Handles starting YAML editing
-   */
-  function handleStartYamlEditing() {
-    editingState.setYamlEditSnapshot(vibeState.yamlText);
-    editingState.setIsYamlEditing(true);
-  }
-
-  /**
-   * Handles canceling YAML editing with confirmation if changes exist
-   */
-  function handleCancelYamlEditing() {
-    if (
-      editingState.yamlEditSnapshot !== null &&
-      vibeState.yamlText !== editingState.yamlEditSnapshot
-    ) {
-      const confirmed = window.confirm(
-        "Cancel YAML editing and discard your YAML changes?",
-      );
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
-    if (editingState.yamlEditSnapshot !== null) {
-      vibeState.setYamlText(editingState.yamlEditSnapshot);
-    }
-
-    editingState.setYamlEditSnapshot(null);
-    editingState.setIsYamlEditing(false);
-  }
-
-  /**
-   * Handles saving YAML editing
-   */
-  function handleSaveYamlEditing() {
-    editingState.setYamlEditSnapshot(null);
-    editingState.setIsYamlEditing(false);
-  }
-
-  /**
-   * Handles starting canvas editing
-   */
-  function handleStartCanvasEditing() {
-    editingState.setCanvasEditSnapshot(vibeState.yamlText);
-    editingState.setIsCanvasEditing(true);
-    editingState.setHasUnsavedStepEdits(false);
-  }
-
-  /**
-   * Handles saving canvas editing
-   */
-  function handleSaveCanvasEditing() {
-    editingState.setCanvasEditSnapshot(null);
-    editingState.setIsCanvasEditing(false);
-    editingState.setHasUnsavedStepEdits(false);
-  }
-
-  /**
-   * Handles canceling canvas editing with confirmation if changes exist
-   */
-  function handleCancelCanvasEditing() {
-    if (editingState.hasUnsavedStepEdits) {
-      window.alert(
-        "You have unsaved step edits in the Inspector. Please save or cancel those step edits before cancelling canvas editing.",
-      );
-      return;
-    }
-
-    const hasCanvasChanges =
-      editingState.canvasEditSnapshot !== null &&
-      vibeState.yamlText !== editingState.canvasEditSnapshot;
-
-    if (hasCanvasChanges) {
-      const confirmed = window.confirm(
-        "Cancel canvas editing and discard your graph changes?",
-      );
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
-    if (editingState.canvasEditSnapshot !== null) {
-      vibeState.setYamlText(editingState.canvasEditSnapshot);
-    }
-
-    editingState.setCanvasEditSnapshot(null);
-    editingState.setIsCanvasEditing(false);
-    vibeState.setSelectedStepId(null);
-    editingState.setHasUnsavedStepEdits(false);
-  }
-
-  /**
-   * Handles starting pane resize with mouse event
-   */
-  function handleStartPaneResize(pane: "left" | "right", startClientX: number) {
-    const shell = editorShellRef.current;
-
-    if (!shell) {
-      return;
-    }
-
-    const shellWidth = shell.getBoundingClientRect().width;
-
-    startPaneResize(
-      pane,
-      startClientX,
-      {
-        leftPaneWidth: layoutState.leftPaneWidth,
-        rightPaneWidth: layoutState.rightPaneWidth,
-        isLeftPaneCollapsed: layoutState.isLeftPaneCollapsed,
-        isRightPaneCollapsed: layoutState.isRightPaneCollapsed,
-        shellWidth,
-      },
-      {
-        onLeftPaneWidthChange: layoutState.setLeftPaneWidth,
-        onRightPaneWidthChange: layoutState.setRightPaneWidth,
-        onLeftPaneCollapse: layoutState.setIsLeftPaneCollapsed,
-        onRightPaneCollapse: layoutState.setIsRightPaneCollapsed,
-      },
-    );
-  }
-
-  // Calculate grid template columns for desktop layout
-  const gridTemplateColumns = calculateGridTemplateColumns(
-    layoutState.leftPaneWidth,
-    layoutState.rightPaneWidth,
-    layoutState.isLeftPaneCollapsed,
-    layoutState.isRightPaneCollapsed,
-  );
-
+  const {
+    gridTemplateColumns,
+    handleUploadYaml,
+    handleSelectStep,
+    handleAddStandaloneStep,
+    handleAddErrorHandlerNode,
+    handleAddStepOnEdge,
+    handleDeleteStep,
+    handleDeleteEdge,
+    handleAppendStepAfter,
+    handlePrependStepBefore,
+    handleUpdateVibeMetadata,
+    handleUpdateVibeStep,
+    handleUpdateStepDescription,
+    handleStartYamlEditing,
+    handleCancelYamlEditing,
+    handleSaveYamlEditing,
+    handleStartCanvasEditing,
+    handleSaveCanvasEditing,
+    handleCancelCanvasEditing,
+    handleAddEdge,
+    handleStartPaneResize,
+  } = useVisualVibesEditorActions({
+    vibeState,
+    editingState,
+    layoutState,
+    graphLayout,
+    editorShellRef,
+  });
   // Mobile layout
   if (!layoutState.isDesktopLayout) {
     return (
@@ -512,11 +157,7 @@ export function VisualVibesEditor() {
                   onAddErrorHandlerNode={handleAddErrorHandlerNode}
                   onAddStepOnEdge={handleAddStepOnEdge}
                   onDeleteStep={handleDeleteStep}
-                  onAddEdge={(options) => {
-                    vibeState.setYamlText((currentYamlText) =>
-                      addEdgeInYaml(currentYamlText, options),
-                    );
-                  }}
+                  onAddEdge={handleAddEdge}
                   onDeleteEdge={handleDeleteEdge}
                   onAppendStepAfter={handleAppendStepAfter}
                   onPrependStepBefore={handlePrependStepBefore}
@@ -639,11 +280,7 @@ export function VisualVibesEditor() {
             onAddErrorHandlerNode={handleAddErrorHandlerNode}
             onAddStepOnEdge={handleAddStepOnEdge}
             onDeleteStep={handleDeleteStep}
-            onAddEdge={(options) => {
-              vibeState.setYamlText((currentYamlText) =>
-                addEdgeInYaml(currentYamlText, options),
-              );
-            }}
+            onAddEdge={handleAddEdge}
             onDeleteEdge={handleDeleteEdge}
             onAppendStepAfter={handleAppendStepAfter}
             onPrependStepBefore={handlePrependStepBefore}
