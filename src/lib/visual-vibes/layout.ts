@@ -43,7 +43,6 @@ const ERROR_ROW_GAP = 95;
 
 export function layoutVibeGraph(
   graph: VibeGraph,
-  _availableWidth = 1000,
   options: { mode?: VibeGraphLayoutMode } = {},
 ): PositionedVibeGraph {
   const mode = options.mode ?? "flow";
