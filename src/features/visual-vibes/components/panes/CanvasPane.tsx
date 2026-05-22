@@ -1,10 +1,17 @@
 "use client";
 
 import type { ReactNode, RefObject } from "react";
-import { VibeCanvas, type CanvasViewMode } from "../VibeCanvas";
+import { VibeCanvas } from "../VibeCanvas";
 import { AppFooter } from "../editor/AppFooter";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
+import type {
+  AddEdgeOptions,
+  CanvasViewMode,
+  CenterRequest,
+  EdgeOperationOptions,
+  MetadataField,
+} from "../../types";
 
 /**
  * Props for CanvasPane component
@@ -15,7 +22,7 @@ interface CanvasPaneProps {
   positionedGraph: PositionedVibeGraph;
   positionedDisplayGraph: PositionedVibeGraph;
   selectedStepId: string | null;
-  centerRequest: { stepId: string; requestId: number } | null;
+  centerRequest: CenterRequest;
   canvasViewMode: CanvasViewMode;
   isCanvasEditing: boolean;
   onSelectStep: (stepId: string) => void;
@@ -26,22 +33,14 @@ interface CanvasPaneProps {
   onCancelEditing: () => void;
   onAddStandaloneStep: () => void;
   onAddErrorHandlerNode: (sourceStepId: string) => void;
-  onAddStepOnEdge: (options: {
-    sourceStepId: string;
-    targetStepId: string;
-    edgeType: "data" | "next" | "error";
-  }) => void;
+  onAddStepOnEdge: (options: EdgeOperationOptions) => void;
   onDeleteStep: (stepId: string) => void;
-  onAddEdge: (options: { sourceStepId: string; targetStepId: string }) => void;
-  onDeleteEdge: (options: {
-    sourceStepId: string;
-    targetStepId: string;
-    edgeType: "data" | "next" | "error";
-  }) => void;
+  onAddEdge: (options: AddEdgeOptions) => void;
+  onDeleteEdge: (options: EdgeOperationOptions) => void;
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
   onUpdateVibeMetadata: (
-    field: "id" | "name" | "description",
+    field: MetadataField,
     value: string,
   ) => void;
 }

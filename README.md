@@ -188,6 +188,7 @@ src/
   features/
     visual-vibes/
       index.ts             Public feature export
+      types.ts             Shared feature contracts for panes, hooks, and canvas
       components/          Editor shell, panes, canvas controls, inspector controls
       hooks/               YAML state, edit state, layout state, graph layout, editor actions
       utils/               Feature-specific helpers
@@ -200,6 +201,7 @@ src/
 ### Feature Internals
 
 - `features/visual-vibes/index.ts` is the public import surface for the feature.
+- `features/visual-vibes/types.ts` defines shared interaction contracts such as canvas view mode, edge operations, metadata fields, and step updates.
 - `VisualVibesEditor` composes the workspace and delegates cross-pane actions to `useVisualVibesEditorActions`.
 - `components/panes` owns the three workspace regions: source, canvas, and inspector.
 - `components/canvas` owns canvas-specific controls, metadata display, icons, badges, constants, and graph classification helpers.

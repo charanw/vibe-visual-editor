@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { layoutVibeGraph } from "@/lib/visual-vibes/layout";
 import { getErrorGraph, getFlowGraph } from "@/features/visual-vibes/components/editor/editorGraphFilters";
-import type { CanvasViewMode } from "@/features/visual-vibes/components/VibeCanvas";
+import type { CanvasViewMode, CenterRequest } from "../types";
 import type { VibeGraph } from "@/lib/visual-vibes/graph";
 
 /**
@@ -10,10 +10,7 @@ import type { VibeGraph } from "@/lib/visual-vibes/graph";
  */
 export function useGraphLayout(displayGraph: VibeGraph | null) {
   const [canvasViewMode, setCanvasViewMode] = useState<CanvasViewMode>("flow");
-  const [centerRequest, setCenterRequest] = useState<{
-    stepId: string;
-    requestId: number;
-  } | null>(null);
+  const [centerRequest, setCenterRequest] = useState<CenterRequest>(null);
 
   // Only the visible graph changes by mode. The full graph is still used for node classification.
   const visibleGraph = useMemo(() => {

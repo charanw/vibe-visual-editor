@@ -1,7 +1,6 @@
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
 import { EditableMetadataField } from "./EditableMetadataField";
-
-type MetadataField = "id" | "name" | "description";
+import type { MetadataField } from "../../types";
 
 type CanvasMetadataPanelProps = {
   vibe: VisualVibe | null;

@@ -1,6 +1,5 @@
 import { CancelIcon, PencilIcon, SaveIcon } from "./CanvasIcons";
-
-type MetadataField = "id" | "name" | "description";
+import type { MetadataField } from "../../types";
 
 type EditableMetadataFieldProps = {
   label: string;

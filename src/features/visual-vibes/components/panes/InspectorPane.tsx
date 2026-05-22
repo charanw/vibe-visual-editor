@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { VibeInspector } from "../VibeInspector";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
+import type { StepUpdate } from "../../types";
 
 /**
  * Props for InspectorPane component
@@ -15,13 +16,7 @@ interface InspectorPaneProps {
   onStartEditing: () => void;
   onUpdateStep: (
     originalStepId: string,
-    updates: {
-      id: string;
-      functionName: string;
-      input: Record<string, unknown>;
-      onErrorStepId?: string;
-      onErrorMessage?: string;
-    },
+    updates: StepUpdate,
   ) => void;
   onUpdateStepDescription: (stepId: string, description: string) => void;
   onStepEditDirtyChange: (isDirty: boolean) => void;

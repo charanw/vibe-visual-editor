@@ -22,6 +22,7 @@ import {
   getStepFunctionTemplate,
   getStepFunctionTemplateGroups,
 } from "./inspector/stepFunctionTemplates";
+import type { StepUpdate } from "../types";
 
 type VibeInspectorProps = {
   vibe: VisualVibe | null;
@@ -31,13 +32,7 @@ type VibeInspectorProps = {
   onStartEditing: () => void;
   onUpdateStep: (
     originalStepId: string,
-    updates: {
-      id: string;
-      functionName: string;
-      input: Record<string, unknown>;
-      onErrorStepId?: string;
-      onErrorMessage?: string;
-    },
+    updates: StepUpdate,
   ) => void;
   onUpdateStepDescription: (stepId: string, description: string) => void;
   onStepEditDirtyChange: (isDirty: boolean) => void;
@@ -106,13 +101,7 @@ type VibeInspectorFormProps = {
   onStartEditing: () => void;
   onUpdateStep: (
     originalStepId: string,
-    updates: {
-      id: string;
-      functionName: string;
-      input: Record<string, unknown>;
-      onErrorStepId?: string;
-      onErrorMessage?: string;
-    },
+    updates: StepUpdate,
   ) => void;
   onUpdateStepDescription: (stepId: string, description: string) => void;
   onStepEditDirtyChange: (isDirty: boolean) => void;

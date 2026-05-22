@@ -23,6 +23,12 @@ import type { useEditingState } from "./useEditingState";
 import type { useGraphLayout } from "./useGraphLayout";
 import type { useLayoutState } from "./useLayoutState";
 import type { useVibeState } from "./useVibeState";
+import type {
+  AddEdgeOptions,
+  EdgeOperationOptions,
+  MetadataField,
+  StepUpdate,
+} from "../types";
 
 type VibeState = ReturnType<typeof useVibeState>;
 type EditingState = ReturnType<typeof useEditingState>;
@@ -111,11 +117,7 @@ export function useVisualVibesEditorActions({
     centerAddedStep(addedStepId);
   }
 
-  function handleAddStepOnEdge(options: {
-    sourceStepId: string;
-    targetStepId: string;
-    edgeType: "data" | "next" | "error";
-  }) {
+  function handleAddStepOnEdge(options: EdgeOperationOptions) {
     const nextYamlText = addStepOnEdgeInYaml(vibeState.yamlText, options);
     const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
 
@@ -143,11 +145,7 @@ export function useVisualVibesEditorActions({
     editingState.setHasUnsavedStepEdits(false);
   }
 
-  function handleDeleteEdge(options: {
-    sourceStepId: string;
-    targetStepId: string;
-    edgeType: "data" | "next" | "error";
-  }) {
+  function handleDeleteEdge(options: EdgeOperationOptions) {
     const confirmed = window.confirm(
       `Delete edge from "${options.sourceStepId}" to "${options.targetStepId}"?`,
     );
@@ -183,10 +181,7 @@ export function useVisualVibesEditorActions({
     centerAddedStep(addedStepId);
   }
 
-  function handleUpdateVibeMetadata(
-    field: "id" | "name" | "description",
-    value: string,
-  ) {
+  function handleUpdateVibeMetadata(field: MetadataField, value: string) {
     vibeState.setYamlText((currentYamlText) =>
       updateVibeMetadataInYaml(currentYamlText, field, value),
     );
@@ -196,16 +191,7 @@ export function useVisualVibesEditorActions({
     );
   }
 
-  function handleUpdateVibeStep(
-    originalStepId: string,
-    updates: {
-      id: string;
-      functionName: string;
-      input: Record<string, unknown>;
-      onErrorStepId?: string;
-      onErrorMessage?: string;
-    },
-  ) {
+  function handleUpdateVibeStep(originalStepId: string, updates: StepUpdate) {
     vibeState.setYamlText((currentYamlText) =>
       updateVibeStepInYaml(currentYamlText, originalStepId, updates),
     );
@@ -298,10 +284,7 @@ export function useVisualVibesEditorActions({
     editingState.setHasUnsavedStepEdits(false);
   }
 
-  function handleAddEdge(options: {
-    sourceStepId: string;
-    targetStepId: string;
-  }) {
+  function handleAddEdge(options: AddEdgeOptions) {
     vibeState.setYamlText((currentYamlText) =>
       addEdgeInYaml(currentYamlText, options),
     );

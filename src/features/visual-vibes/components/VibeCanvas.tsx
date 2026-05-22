@@ -14,6 +14,13 @@ import {
   type PositionedVibeGraph,
 } from "@/lib/visual-vibes/layout";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
+import type {
+  AddEdgeOptions,
+  CanvasViewMode,
+  CenterRequest,
+  EdgeOperationOptions,
+  MetadataField,
+} from "../types";
 import {
   CANVAS_VIEWPORT_HEIGHT,
   CANVAS_VIEWPORT_WIDTH,
@@ -40,19 +47,6 @@ import { CanvasControls } from "./canvas/CanvasControls";
 import { CanvasMetadataPanel } from "./canvas/CanvasMetadataPanel";
 import { CanvasZoomToolbar } from "./canvas/CanvasZoomToolbar";
 
-type MetadataField = "id" | "name" | "description";
-
-/**
- * Selects which subset of the workflow graph the canvas should emphasize.
- * `flow` shows the primary execution path, while `errors` isolates error paths.
- */
-export type CanvasViewMode = "flow" | "errors";
-
-type CenterRequest = {
-  stepId: string;
-  requestId: number;
-} | null;
-
 type VibeCanvasProps = {
   vibe: VisualVibe | null;
   graph: PositionedVibeGraph;
@@ -69,18 +63,10 @@ type VibeCanvasProps = {
   onCancelEditing: () => void;
   onAddStandaloneStep: () => void;
   onAddErrorHandlerNode: (sourceStepId: string) => void;
-  onAddStepOnEdge: (options: {
-    sourceStepId: string;
-    targetStepId: string;
-    edgeType: "data" | "next" | "error";
-  }) => void;
+  onAddStepOnEdge: (options: EdgeOperationOptions) => void;
   onDeleteStep: (stepId: string) => void;
-  onAddEdge: (options: { sourceStepId: string; targetStepId: string }) => void;
-  onDeleteEdge: (options: {
-    sourceStepId: string;
-    targetStepId: string;
-    edgeType: "data" | "next" | "error";
-  }) => void;
+  onAddEdge: (options: AddEdgeOptions) => void;
+  onDeleteEdge: (options: EdgeOperationOptions) => void;
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
   onUpdateVibeMetadata: (field: MetadataField, value: string) => void;
