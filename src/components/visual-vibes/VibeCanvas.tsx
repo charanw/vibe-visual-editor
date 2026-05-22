@@ -468,8 +468,22 @@ export function VibeCanvas({
     return edge.type === "error" ? -1 : 1;
   }
 
+  function getSideRouteLaneOffset(edge: PositionedVibeGraph["edges"][number]) {
+    if (!isSideRoutedVerticalEdge(edge)) {
+      return 0;
+    }
+
+    const laneOffsets = [-28, 0, 28, -56, 56];
+    const hash = hashString(`${edge.type}:${edge.source}:${edge.target}`);
+
+    return laneOffsets[hash % laneOffsets.length];
+  }
+
   function getSideRouteBendX(edge: PositionedVibeGraph["edges"][number]) {
-    return edge.sourceX + getSideRouteDirection(edge) * SIDE_ROUTE_OFFSET;
+    const direction = getSideRouteDirection(edge);
+    const laneOffset = getSideRouteLaneOffset(edge);
+
+    return edge.sourceX + direction * (SIDE_ROUTE_OFFSET + laneOffset);
   }
 
   function getEdgeLabelPoint(edge: PositionedVibeGraph["edges"][number]) {
@@ -477,9 +491,7 @@ export function VibeCanvas({
       const direction = getSideRouteDirection(edge);
 
       return {
-        x:
-          getSideRouteBendX(edge) +
-          direction * SIDE_ROUTE_LABEL_OFFSET,
+        x: getSideRouteBendX(edge) + direction * SIDE_ROUTE_LABEL_OFFSET,
         y: (edge.sourceY + edge.targetY) / 2,
       };
     }
@@ -1822,4 +1834,14 @@ function CancelIcon() {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function hashString(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
 }
