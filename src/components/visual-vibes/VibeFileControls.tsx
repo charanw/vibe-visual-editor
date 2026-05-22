@@ -3,6 +3,7 @@
 type VibeFileControlsProps = {
   fileName: string | null;
   sourceType: "default" | "upload";
+  yamlText: string;
   onUploadYaml: (fileName: string, yamlText: string) => void;
   onError: (message: string) => void;
 };
@@ -10,6 +11,7 @@ type VibeFileControlsProps = {
 export function VibeFileControls({
   fileName,
   sourceType,
+  yamlText,
   onUploadYaml,
   onError,
 }: VibeFileControlsProps) {
@@ -24,7 +26,7 @@ export function VibeFileControls({
       file.name.endsWith(".yml") || file.name.endsWith(".yaml");
 
     if (!isYamlFile) {
-      onError("Please upload a .yml or .yaml file.");
+      onError("Please import a .yml or .yaml file.");
       event.target.value = "";
       return;
     }
@@ -34,31 +36,57 @@ export function VibeFileControls({
       onUploadYaml(file.name, text);
       event.target.value = "";
     } catch {
-      onError("Could not read the uploaded YAML file.");
+      onError("Could not read the imported Vibe file.");
       event.target.value = "";
     }
+  }
+
+  function handleExportVibe() {
+    const exportFileName = fileName ?? "visual-vibe.yml";
+    const blob = new Blob([yamlText], {
+      type: "text/yaml;charset=utf-8",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+
+    anchor.href = url;
+    anchor.download = exportFileName;
+    anchor.click();
+
+    URL.revokeObjectURL(url);
   }
 
   return (
     <div className="flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-4 py-2">
       <div className="min-w-0">
         <div className="truncate text-xs font-medium text-[var(--text-primary)]">
-          {sourceType === "upload" ? "Uploaded file" : "Default file"}
+          {sourceType === "upload" ? "Imported Vibe" : "Default Vibe"}
         </div>
         <div className="truncate text-xs text-[var(--text-muted)]">
-          {fileName ?? "No file loaded"}
+          {fileName ?? "No Vibe loaded"}
         </div>
       </div>
 
-      <label className="cursor-pointer rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-primary)]">
-        Upload YAML
-        <input
-          type="file"
-          accept=".yml,.yaml,text/yaml,application/x-yaml"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-      </label>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleExportVibe}
+          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-primary)]"
+        >
+          Export Vibe
+        </button>
+
+        <label className="cursor-pointer rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:border-[var(--brand-primary)]">
+          Import Vibe
+          <input
+            type="file"
+            accept=".yml,.yaml,text/yaml,application/x-yaml"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </label>
+      </div>
     </div>
   );
 }

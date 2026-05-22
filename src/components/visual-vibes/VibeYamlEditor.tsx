@@ -9,10 +9,15 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 
 type VibeYamlEditorProps = {
   value: string;
+  readOnly: boolean;
   onChange: (value: string) => void;
 };
 
-export function VibeYamlEditor({ value, onChange }: VibeYamlEditorProps) {
+export function VibeYamlEditor({
+  value,
+  readOnly,
+  onChange,
+}: VibeYamlEditorProps) {
   const [theme, setTheme] = useState<"vs" | "vs-dark">("vs-dark");
 
   useEffect(() => {
@@ -38,6 +43,7 @@ export function VibeYamlEditor({ value, onChange }: VibeYamlEditorProps) {
       value={value}
       onChange={(nextValue) => onChange(nextValue ?? "")}
       options={{
+        readOnly,
         minimap: { enabled: false },
         fontSize: 14,
         lineNumbers: "on",

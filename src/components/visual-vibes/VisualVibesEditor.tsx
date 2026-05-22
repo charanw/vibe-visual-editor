@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { parseVisualVibeYaml } from "@/lib/visual-vibes/yaml";
+import {
+  addEdgeInYaml,
+  addStepOnEdgeInYaml,
+  appendStepAfterInYaml,
+  deleteEdgeInYaml,
+  deleteStepInYaml,
+  parseVisualVibeYaml,
+  prependStepBeforeInYaml,
+} from "@/lib/visual-vibes/yaml";
 import { visualVibeToGraph } from "@/lib/visual-vibes/graph";
 import { layoutVibeGraph } from "@/lib/visual-vibes/layout";
 import { VibeFileControls } from "./VibeFileControls";
@@ -16,6 +24,13 @@ export function VisualVibesEditor() {
   const [sourceType, setSourceType] = useState<"default" | "upload">("default");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [canvasWidth, setCanvasWidth] = useState(1000);
+  const [isCanvasEditing, setIsCanvasEditing] = useState(false);
+  const [canvasEditSnapshot, setCanvasEditSnapshot] = useState<string | null>(
+    null,
+  );
+
+  const [isYamlEditing, setIsYamlEditing] = useState(false);
+  const [yamlEditSnapshot, setYamlEditSnapshot] = useState<string | null>(null);
 
   const canvasPanelRef = useRef<HTMLDivElement | null>(null);
 
@@ -101,6 +116,108 @@ export function VisualVibesEditor() {
     return () => observer.disconnect();
   }, []);
 
+  function handleAddStepOnEdge(options: {
+    sourceStepId: string;
+    targetStepId: string;
+    edgeType: "data" | "next" | "error";
+  }) {
+    setYamlText((currentYamlText) =>
+      addStepOnEdgeInYaml(currentYamlText, options),
+    );
+  }
+
+  function handleDeleteStep(stepId: string) {
+    const confirmed = window.confirm(
+      `Delete "${stepId}"? This will remove all connections to this step.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setYamlText((currentYamlText) => deleteStepInYaml(currentYamlText, stepId));
+
+    setSelectedStepId((currentSelectedStepId) =>
+      currentSelectedStepId === stepId ? null : currentSelectedStepId,
+    );
+  }
+
+  function handleAddEdge(options: {
+    sourceStepId: string;
+    targetStepId: string;
+  }) {
+    setYamlText((currentYamlText) => addEdgeInYaml(currentYamlText, options));
+  }
+
+  function handleDeleteEdge(options: {
+    sourceStepId: string;
+    targetStepId: string;
+    edgeType: "data" | "next" | "error";
+  }) {
+    const confirmed = window.confirm(
+      `Delete edge from "${options.sourceStepId}" to "${options.targetStepId}"?`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setYamlText((currentYamlText) =>
+      deleteEdgeInYaml(currentYamlText, options),
+    );
+  }
+
+  function handleStartCanvasEditing() {
+    setCanvasEditSnapshot(yamlText);
+    setIsCanvasEditing(true);
+  }
+
+  function handleSaveCanvasEditing() {
+    setCanvasEditSnapshot(null);
+    setIsCanvasEditing(false);
+  }
+
+  function handleCancelCanvasEditing() {
+    if (canvasEditSnapshot !== null) {
+      setYamlText(canvasEditSnapshot);
+    }
+
+    setCanvasEditSnapshot(null);
+    setIsCanvasEditing(false);
+    setSelectedStepId(null);
+  }
+
+  function handleStartYamlEditing() {
+    setYamlEditSnapshot(yamlText);
+    setIsYamlEditing(true);
+  }
+
+  function handleSaveYamlEditing() {
+    setYamlEditSnapshot(null);
+    setIsYamlEditing(false);
+  }
+
+  function handleCancelYamlEditing() {
+    if (yamlEditSnapshot !== null) {
+      setYamlText(yamlEditSnapshot);
+    }
+
+    setYamlEditSnapshot(null);
+    setIsYamlEditing(false);
+  }
+
+  function handleAppendStepAfter(sourceStepId: string) {
+    setYamlText((currentYamlText) =>
+      appendStepAfterInYaml(currentYamlText, sourceStepId),
+    );
+  }
+
+  function handlePrependStepBefore(targetStepId: string) {
+    setYamlText((currentYamlText) =>
+      prependStepBeforeInYaml(currentYamlText, targetStepId),
+    );
+  }
+
   return (
     <main className="h-screen w-screen overflow-hidden bg-[var(--app-bg)] text-[var(--text-primary)]">
       <div className="grid h-full w-full grid-cols-[440px_minmax(0,1fr)_360px]">
@@ -114,12 +231,15 @@ export function VisualVibesEditor() {
           <VibeFileControls
             fileName={fileName}
             sourceType={sourceType}
+            yamlText={yamlText}
             onUploadYaml={(uploadedFileName, uploadedYamlText) => {
               setYamlText(uploadedYamlText);
               setFileName(uploadedFileName);
               setSourceType("upload");
               setLoadError(null);
               setSelectedStepId(null);
+              setIsYamlEditing(false);
+              setYamlEditSnapshot(null);
             }}
             onError={setLoadError}
           />
@@ -136,8 +256,51 @@ export function VisualVibesEditor() {
             </div>
           )}
 
+          <div className="flex items-center justify-between border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2">
+            <div>
+              <div className="text-xs font-semibold text-[var(--text-primary)]">
+                YAML Editing
+              </div>
+              <div className="text-xs text-[var(--text-muted)]">
+                {isYamlEditing ? "Editing enabled" : "Editing locked"}
+              </div>
+            </div>
+
+            {isYamlEditing ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCancelYamlEditing}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveYamlEditing}
+                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white"
+                >
+                  Save
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStartYamlEditing}
+                className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+              >
+                Edit Vibe
+              </button>
+            )}
+          </div>
+
           <div className="min-h-0 flex-1">
-            <VibeYamlEditor value={yamlText} onChange={setYamlText} />
+            <VibeYamlEditor
+              value={yamlText}
+              readOnly={!isYamlEditing}
+              onChange={setYamlText}
+            />
           </div>
         </section>
 
@@ -156,7 +319,17 @@ export function VisualVibesEditor() {
               vibe={parsedResult.vibe}
               graph={positionedGraph}
               selectedStepId={selectedStepId}
+              isEditing={isCanvasEditing}
               onSelectStep={setSelectedStepId}
+              onStartEditing={handleStartCanvasEditing}
+              onSaveEditing={handleSaveCanvasEditing}
+              onCancelEditing={handleCancelCanvasEditing}
+              onAddStepOnEdge={handleAddStepOnEdge}
+              onDeleteStep={handleDeleteStep}
+              onAddEdge={handleAddEdge}
+              onDeleteEdge={handleDeleteEdge}
+              onAppendStepAfter={handleAppendStepAfter}
+              onPrependStepBefore={handlePrependStepBefore}
             />
           </div>
         </section>
