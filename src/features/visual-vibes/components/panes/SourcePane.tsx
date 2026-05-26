@@ -4,13 +4,15 @@ import type { ReactNode } from "react";
 import { VibeFileControls } from "../VibeFileControls";
 import { VibeYamlEditor } from "../VibeYamlEditor";
 import type { VibeValidationIssue } from "@/lib/visual-vibes/validation";
+import type { ExampleVibe } from "../../examples/exampleVibes";
 
 /**
  * Props for SourcePane component
  */
 interface SourcePaneProps {
   fileName: string | null;
-  sourceType: "default" | "upload";
+  sourceType: "default" | "upload" | "example";
+  selectedExampleName: string | null;
   yamlText: string;
   isDesktopLayout: boolean;
   isYamlEditing: boolean;
@@ -18,6 +20,7 @@ interface SourcePaneProps {
   parsedError: string | null;
   validationIssues: VibeValidationIssue[];
   onUploadYaml: (fileName: string, yamlText: string) => void;
+  onSelectExample: (example: ExampleVibe) => void;
   onLoadError: (error: string | null) => void;
   onYamlTextChange: (text: string) => void;
   onStartYamlEditing: () => void;
@@ -33,6 +36,7 @@ interface SourcePaneProps {
 export function SourcePane({
   fileName,
   sourceType,
+  selectedExampleName,
   yamlText,
   isDesktopLayout,
   isYamlEditing,
@@ -40,6 +44,7 @@ export function SourcePane({
   parsedError,
   validationIssues,
   onUploadYaml,
+  onSelectExample,
   onLoadError,
   onYamlTextChange,
   onStartYamlEditing,
@@ -51,8 +56,10 @@ export function SourcePane({
       <VibeFileControls
         fileName={fileName}
         sourceType={sourceType}
+        selectedExampleName={selectedExampleName}
         yamlText={yamlText}
         onUploadYaml={onUploadYaml}
+        onSelectExample={onSelectExample}
         onError={onLoadError}
       />
 

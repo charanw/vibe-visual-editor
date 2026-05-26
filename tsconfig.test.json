@@ -10,6 +10,9 @@
     "incremental": false,
     "tsBuildInfoFile": ".test-dist/tsconfig.test.tsbuildinfo"
   },
-  "include": ["src/lib/visual-vibes/**/*.ts"],
+  "include": [
+    "src/lib/visual-vibes/**/*.ts",
+    "src/features/visual-vibes/examples/**/*.ts"
+  ],
   "exclude": ["node_modules", ".next", ".vercel", ".test-dist"]
 }

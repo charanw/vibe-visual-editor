@@ -28,7 +28,7 @@ export type CanvasViewportState = {
   };
 };
 
-type SourceType = "default" | "upload";
+type SourceType = "default" | "upload" | "example";
 
 /**
  * Central editor state for Visual Vibes.
@@ -40,6 +40,9 @@ export function useVisualVibesStore() {
   const yamlHistory = useEditorHistory("");
   const [fileName, setFileName] = useState<string | null>(null);
   const [sourceType, setSourceType] = useState<SourceType>("default");
+  const [selectedExampleName, setSelectedExampleName] = useState<string | null>(
+    null,
+  );
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
@@ -131,6 +134,8 @@ export function useVisualVibesStore() {
     setFileName,
     sourceType,
     setSourceType,
+    selectedExampleName,
+    setSelectedExampleName,
     loadError,
     setLoadError,
     parsedResult,

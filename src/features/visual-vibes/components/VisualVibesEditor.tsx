@@ -47,6 +47,7 @@ export function VisualVibesEditor() {
     setYamlText: resetYamlText,
     setFileName,
     setSourceType,
+    setSelectedExampleName: vibeState.setSelectedExampleName,
     setLoadError,
   });
 
@@ -59,6 +60,7 @@ export function VisualVibesEditor() {
   const {
     gridTemplateColumns,
     handleUploadYaml,
+    handleLoadExample,
     handleSelectStep,
     handleDeleteStep,
     handleDeleteEdge,
@@ -139,6 +141,7 @@ export function VisualVibesEditor() {
                 <SourcePane
                   fileName={vibeState.fileName}
                   sourceType={vibeState.sourceType}
+                  selectedExampleName={vibeState.selectedExampleName}
                   yamlText={vibeState.yamlText}
                   isDesktopLayout={layoutState.isDesktopLayout}
                   isYamlEditing={editingState.isYamlEditing}
@@ -146,6 +149,7 @@ export function VisualVibesEditor() {
                   parsedError={vibeState.parsedResult.error}
                   validationIssues={vibeState.validationIssues}
                   onUploadYaml={handleUploadYaml}
+                  onSelectExample={handleLoadExample}
                   onLoadError={vibeState.setLoadError}
                   onYamlTextChange={vibeState.setYamlText}
                   onStartYamlEditing={handleStartYamlEditing}
@@ -263,6 +267,7 @@ export function VisualVibesEditor() {
             <SourcePane
               fileName={vibeState.fileName}
               sourceType={vibeState.sourceType}
+              selectedExampleName={vibeState.selectedExampleName}
               yamlText={vibeState.yamlText}
               isDesktopLayout={layoutState.isDesktopLayout}
               isYamlEditing={editingState.isYamlEditing}
@@ -270,6 +275,7 @@ export function VisualVibesEditor() {
               parsedError={vibeState.parsedResult.error}
               validationIssues={vibeState.validationIssues}
               onUploadYaml={handleUploadYaml}
+              onSelectExample={handleLoadExample}
               onLoadError={vibeState.setLoadError}
               onYamlTextChange={vibeState.setYamlText}
               onStartYamlEditing={handleStartYamlEditing}

@@ -1,10 +1,15 @@
 "use client";
 
+import { ExampleVibePicker } from "./ExampleVibePicker";
+import type { ExampleVibe } from "../examples/exampleVibes";
+
 type VibeFileControlsProps = {
   fileName: string | null;
-  sourceType: "default" | "upload";
+  sourceType: "default" | "upload" | "example";
+  selectedExampleName: string | null;
   yamlText: string;
   onUploadYaml: (fileName: string, yamlText: string) => void;
+  onSelectExample: (example: ExampleVibe) => void;
   onError: (message: string) => void;
 };
 
@@ -17,10 +22,19 @@ type VibeFileControlsProps = {
 export function VibeFileControls({
   fileName,
   sourceType,
+  selectedExampleName,
   yamlText,
   onUploadYaml,
+  onSelectExample,
   onError,
 }: VibeFileControlsProps) {
+  const sourceLabel =
+    sourceType === "upload"
+      ? "Imported Vibe"
+      : sourceType === "example"
+        ? `Example: ${selectedExampleName ?? "Starter"}`
+        : "Default Vibe";
+
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
@@ -67,14 +81,16 @@ export function VibeFileControls({
     <div className="flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-4 py-2">
       <div className="min-w-0">
         <div className="truncate text-xs font-medium text-[var(--text-primary)]">
-          {sourceType === "upload" ? "Imported Vibe" : "Default Vibe"}
+          {sourceLabel}
         </div>
         <div className="truncate text-xs text-[var(--text-muted)]">
           {fileName ?? "No Vibe loaded"}
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <ExampleVibePicker onSelectExample={onSelectExample} />
+
         <button
           type="button"
           onClick={handleExportVibe}

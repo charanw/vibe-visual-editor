@@ -1,9 +1,11 @@
 import { useEffect } from "react";
+import { defaultExampleVibe } from "../examples/exampleVibes";
 
 type UseDefaultVibeYamlOptions = {
   setYamlText: (yamlText: string) => void;
   setFileName: (fileName: string) => void;
-  setSourceType: (sourceType: "default" | "upload") => void;
+  setSourceType: (sourceType: "default" | "upload" | "example") => void;
+  setSelectedExampleName: (exampleName: string | null) => void;
   setLoadError: (error: string | null) => void;
 };
 
@@ -17,30 +19,20 @@ export function useDefaultVibeYaml({
   setYamlText,
   setFileName,
   setSourceType,
+  setSelectedExampleName,
   setLoadError,
 }: UseDefaultVibeYamlOptions) {
   useEffect(() => {
-    async function loadDefaultVibeYaml() {
-      try {
-        const response = await fetch("/vibes/example-vibe.yml");
-
-        if (!response.ok) {
-          throw new Error(`Failed to load YAML file: ${response.status}`);
-        }
-
-        const text = await response.text();
-
-        setYamlText(text);
-        setFileName("example-vibe.yml");
-        setSourceType("default");
-        setLoadError(null);
-      } catch (error) {
-        setLoadError(
-          error instanceof Error ? error.message : "Failed to load YAML file",
-        );
-      }
-    }
-
-    loadDefaultVibeYaml();
-  }, [setFileName, setLoadError, setSourceType, setYamlText]);
+    setYamlText(defaultExampleVibe.yaml);
+    setFileName(`${defaultExampleVibe.id}.yml`);
+    setSourceType("example");
+    setSelectedExampleName(defaultExampleVibe.name);
+    setLoadError(null);
+  }, [
+    setFileName,
+    setLoadError,
+    setSelectedExampleName,
+    setSourceType,
+    setYamlText,
+  ]);
 }

@@ -33,6 +33,7 @@ import type {
   StepUpdate,
 } from "../types";
 import type { AddStepWizardSelection } from "../types";
+import type { ExampleVibe } from "../examples/exampleVibes";
 
 type VibeState = VisualVibesStore["vibeState"];
 type LayoutState = UiState;
@@ -79,6 +80,32 @@ export function useVisualVibesEditorActions({
     vibeState.resetYamlText(uploadedYamlText);
     vibeState.setFileName(uploadedFileName);
     vibeState.setSourceType("upload");
+    vibeState.setSelectedExampleName(null);
+    vibeState.setLoadError(null);
+    vibeState.setSelectedStepId(null);
+    editingState.setIsYamlEditing(false);
+    editingState.setYamlEditSnapshot(null);
+    editingState.setIsCanvasEditing(false);
+    editingState.setCanvasEditSnapshot(null);
+    editingState.setHasUnsavedStepEdits(false);
+    graphLayout.setCanvasViewMode("flow");
+  }
+
+  function handleLoadExample(example: ExampleVibe) {
+    if (editingState.isDirty) {
+      const confirmed = window.confirm(
+        "Load this example and replace your current YAML changes?",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    vibeState.resetYamlText(example.yaml);
+    vibeState.setFileName(`${example.id}.yml`);
+    vibeState.setSourceType("example");
+    vibeState.setSelectedExampleName(example.name);
     vibeState.setLoadError(null);
     vibeState.setSelectedStepId(null);
     editingState.setIsYamlEditing(false);
@@ -347,6 +374,7 @@ export function useVisualVibesEditorActions({
   return {
     gridTemplateColumns,
     handleUploadYaml,
+    handleLoadExample,
     handleSelectStep,
     handleAddStandaloneStep,
     handleAddStepOnEdge,
