@@ -60,7 +60,7 @@ export function getEdgeStroke(edge: PositionedEdge, isTerminalError: boolean) {
     return "#f59e0b";
   }
 
-  if (edge.type === "next") {
+  if (edge.type === "next" || edge.type === "semantic") {
     return "var(--brand-primary)";
   }
 
@@ -79,7 +79,7 @@ export function getEdgeMarkerEnd(
     return "url(#arrow-error)";
   }
 
-  if (edge.type === "next") {
+  if (edge.type === "next" || edge.type === "semantic") {
     return "url(#arrow-next)";
   }
 
@@ -98,6 +98,10 @@ export function getEdgeStrokeDasharray(
     return "3 5";
   }
 
+  if (edge.type === "semantic") {
+    return "6 4";
+  }
+
   return undefined;
 }
 
@@ -113,7 +117,7 @@ export function getEdgeLabelFill(
     return "#b45309";
   }
 
-  if (edge.type === "next") {
+  if (edge.type === "next" || edge.type === "semantic") {
     return "var(--brand-primary)";
   }
 

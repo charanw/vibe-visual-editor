@@ -56,6 +56,10 @@ export function useCanvasNodeClassifier({
     }
 
     function isConclusionLikeNode(nodeId: string, functionName: string) {
+      if (nodeById.get(nodeId)?.semantic?.kind === "terminal") {
+        return true;
+      }
+
       return (
         functionName === "concludeWorkflow" ||
         nodeId === "done" ||
@@ -112,6 +116,20 @@ export function useCanvasNodeClassifier({
 
       if (shouldLabelAsErrorHandler(nodeId)) {
         return "ERROR HANDLER";
+      }
+
+      const semanticKind = nodeById.get(nodeId)?.semantic?.kind;
+
+      if (semanticKind === "conditional") {
+        return "CONDITIONAL";
+      }
+
+      if (semanticKind === "loop") {
+        return "LOOP";
+      }
+
+      if (semanticKind === "subworkflow") {
+        return "SUBWORKFLOW";
       }
 
       return "VIBE STEP";
@@ -211,6 +229,10 @@ export function useCanvasNodeClassifier({
     function getEdgeFunctionLabel(
       edge: PositionedVibeGraph["edges"][number],
     ) {
+      if (edge.semantic?.label) {
+        return edge.semantic.label;
+      }
+
       const targetNode = nodeById.get(edge.target);
       const sourceNode = nodeById.get(edge.source);
 

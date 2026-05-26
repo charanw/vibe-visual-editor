@@ -4,6 +4,13 @@ export type VibeGraphNode = {
   functionName: string;
   kind?: "step" | "errorHub";
   memberCount?: number;
+  semantic?: {
+    kind?: "conditional" | "loop" | "subworkflow" | "terminal";
+    badge?: "IF" | "LOOP" | "FLOW" | "END";
+    parallelLaneIndex?: number;
+    parallelLaneLabel?: string;
+    isParallelLaneStart?: boolean;
+  };
 };
 
 /** Directed relationship between two Vibe steps. */
@@ -11,7 +18,10 @@ export type VibeGraphEdge = {
   id: string;
   source: string;
   target: string;
-  type: "data" | "next" | "error";
+  type: "data" | "next" | "error" | "semantic";
+  semantic?: {
+    label?: "then" | "else" | "each" | "done" | "workflow";
+  };
 };
 
 /** Minimal graph model derived from a parsed Vibe workflow. */

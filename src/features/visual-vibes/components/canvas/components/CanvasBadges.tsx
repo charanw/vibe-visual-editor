@@ -63,6 +63,44 @@ export function StartingFlagBadge({ x, y }: { x: number; y: number }) {
   );
 }
 
+/** Text badge rendered for canvas-only semantic control-flow nodes. */
+export function SemanticNodeBadge({
+  x,
+  y,
+  label,
+}: {
+  x: number;
+  y: number;
+  label: string;
+}) {
+  const width = Math.max(42, label.length * 8 + 18);
+
+  return (
+    <g transform={`translate(${x - width}, ${y})`}>
+      <rect
+        width={width}
+        height="22"
+        rx="11"
+        fill="var(--panel-bg)"
+        stroke="var(--brand-primary)"
+        strokeWidth="1.5"
+        opacity="0.96"
+      />
+      <text
+        x={width / 2}
+        y="15"
+        textAnchor="middle"
+        fill="var(--brand-primary)"
+        fontSize="10"
+        fontWeight="800"
+        pointerEvents="none"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
 type NodeActionButtonProps = {
   x: number;
   y: number;

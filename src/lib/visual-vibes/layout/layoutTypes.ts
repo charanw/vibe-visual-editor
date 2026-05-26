@@ -6,6 +6,7 @@ export type PositionedVibeNode = {
   functionName: string;
   kind?: VibeGraphNode["kind"];
   memberCount?: number;
+  semantic?: VibeGraphNode["semantic"];
   x: number;
   y: number;
 };
@@ -16,6 +17,7 @@ export type PositionedVibeEdge = {
   source: string;
   target: string;
   type: VibeGraphEdge["type"];
+  semantic?: VibeGraphEdge["semantic"];
   sourceX: number;
   sourceY: number;
   targetX: number;

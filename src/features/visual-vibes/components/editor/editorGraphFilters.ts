@@ -13,7 +13,7 @@ export function getFlowGraph(graph: VibeGraph): VibeGraph {
     nodes: graph.nodes.filter((node) => mainFlowNodeIds.has(node.id)),
     edges: graph.edges.filter(
       (edge) =>
-        edge.type === "next" &&
+        isSequentialEdge(edge) &&
         mainFlowNodeIds.has(edge.source) &&
         mainFlowNodeIds.has(edge.target),
     ),
@@ -39,7 +39,7 @@ function getMainFlowNodeIds(graph: VibeGraph) {
   }
 
   for (const edge of graph.edges) {
-    if (edge.type !== "next") {
+    if (!isSequentialEdge(edge)) {
       continue;
     }
 
@@ -125,7 +125,7 @@ export function getErrorGraph(graph: VibeGraph): VibeGraph {
     }
 
     return (
-      edge.type === "next" &&
+      isSequentialEdge(edge) &&
       errorHandlingIds.has(edge.source) &&
       errorHandlingIds.has(edge.target)
     );
@@ -156,7 +156,7 @@ function expandErrorHandlingIds(
     changed = false;
 
     for (const edge of graph.edges) {
-      if (edge.type !== "next") {
+      if (!isSequentialEdge(edge)) {
         continue;
       }
 
@@ -176,4 +176,8 @@ function expandErrorHandlingIds(
   }
 
   return errorHandlingIds;
+}
+
+function isSequentialEdge(edge: VibeGraph["edges"][number]) {
+  return edge.type === "next" || edge.type === "semantic";
 }

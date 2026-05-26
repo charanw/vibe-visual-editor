@@ -1,5 +1,6 @@
 import type { VisualVibe } from "../schema";
 import { getReferencedStepIds } from "./graphTraversal";
+import { enrichSemanticGraph } from "./semanticGraph";
 import type { VibeGraph, VibeGraphEdge, VibeGraphNode } from "./graphTypes";
 
 /**
@@ -60,8 +61,11 @@ export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
     }
   }
 
-  return {
-    nodes,
-    edges: Array.from(edgeByKey.values()),
-  };
+  return enrichSemanticGraph(
+    {
+      nodes,
+      edges: Array.from(edgeByKey.values()),
+    },
+    vibe,
+  );
 }

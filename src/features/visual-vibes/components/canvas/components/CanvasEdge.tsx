@@ -49,6 +49,9 @@ export function CanvasEdge({
   const edgePath = getEdgePath(edge);
   const stroke = getEdgeStroke(edge, isTerminalError);
   const labelWidth = Math.min(190, Math.max(76, label.length * 6.5 + 20));
+  const canEditEdge = isEditing && isHovered && edge.type !== "semantic";
+  const editableEdgeType =
+    edge.type === "semantic" ? "next" : edge.type;
 
   return (
     <g
@@ -64,7 +67,7 @@ export function CanvasEdge({
         pointerEvents="stroke"
       />
 
-      {isEditing && isHovered && (
+      {canEditEdge && (
         <rect
           x={addButtonX - 76}
           y={addButtonY - 22}
@@ -136,7 +139,7 @@ export function CanvasEdge({
         </EdgeHoverLabel>
       )}
 
-      {isEditing && isHovered && (
+      {canEditEdge && (
         <>
           <g
             transform={`translate(${addButtonX}, ${edgeActionY})`}
@@ -147,7 +150,7 @@ export function CanvasEdge({
               onAddStepOnEdge({
                 sourceStepId: edge.source,
                 targetStepId: edge.target,
-                edgeType: edge.type,
+                edgeType: editableEdgeType,
               });
             }}
             className="cursor-pointer"
@@ -175,7 +178,7 @@ export function CanvasEdge({
               onDeleteEdge({
                 sourceStepId: edge.source,
                 targetStepId: edge.target,
-                edgeType: edge.type,
+                edgeType: editableEdgeType,
               });
             }}
             className="cursor-pointer"

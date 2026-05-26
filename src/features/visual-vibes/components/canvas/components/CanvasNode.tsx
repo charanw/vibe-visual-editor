@@ -8,6 +8,7 @@ import type { AddEdgeOptions } from "../../../types";
 import {
   ConclusionBadge,
   NodeActionButton,
+  SemanticNodeBadge,
   StartingFlagBadge,
 } from "./CanvasBadges";
 import type { CanvasNodeState } from "../hooks/useCanvasNodeClassifier";
@@ -46,6 +47,8 @@ export function CanvasNode({
   onAppendStepAfter,
   onPrependStepBefore,
 }: CanvasNodeProps) {
+  const statusBadgeX = node.semantic?.badge ? NODE_WIDTH - 82 : NODE_WIDTH - 30;
+
   return (
     <g
       transform={`translate(${node.x}, ${node.y})`}
@@ -74,9 +77,34 @@ export function CanvasNode({
         strokeWidth={state.colors.strokeWidth}
       />
 
-      {state.isConclusion && <ConclusionBadge x={NODE_WIDTH - 30} y={26} />}
+      {node.semantic?.isParallelLaneStart &&
+        node.semantic.parallelLaneLabel && (
+          <text
+            x="0"
+            y="-24"
+            fill="var(--text-muted)"
+            fontSize="11"
+            fontWeight="800"
+            letterSpacing="1.2"
+            pointerEvents="none"
+          >
+            {node.semantic.parallelLaneLabel}
+          </text>
+        )}
+
+      {node.semantic?.badge && (
+        <SemanticNodeBadge
+          x={NODE_WIDTH - 10}
+          y={10}
+          label={node.semantic.badge}
+        />
+      )}
+
+      {state.isConclusion && !node.semantic?.badge && (
+        <ConclusionBadge x={statusBadgeX} y={26} />
+      )}
       {state.isStartingFlowNode && (
-        <StartingFlagBadge x={NODE_WIDTH - 30} y={26} />
+        <StartingFlagBadge x={statusBadgeX} y={26} />
       )}
 
       {isEditing && isHovered && (

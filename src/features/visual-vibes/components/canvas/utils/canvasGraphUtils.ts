@@ -19,7 +19,7 @@ export function getErrorLaneNodeIds(graph: PositionedVibeGraph) {
     changed = false;
 
     for (const edge of graph.edges) {
-      if (edge.type !== "next") {
+      if (!isSequentialEdge(edge)) {
         continue;
       }
 
@@ -53,7 +53,7 @@ export function getErrorBranchSourceNodeIds(graph: PositionedVibeGraph) {
 export function getStartingFlowNodeIds(graph: PositionedVibeGraph) {
   const incomingNextTargetIds = new Set(
     graph.edges
-      .filter((edge) => edge.type === "next")
+      .filter((edge) => isSequentialEdge(edge))
       .map((edge) => edge.target),
   );
 
@@ -78,4 +78,8 @@ export function hashString(value: string) {
   }
 
   return hash;
+}
+
+function isSequentialEdge(edge: PositionedVibeGraph["edges"][number]) {
+  return edge.type === "next" || edge.type === "semantic";
 }

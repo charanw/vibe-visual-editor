@@ -90,10 +90,12 @@ export function useVisualVibesEditorActions({
     vibeState.setSelectedStepId((currentStepId) =>
       currentStepId === stepId ? null : stepId,
     );
+    layoutState.setIsRightPaneCollapsed(false);
 
     layoutState.setMobileCollapsedPanes((currentPanes) =>
       revealMobileInspector(currentPanes),
     );
+    layoutState.setActivePanel("inspector");
   }
 
   function handleAddStandaloneStep() {

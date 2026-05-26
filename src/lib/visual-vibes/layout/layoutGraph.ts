@@ -14,6 +14,7 @@ const START_Y = 80;
 const COLUMN_GAP = 120;
 const WRAP_ROW_GAP = 150;
 const LANE_GAP = 170;
+const PARALLEL_LANE_GAP = 110;
 const COLUMNS_PER_ROW = 5;
 
 const ERROR_COLUMN_GAP = 150;
@@ -47,19 +48,19 @@ export function layoutVibeGraph(
 
   const normalEdges = graph.edges.filter(
     (edge) =>
-      edge.type === "next" &&
+      isSequentialEdge(edge) &&
       !errorLaneNodeIds.has(edge.source) &&
       !errorLaneNodeIds.has(edge.target),
   );
 
   const errorEdges = graph.edges.filter(
     (edge) =>
-      edge.type === "next" &&
+      isSequentialEdge(edge) &&
       errorLaneNodeIds.has(edge.source) &&
       errorLaneNodeIds.has(edge.target),
   );
 
-  const normalPositionedNodes = positionNodesInSerpentineRows({
+  const normalPositionedNodes = positionNodesInParallelLanes({
     nodes: normalNodes,
     edges: normalEdges,
     startX: START_X,
@@ -73,7 +74,7 @@ export function layoutVibeGraph(
       ? Math.max(...normalPositionedNodes.map((node) => node.y + NODE_HEIGHT))
       : START_Y + NODE_HEIGHT;
 
-  const errorPositionedNodes = positionNodesInSerpentineRows({
+  const errorPositionedNodes = positionNodesInParallelLanes({
     nodes: errorNodes,
     edges: errorEdges,
     startX: START_X,
@@ -122,6 +123,7 @@ function layoutErrorChainsInColumns(graph: VibeGraph): PositionedVibeGraph {
         functionName: node.functionName,
         kind: node.kind,
         memberCount: node.memberCount,
+        semantic: node.semantic,
         x: START_X + columnIndex * (NODE_WIDTH + ERROR_COLUMN_GAP),
         y: START_Y + rowIndex * (NODE_HEIGHT + ERROR_ROW_GAP),
       });
@@ -366,11 +368,65 @@ function getEdgeTypeOrderScore(edge: VibeGraphEdge) {
     return 1;
   }
 
-  if (edge.type === "next") {
+  if (edge.type === "next" || edge.type === "semantic") {
     return 2;
   }
 
   return 3;
+}
+
+function positionNodesInParallelLanes(options: {
+  nodes: VibeGraphNode[];
+  edges: VibeGraphEdge[];
+  startX: number;
+  startY: number;
+  columnsPerRow: number;
+  lane: "normal" | "error";
+}): PositionedVibeNode[] {
+  const { nodes, edges, startX, startY, columnsPerRow, lane } = options;
+  const laneIndexes = Array.from(
+    new Set(
+      nodes
+        .map((node) => node.semantic?.parallelLaneIndex)
+        .filter((index): index is number => typeof index === "number"),
+    ),
+  ).sort((a, b) => a - b);
+
+  if (laneIndexes.length <= 1) {
+    return positionNodesInSerpentineRows(options);
+  }
+
+  const positionedNodes: PositionedVibeNode[] = [];
+  let nextLaneY = startY;
+
+  for (const laneIndex of laneIndexes) {
+    const laneNodes = nodes.filter(
+      (node) => node.semantic?.parallelLaneIndex === laneIndex,
+    );
+    const laneNodeIds = new Set(laneNodes.map((node) => node.id));
+    const laneEdges = edges.filter(
+      (edge) => laneNodeIds.has(edge.source) && laneNodeIds.has(edge.target),
+    );
+    const lanePositionedNodes = positionNodesInSerpentineRows({
+      nodes: laneNodes,
+      edges: laneEdges,
+      startX,
+      startY: nextLaneY,
+      columnsPerRow,
+      lane,
+    });
+
+    positionedNodes.push(...lanePositionedNodes);
+
+    const laneBottom =
+      lanePositionedNodes.length > 0
+        ? Math.max(...lanePositionedNodes.map((node) => node.y + NODE_HEIGHT))
+        : nextLaneY + NODE_HEIGHT;
+
+    nextLaneY = laneBottom + PARALLEL_LANE_GAP;
+  }
+
+  return positionedNodes;
 }
 
 /**
@@ -409,6 +465,7 @@ function positionNodesInSerpentineRows(options: {
       functionName: node.functionName,
       kind: node.kind,
       memberCount: node.memberCount,
+      semantic: node.semantic,
       x: startX + visualColumnIndex * (NODE_WIDTH + COLUMN_GAP),
       y: startY + rowIndex * (NODE_HEIGHT + WRAP_ROW_GAP),
     };
@@ -531,6 +588,7 @@ function positionEdge(
         source: edge.source,
         target: edge.target,
         type: edge.type,
+        semantic: edge.semantic,
         sourceX: source.x,
         sourceY: source.y + NODE_HEIGHT / 2,
         targetX: target.x,
@@ -543,6 +601,7 @@ function positionEdge(
       source: edge.source,
       target: edge.target,
       type: edge.type,
+      semantic: edge.semantic,
       sourceX: source.x + NODE_WIDTH / 2,
       sourceY: source.y + NODE_HEIGHT,
       targetX: target.x + NODE_WIDTH / 2,
@@ -558,6 +617,7 @@ function positionEdge(
       source: edge.source,
       target: edge.target,
       type: edge.type,
+      semantic: edge.semantic,
       sourceX: source.x + NODE_WIDTH,
       sourceY: source.y + NODE_HEIGHT / 2,
       targetX: target.x + NODE_WIDTH,
@@ -571,6 +631,7 @@ function positionEdge(
       source: edge.source,
       target: edge.target,
       type: edge.type,
+      semantic: edge.semantic,
       sourceX: source.x + NODE_WIDTH / 2,
       sourceY: source.y + NODE_HEIGHT,
       targetX: target.x + NODE_WIDTH / 2,
@@ -584,6 +645,7 @@ function positionEdge(
       source: edge.source,
       target: edge.target,
       type: edge.type,
+      semantic: edge.semantic,
       sourceX: source.x + NODE_WIDTH / 2,
       sourceY: source.y,
       targetX: target.x + NODE_WIDTH / 2,
@@ -597,6 +659,7 @@ function positionEdge(
       source: edge.source,
       target: edge.target,
       type: edge.type,
+      semantic: edge.semantic,
       sourceX: source.x + NODE_WIDTH,
       sourceY: source.y + NODE_HEIGHT / 2,
       targetX: target.x,
@@ -609,6 +672,7 @@ function positionEdge(
     source: edge.source,
     target: edge.target,
     type: edge.type,
+    semantic: edge.semantic,
     sourceX: source.x,
     sourceY: source.y + NODE_HEIGHT / 2,
     targetX: target.x + NODE_WIDTH,
@@ -643,7 +707,7 @@ function getErrorLaneNodeIds(graph: VibeGraph) {
     changed = false;
 
     for (const edge of graph.edges) {
-      if (edge.type !== "next") {
+      if (!isSequentialEdge(edge)) {
         continue;
       }
 
@@ -658,6 +722,10 @@ function getErrorLaneNodeIds(graph: VibeGraph) {
   }
 
   return errorLaneNodeIds;
+}
+
+function isSequentialEdge(edge: VibeGraphEdge) {
+  return edge.type === "next" || edge.type === "semantic";
 }
 
 /** Compares nodes with lane-specific terminal/conclusion ordering rules. */
