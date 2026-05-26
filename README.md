@@ -169,34 +169,126 @@ npm start
 
 ## Architecture Overview
 
-The app uses feature-based architecture. The Next.js route layer stays thin and imports the Visual Vibes feature through one public entry point:
+The app uses a **feature-based, layered architecture** that separates concerns into presentation, state management, and domain logic. The Next.js route layer stays thin and imports the Visual Vibes feature through one public entry point:
 
 ```ts
 import { VisualVibesEditor } from "@/features/visual-vibes";
 ```
 
-At a high level:
-
-- `src/app` contains the Next.js shell: route, metadata, fonts, and global tokens.
-- `src/features/visual-vibes` contains the editor experience: panes, canvas UI, inspector UI, hooks, and feature utilities.
-- `src/lib/visual-vibes` contains pure domain logic: schema parsing, YAML mutation, validation, graph extraction, and graph layout.
-- `public/vibes/example-vibe.yml` is the bundled starter Vibe loaded by the editor.
+### Directory Structure
 
 ```txt
 src/
-  app/                    Next.js route shell and global styles
-  features/
-    visual-vibes/
-      index.ts             Public feature export
-      types.ts             Shared feature contracts for panes, hooks, and canvas
-      components/          Editor shell, panes, canvas controls, inspector controls
-      hooks/               YAML state, edit state, layout state, graph layout, editor actions
-      utils/               Feature-specific helpers
-  lib/
-    visual-vibes/          Domain logic and unit tests
+  app/                           Next.js route shell and global styles
+
+  features/visual-vibes/         Editor UI layer (presentation & state)
+    index.ts                      Public feature entry point
+    types.ts                      Shared feature contracts
+    components/
+      VibeCanvas.tsx              Main canvas wrapper
+      VibeFileControls.tsx         File upload/download UI
+      VibeInspector.tsx            Inspector wrapper
+      VibeYamlEditor.tsx           YAML source editor
+      VisualVibesEditor.tsx        Main editor component
+      canvas/
+        components/               Canvas rendering & controls (nodes, edges, zoom, etc.)
+        hooks/                    Canvas-specific state hooks
+        utils/                    Canvas layout and rendering utilities
+      editor/
+        AppFooter.tsx             Status and metadata display
+        PanelHeader.tsx           Pane headers and controls
+        PaneResizeHandler.tsx      Resizable pane logic
+        editorGraphFilters.ts     View filtering logic
+      inspector/
+        InspectorField.tsx         Field input components
+        InspectorIcons.tsx         Icon utilities
+        stepFunctionTemplates.ts  Function templates
+        inputTypes.ts             Input field type definitions
+        inputUtils.ts             Input validation/formatting helpers
+      panes/
+        CanvasPane.tsx             Flow/Error view switcher
+        SourcePane.tsx             YAML editor pane
+        InspectorPane.tsx          Step inspector pane
+    hooks/                        Feature state management
+      useCanvasResizeObserver.ts  Canvas resize handling
+      useDefaultVibeYaml.ts       Default Vibe loading
+      (others)                    Store subscriptions, actions, selectors
+    state/
+      visualVibesStore.ts         Zustand state store
+      editorActions.ts            State mutation functions
+      editorHistory.ts            Undo/redo history
+      editorSelectors.ts          State selectors
+    utils/                        Feature-specific helpers
+      editorUtils.ts              Editor logic utilities
+      mobileLayoutUtils.ts        Responsive layout helpers
+      paneResizeUtils.ts          Pane sizing utilities
+
+  lib/visual-vibes/              Domain logic layer (pure functions & types)
+    appConfig.ts                  App configuration
+    schema.ts                     Zod schema definitions
+    validation.ts                 Validation logic
+    yaml.ts                       YAML utilities
+    __tests__/                    Unit tests
+
+    graph/
+      buildGraph.ts              Extract graph from Vibe YAML
+      graphTraversal.ts          Graph traversal algorithms
+      graphTypes.ts              Graph type definitions
+
+    layout/
+      layoutGraph.ts             Graph-to-canvas layout algorithm
+      layoutTypes.ts             Layout type definitions
+
+    mutations/
+      addStep.ts                 Add new workflow step
+      deleteStep.ts              Delete workflow step
+      renameStep.ts              Rename step ID
+      reorderSteps.ts            Change step order
+      updateStep.ts              Update entire step
+      updateStepField.ts         Update single step field
+      updateRouting.ts           Modify step routing
+      index.ts                   Mutations barrel export
+
+    parser/
+      parseYaml.ts               Parse YAML to typed objects
+      serializeYaml.ts           Serialize typed objects to YAML
+
   public/
-    vibes/                 Example YAML loaded by default
+    vibes/                        Example YAML files
+      example-vibe.yml           Default editor starter Vibe
 ```
+
+### Key Architecture Concepts
+
+**Layered Architecture:**
+
+- **Presentation Layer** (`features/visual-vibes/components`) — React components and UI logic
+- **State Management** (`features/visual-vibes/state` + `hooks`) — Zustand store, selectors, actions
+- **Domain Layer** (`lib/visual-vibes`) — Pure functions for business logic, independent of React
+
+**Data Flow:**
+
+1. User interactions in components dispatch actions to the Zustand store
+2. Actions call domain logic functions (mutations, graph building, layout)
+3. Store updates state, components re-render via hooks/selectors
+4. Canvas re-renders with updated layout
+
+**Key Modules:**
+
+- **Graph Layer** — Converts Vibe YAML structure into graph nodes/edges for visualization
+- **Layout Layer** — Computes canvas positions for nodes using serpentine layout algorithm
+- **Mutations Layer** — Pure functions to safely modify Vibes (add/remove/reorder/edit steps)
+- **Parser Layer** — Bidirectional YAML ↔ typed objects with validation
+- **Canvas Layer** — SVG-based interactive visualization with zoom, pan, and node selection
+
+### Technology Stack
+
+- **Framework:** Next.js 16 with React 19
+- **Styling:** Tailwind CSS 4
+- **Editor:** Monaco Editor (embedded for YAML editing)
+- **State:** Zustand (lightweight state management)
+- **Type Safety:** TypeScript, Zod (schema validation)
+- **Testing:** Node test runner with TypeScript
 
 ### Feature Internals
 
