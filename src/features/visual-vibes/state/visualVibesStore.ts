@@ -5,7 +5,11 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import type { CanvasViewMode, CenterRequest } from "../types";
+import type {
+  CanvasLayoutDirection,
+  CanvasViewMode,
+  CenterRequest,
+} from "../types";
 import { layoutVibeGraph } from "@/lib/visual-vibes/layout/layoutGraph";
 import type { VibeGraph } from "@/lib/visual-vibes/graph/graphTypes";
 import { getErrorGraph, getFlowGraph } from "../components/editor/editorGraphFilters";
@@ -52,6 +56,8 @@ export function useVisualVibesStore() {
   const [activePanel, setActivePanel] = useState<ActivePanel>("canvas");
   const [canvasViewMode, setCanvasViewMode] =
     useState<CanvasViewMode>("flow");
+  const [layoutDirection, setLayoutDirection] =
+    useState<CanvasLayoutDirection>("LR");
   const [centerRequest, setCenterRequest] = useState<CenterRequest>(null);
   const [canvasViewport, setCanvasViewport] = useState<CanvasViewportState>({
     zoom: 1,
@@ -111,7 +117,11 @@ export function useVisualVibesStore() {
     () => selectSelectedStepDescription(yamlHistory.value, selectedStepId),
     [yamlHistory.value, selectedStepId],
   );
-  const graphLayout = useGraphLayoutState(parsedResult.graph, canvasViewMode);
+  const graphLayout = useGraphLayoutState(
+    parsedResult.graph,
+    canvasViewMode,
+    layoutDirection,
+  );
 
   const gridTemplateColumns = calculateGridTemplateColumns(
     leftPaneWidth,
@@ -154,6 +164,8 @@ export function useVisualVibesStore() {
     setActivePanel,
     canvasViewMode,
     setCanvasViewMode,
+    layoutDirection,
+    setLayoutDirection,
     centerRequest,
     setCenterRequest,
     canvasViewport,
@@ -197,6 +209,8 @@ export function useVisualVibesStore() {
       ...graphLayout,
       canvasViewMode,
       setCanvasViewMode,
+      layoutDirection,
+      setLayoutDirection,
       centerRequest,
       setCenterRequest,
     },
@@ -215,6 +229,7 @@ export function useVisualVibesStore() {
 function useGraphLayoutState(
   displayGraph: VibeGraph | null,
   canvasViewMode: CanvasViewMode,
+  layoutDirection: CanvasLayoutDirection,
 ) {
   const visibleGraph = useMemo(() => {
     if (!displayGraph) {
@@ -233,8 +248,8 @@ function useGraphLayoutState(
       return { nodes: [], edges: [] };
     }
 
-    return layoutVibeGraph(displayGraph);
-  }, [displayGraph]);
+    return layoutVibeGraph(displayGraph, { direction: layoutDirection });
+  }, [displayGraph, layoutDirection]);
 
   const positionedGraph = useMemo(() => {
     if (!visibleGraph) {
@@ -243,8 +258,9 @@ function useGraphLayoutState(
 
     return layoutVibeGraph(visibleGraph, {
       mode: canvasViewMode,
+      direction: layoutDirection,
     });
-  }, [visibleGraph, canvasViewMode]);
+  }, [visibleGraph, canvasViewMode, layoutDirection]);
 
   return {
     visibleGraph,

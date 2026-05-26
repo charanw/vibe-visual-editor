@@ -184,10 +184,12 @@ export function VisualVibesEditor() {
                   selectedStepId={vibeState.selectedStepId}
                   centerRequest={graphLayout.centerRequest}
                   canvasViewMode={graphLayout.canvasViewMode}
+                  layoutDirection={graphLayout.layoutDirection}
                   isCanvasEditing={editingState.isCanvasEditing}
                   onSelectStep={handleSelectStep}
                   onClearSelectedStep={() => vibeState.setSelectedStepId(null)}
                   onChangeViewMode={graphLayout.setCanvasViewMode}
+                  onChangeLayoutDirection={graphLayout.setLayoutDirection}
                   onStartEditing={handleStartCanvasEditing}
                   onSaveEditing={handleSaveCanvasEditing}
                   onCancelEditing={handleCancelCanvasEditing}
@@ -313,10 +315,12 @@ export function VisualVibesEditor() {
             selectedStepId={vibeState.selectedStepId}
             centerRequest={graphLayout.centerRequest}
             canvasViewMode={graphLayout.canvasViewMode}
+            layoutDirection={graphLayout.layoutDirection}
             isCanvasEditing={editingState.isCanvasEditing}
             onSelectStep={handleSelectStep}
             onClearSelectedStep={() => vibeState.setSelectedStepId(null)}
             onChangeViewMode={graphLayout.setCanvasViewMode}
+            onChangeLayoutDirection={graphLayout.setLayoutDirection}
             onStartEditing={handleStartCanvasEditing}
             onSaveEditing={handleSaveCanvasEditing}
             onCancelEditing={handleCancelCanvasEditing}

@@ -33,6 +33,9 @@ export type PositionedVibeGraph = {
 /** Layout strategy selected by the canvas view mode. */
 export type VibeGraphLayoutMode = "flow" | "errors";
 
+/** Direction selected by the canvas layout control. */
+export type VibeGraphLayoutDirection = "LR" | "TB";
+
 /** Shared node width used by layout and SVG rendering. */
 export const NODE_WIDTH = 220;
 

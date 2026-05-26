@@ -5,6 +5,7 @@ import {
   type PositionedVibeEdge,
   type PositionedVibeGraph,
   type PositionedVibeNode,
+  type VibeGraphLayoutDirection,
   type VibeGraphLayoutMode,
 } from "./layoutTypes";
 
@@ -16,6 +17,7 @@ const WRAP_ROW_GAP = 150;
 const LANE_GAP = 170;
 const PARALLEL_LANE_GAP = 110;
 const COLUMNS_PER_ROW = 5;
+const ROWS_PER_COLUMN = 5;
 
 const ERROR_COLUMN_GAP = 150;
 const ERROR_ROW_GAP = 95;
@@ -29,12 +31,16 @@ const ERROR_ROW_GAP = 95;
  */
 export function layoutVibeGraph(
   graph: VibeGraph,
-  options: { mode?: VibeGraphLayoutMode } = {},
+  options: {
+    mode?: VibeGraphLayoutMode;
+    direction?: VibeGraphLayoutDirection;
+  } = {},
 ): PositionedVibeGraph {
   const mode = options.mode ?? "flow";
+  const direction = options.direction ?? "LR";
 
   if (mode === "errors") {
-    return layoutErrorChainsInColumns(graph);
+    return layoutErrorChains(graph, direction);
   }
 
   const errorLaneNodeIds = getErrorLaneNodeIds(graph);
@@ -66,21 +72,27 @@ export function layoutVibeGraph(
     startX: START_X,
     startY: START_Y,
     columnsPerRow: COLUMNS_PER_ROW,
+    rowsPerColumn: ROWS_PER_COLUMN,
     lane: "normal",
+    direction,
   });
 
-  const normalContentBottom =
+  const normalContentEnd =
     normalPositionedNodes.length > 0
-      ? Math.max(...normalPositionedNodes.map((node) => node.y + NODE_HEIGHT))
-      : START_Y + NODE_HEIGHT;
+      ? getLaneEnd(normalPositionedNodes, direction)
+      : direction === "LR"
+        ? START_Y + NODE_HEIGHT
+        : START_X + NODE_WIDTH;
 
   const errorPositionedNodes = positionNodesInParallelLanes({
     nodes: errorNodes,
     edges: errorEdges,
-    startX: START_X,
-    startY: normalContentBottom + LANE_GAP,
+    startX: direction === "LR" ? START_X : normalContentEnd + LANE_GAP,
+    startY: direction === "LR" ? normalContentEnd + LANE_GAP : START_Y,
     columnsPerRow: COLUMNS_PER_ROW,
+    rowsPerColumn: ROWS_PER_COLUMN,
     lane: "error",
+    direction,
   });
 
   const positionedNodes = [...normalPositionedNodes, ...errorPositionedNodes];
@@ -105,8 +117,11 @@ export function layoutVibeGraph(
   };
 }
 
-/** Positions error-view components as independent vertical columns. */
-function layoutErrorChainsInColumns(graph: VibeGraph): PositionedVibeGraph {
+/** Positions error-view components in the selected canvas direction. */
+function layoutErrorChains(
+  graph: VibeGraph,
+  direction: VibeGraphLayoutDirection,
+): PositionedVibeGraph {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const nodeIndexById = new Map(
     graph.nodes.map((node, index) => [node.id, index] as const),
@@ -118,14 +133,25 @@ function layoutErrorChainsInColumns(graph: VibeGraph): PositionedVibeGraph {
 
   for (const [columnIndex, chain] of chains.entries()) {
     for (const [rowIndex, node] of chain.entries()) {
+      const position =
+        direction === "LR"
+          ? {
+              x: START_X + rowIndex * (NODE_WIDTH + ERROR_COLUMN_GAP),
+              y: START_Y + columnIndex * (NODE_HEIGHT + ERROR_ROW_GAP),
+            }
+          : {
+              x: START_X + columnIndex * (NODE_WIDTH + ERROR_COLUMN_GAP),
+              y: START_Y + rowIndex * (NODE_HEIGHT + ERROR_ROW_GAP),
+            };
+
       positionedNodes.push({
         id: node.id,
         functionName: node.functionName,
         kind: node.kind,
         memberCount: node.memberCount,
         semantic: node.semantic,
-        x: START_X + columnIndex * (NODE_WIDTH + ERROR_COLUMN_GAP),
-        y: START_Y + rowIndex * (NODE_HEIGHT + ERROR_ROW_GAP),
+        x: position.x,
+        y: position.y,
       });
     }
   }
@@ -146,8 +172,8 @@ function layoutErrorChainsInColumns(graph: VibeGraph): PositionedVibeGraph {
 
     positionedEdges.push(
       positionEdge(edge, source, target, {
-        routeVerticalNextOnSide: true,
-        routeErrorOnSide: true,
+        routeVerticalNextOnSide: direction === "TB",
+        routeErrorOnSide: direction === "TB",
       }),
     );
   }
@@ -381,9 +407,20 @@ function positionNodesInParallelLanes(options: {
   startX: number;
   startY: number;
   columnsPerRow: number;
+  rowsPerColumn: number;
   lane: "normal" | "error";
+  direction: VibeGraphLayoutDirection;
 }): PositionedVibeNode[] {
-  const { nodes, edges, startX, startY, columnsPerRow, lane } = options;
+  const {
+    nodes,
+    edges,
+    startX,
+    startY,
+    columnsPerRow,
+    rowsPerColumn,
+    lane,
+    direction,
+  } = options;
   const laneIndexes = Array.from(
     new Set(
       nodes
@@ -397,7 +434,7 @@ function positionNodesInParallelLanes(options: {
   }
 
   const positionedNodes: PositionedVibeNode[] = [];
-  let nextLaneY = startY;
+  let nextLaneStart = direction === "LR" ? startY : startX;
 
   for (const laneIndex of laneIndexes) {
     const laneNodes = nodes.filter(
@@ -410,20 +447,22 @@ function positionNodesInParallelLanes(options: {
     const lanePositionedNodes = positionNodesInSerpentineRows({
       nodes: laneNodes,
       edges: laneEdges,
-      startX,
-      startY: nextLaneY,
+      startX: direction === "LR" ? startX : nextLaneStart,
+      startY: direction === "LR" ? nextLaneStart : startY,
       columnsPerRow,
+      rowsPerColumn,
       lane,
+      direction,
     });
 
     positionedNodes.push(...lanePositionedNodes);
 
-    const laneBottom =
+    const laneEnd =
       lanePositionedNodes.length > 0
-        ? Math.max(...lanePositionedNodes.map((node) => node.y + NODE_HEIGHT))
-        : nextLaneY + NODE_HEIGHT;
+        ? getLaneEnd(lanePositionedNodes, direction)
+        : nextLaneStart + (direction === "LR" ? NODE_HEIGHT : NODE_WIDTH);
 
-    nextLaneY = laneBottom + PARALLEL_LANE_GAP;
+    nextLaneStart = laneEnd + PARALLEL_LANE_GAP;
   }
 
   return positionedNodes;
@@ -441,9 +480,20 @@ function positionNodesInSerpentineRows(options: {
   startX: number;
   startY: number;
   columnsPerRow: number;
+  rowsPerColumn: number;
   lane: "normal" | "error";
+  direction: VibeGraphLayoutDirection;
 }): PositionedVibeNode[] {
-  const { nodes, edges, startX, startY, columnsPerRow, lane } = options;
+  const {
+    nodes,
+    edges,
+    startX,
+    startY,
+    columnsPerRow,
+    rowsPerColumn,
+    lane,
+    direction,
+  } = options;
 
   if (nodes.length === 0) {
     return [];
@@ -454,11 +504,21 @@ function positionNodesInSerpentineRows(options: {
   return orderedNodes.map((node, index) => {
     const rowIndex = Math.floor(index / columnsPerRow);
     const positionInRow = index % columnsPerRow;
+    const columnIndex = Math.floor(index / rowsPerColumn);
+    const positionInColumn = index % rowsPerColumn;
     const isRightToLeftRow = rowIndex % 2 === 1;
+    const isBottomToTopColumn = columnIndex % 2 === 1;
 
-    const visualColumnIndex = isRightToLeftRow
-      ? columnsPerRow - 1 - positionInRow
-      : positionInRow;
+    // Serpentine wrapping keeps long flows compact while preserving the chosen
+    // primary reading direction for each row or column.
+    const visualColumnIndex =
+      direction === "LR" && isRightToLeftRow
+        ? columnsPerRow - 1 - positionInRow
+        : positionInRow;
+    const visualRowIndex =
+      direction === "TB" && isBottomToTopColumn
+        ? rowsPerColumn - 1 - positionInColumn
+        : positionInColumn;
 
     return {
       id: node.id,
@@ -466,10 +526,25 @@ function positionNodesInSerpentineRows(options: {
       kind: node.kind,
       memberCount: node.memberCount,
       semantic: node.semantic,
-      x: startX + visualColumnIndex * (NODE_WIDTH + COLUMN_GAP),
-      y: startY + rowIndex * (NODE_HEIGHT + WRAP_ROW_GAP),
+      x:
+        direction === "LR"
+          ? startX + visualColumnIndex * (NODE_WIDTH + COLUMN_GAP)
+          : startX + columnIndex * (NODE_WIDTH + COLUMN_GAP),
+      y:
+        direction === "LR"
+          ? startY + rowIndex * (NODE_HEIGHT + WRAP_ROW_GAP)
+          : startY + visualRowIndex * (NODE_HEIGHT + WRAP_ROW_GAP),
     };
   });
+}
+
+function getLaneEnd(
+  positionedNodes: PositionedVibeNode[],
+  direction: VibeGraphLayoutDirection,
+) {
+  return direction === "LR"
+    ? Math.max(...positionedNodes.map((node) => node.y + NODE_HEIGHT))
+    : Math.max(...positionedNodes.map((node) => node.x + NODE_WIDTH));
 }
 
 /**

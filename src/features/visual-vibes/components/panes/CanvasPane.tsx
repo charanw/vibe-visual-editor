@@ -9,6 +9,7 @@ import type {
   AddEdgeOptions,
   AddStepPlacement,
   AddStepWizardSelection,
+  CanvasLayoutDirection,
   CanvasViewMode,
   CenterRequest,
   EdgeOperationOptions,
@@ -27,10 +28,12 @@ interface CanvasPaneProps {
   selectedStepId: string | null;
   centerRequest: CenterRequest;
   canvasViewMode: CanvasViewMode;
+  layoutDirection: CanvasLayoutDirection;
   isCanvasEditing: boolean;
   onSelectStep: (stepId: string) => void;
   onClearSelectedStep: () => void;
   onChangeViewMode: (mode: CanvasViewMode) => void;
+  onChangeLayoutDirection: (direction: CanvasLayoutDirection) => void;
   onStartEditing: () => void;
   onSaveEditing: () => void;
   onCancelEditing: () => void;
@@ -65,10 +68,12 @@ export function CanvasPane({
   selectedStepId,
   centerRequest,
   canvasViewMode,
+  layoutDirection,
   isCanvasEditing,
   onSelectStep,
   onClearSelectedStep,
   onChangeViewMode,
+  onChangeLayoutDirection,
   onStartEditing,
   onSaveEditing,
   onCancelEditing,
@@ -96,10 +101,12 @@ export function CanvasPane({
           selectedStepId={selectedStepId}
           centerRequest={centerRequest}
           viewMode={canvasViewMode}
+          layoutDirection={layoutDirection}
           isEditing={isCanvasEditing}
           onSelectStep={onSelectStep}
           onClearSelectedStep={onClearSelectedStep}
           onChangeViewMode={onChangeViewMode}
+          onChangeLayoutDirection={onChangeLayoutDirection}
           onStartEditing={onStartEditing}
           onSaveEditing={onSaveEditing}
           onCancelEditing={onCancelEditing}

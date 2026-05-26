@@ -184,7 +184,7 @@ export function useCanvasViewport({
     });
   }
 
-  function recenterCanvas() {
+  const recenterCanvas = useCallback(() => {
     if (graph.nodes.length === 0) {
       setPan({ x: 0, y: 0 });
       return;
@@ -200,7 +200,7 @@ export function useCanvasViewport({
     }
 
     centerGraph();
-  }
+  }, [centerGraph, centerNode, graph.nodes, selectedStepId, setPan]);
 
   function startPanning(event: ReactMouseEvent<SVGRectElement>) {
     setPanStart({

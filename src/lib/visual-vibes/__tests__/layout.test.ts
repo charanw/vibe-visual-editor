@@ -35,6 +35,37 @@ test("layoutVibeGraph places flow nodes in serpentine rows", () => {
   );
 });
 
+test("layoutVibeGraph places top-to-bottom flow nodes in serpentine columns", () => {
+  const graph: VibeGraph = {
+    nodes: Array.from({ length: 6 }, (_, index) => ({
+      id: `step_${index + 1}`,
+      functionName: "setVariable",
+      kind: "step",
+    })),
+    edges: Array.from({ length: 5 }, (_, index) => ({
+      id: `step_${index + 1}-step_${index + 2}-next`,
+      source: `step_${index + 1}`,
+      target: `step_${index + 2}`,
+      type: "next",
+    })),
+  };
+
+  const positionedGraph = layoutVibeGraph(graph, { direction: "TB" });
+  const step1 = positionedGraph.nodes.find((node) => node.id === "step_1");
+  const step5 = positionedGraph.nodes.find((node) => node.id === "step_5");
+  const step6 = positionedGraph.nodes.find((node) => node.id === "step_6");
+
+  assert.deepEqual(
+    { x: step1?.x, y: step1?.y },
+    { x: 80, y: 80 },
+  );
+  assert.equal(step5?.y, 80 + 4 * (NODE_HEIGHT + 150));
+  assert.deepEqual(
+    { x: step6?.x, y: step6?.y },
+    { x: 80 + NODE_WIDTH + 120, y: 80 + 4 * (NODE_HEIGHT + 150) },
+  );
+});
+
 test("layoutVibeGraph places error view chains in separate columns", () => {
   const graph: VibeGraph = {
     nodes: [
@@ -59,7 +90,10 @@ test("layoutVibeGraph places error view chains in separate columns", () => {
     ],
   };
 
-  const positionedGraph = layoutVibeGraph(graph, { mode: "errors" });
+  const positionedGraph = layoutVibeGraph(graph, {
+    mode: "errors",
+    direction: "TB",
+  });
   const sourceA = positionedGraph.nodes.find((node) => node.id === "source_a");
   const errorA = positionedGraph.nodes.find((node) => node.id === "error_a");
   const sourceB = positionedGraph.nodes.find((node) => node.id === "source_b");

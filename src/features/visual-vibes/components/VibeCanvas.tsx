@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
 import type {
   AddEdgeOptions,
+  CanvasLayoutDirection,
   CanvasViewMode,
   CenterRequest,
   EdgeOperationOptions,
@@ -32,10 +33,12 @@ type VibeCanvasProps = {
   selectedStepId: string | null;
   centerRequest: CenterRequest;
   viewMode: CanvasViewMode;
+  layoutDirection: CanvasLayoutDirection;
   isEditing: boolean;
   onSelectStep: (stepId: string) => void;
   onClearSelectedStep: () => void;
   onChangeViewMode: (viewMode: CanvasViewMode) => void;
+  onChangeLayoutDirection: (direction: CanvasLayoutDirection) => void;
   onStartEditing: () => void;
   onSaveEditing: () => void;
   onCancelEditing: () => void;
@@ -67,10 +70,12 @@ export function VibeCanvas({
   selectedStepId,
   centerRequest,
   viewMode,
+  layoutDirection,
   isEditing,
   onSelectStep,
   onClearSelectedStep,
   onChangeViewMode,
+  onChangeLayoutDirection,
   onStartEditing,
   onSaveEditing,
   onCancelEditing,
@@ -111,6 +116,15 @@ export function VibeCanvas({
     viewport: canvasViewport,
     onViewportChange: onCanvasViewportChange,
   });
+  const { recenterCanvas } = viewport;
+
+  useEffect(() => {
+    const animationFrameId = window.requestAnimationFrame(() => {
+      recenterCanvas();
+    });
+
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [layoutDirection, recenterCanvas]);
 
   const canvasContent = (
     <div
@@ -147,14 +161,16 @@ export function VibeCanvas({
           <CanvasControls
             selectedStepId={selectedStepId}
             viewMode={viewMode}
+            layoutDirection={layoutDirection}
             nodeCount={graph.nodes.length}
             isEditing={isEditing}
             onClearSelectedStep={onClearSelectedStep}
             onChangeViewMode={onChangeViewMode}
-          onAddStandaloneStep={onAddStandaloneStep}
-          onStartEditing={onStartEditing}
-          onSaveEditing={onSaveEditing}
-          onCancelEditing={onCancelEditing}
+            onChangeLayoutDirection={onChangeLayoutDirection}
+            onAddStandaloneStep={onAddStandaloneStep}
+            onStartEditing={onStartEditing}
+            onSaveEditing={onSaveEditing}
+            onCancelEditing={onCancelEditing}
           />
 
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--canvas-bg)]">
