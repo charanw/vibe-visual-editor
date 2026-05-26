@@ -1,5 +1,6 @@
-import YAML from "yaml";
-import { VisualVibeSchema, type VisualVibe } from "./schema";
+import type { VisualVibe } from "./schema";
+import { parseVisualVibeYaml } from "./parser/parseYaml";
+import { serializeVisualVibeYaml } from "./parser/serializeYaml";
 import { addStandaloneStep, addStepOnEdge } from "./mutations/addStep";
 import { deleteStep } from "./mutations/deleteStep";
 import { updateStep } from "./mutations/updateStep";
@@ -7,15 +8,7 @@ import { addRoutingEdge, deleteRoutingEdge } from "./mutations/updateRouting";
 import { appendStepAfter, prependStepBefore } from "./mutations/reorderSteps";
 import { updateWorkflowField } from "./mutations/updateStepField";
 
-/**
- * Parses YAML text into a validated Visual Vibe object.
- *
- * Throws when the YAML is invalid or when required workflow fields are missing.
- */
-export function parseVisualVibeYaml(yamlText: string): VisualVibe {
-  const parsed = YAML.parse(yamlText);
-  return VisualVibeSchema.parse(parsed);
-}
+export { parseVisualVibeYaml } from "./parser/parseYaml";
 
 /**
  * Reads the editable step description stored as YAML comments above a step.
@@ -55,7 +48,7 @@ export function updateStepDescriptionInYaml(
     descriptions.delete(stepId);
   }
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 /**
@@ -74,7 +67,7 @@ export function updateVibeMetadataInYaml(
     value,
   });
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 /**
@@ -118,7 +111,7 @@ export function updateVibeStepInYaml(
     }
   }
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 type AddStepOnEdgeOptions = {
@@ -142,7 +135,7 @@ export function addStepOnEdgeInYaml(
 
   vibe.workflow = addStepOnEdge(vibe.workflow, options);
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 /** Adds a generated standalone step, creating a blank Vibe first if needed. */
@@ -152,7 +145,7 @@ export function addStandaloneStepInYaml(yamlText: string): string {
 
   vibe.workflow = addStandaloneStep(vibe.workflow);
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 /**
@@ -174,7 +167,7 @@ export function deleteStepInYaml(
     stepId: stepIdToDelete,
   });
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 type AddEdgeOptions = {
@@ -198,7 +191,7 @@ export function addEdgeInYaml(
 
   vibe.workflow = addRoutingEdge(vibe.workflow, options);
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 /**
@@ -216,7 +209,7 @@ export function deleteEdgeInYaml(
 
   vibe.workflow = deleteRoutingEdge(vibe.workflow, options);
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 /** Inserts a generated step immediately after the given source step. */
@@ -231,7 +224,7 @@ export function appendStepAfterInYaml(
     stepId: sourceStepId,
   });
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 /** Inserts a generated step immediately before the given target step. */
@@ -246,7 +239,7 @@ export function prependStepBeforeInYaml(
     stepId: targetStepId,
   });
 
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
 /**

@@ -1,7 +1,7 @@
 import {
   NODE_HEIGHT,
   type PositionedVibeGraph,
-} from "@/lib/visual-vibes/layout";
+} from "@/lib/visual-vibes/layout/layoutTypes";
 import {
   HORIZONTAL_LABEL_Y_OFFSET,
   SIDE_ROUTE_EPSILON,

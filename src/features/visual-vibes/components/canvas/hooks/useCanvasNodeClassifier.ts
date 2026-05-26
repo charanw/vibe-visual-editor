@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout";
+import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 import type { CanvasViewMode } from "../../../types";
 import {
   getErrorBranchSourceNodeIds,

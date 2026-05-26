@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { visualVibeToGraph } from "../graph";
+import { visualVibeToGraph } from "../graph/buildGraph";
 import type { VisualVibe } from "../schema";
 
 test("visualVibeToGraph creates next, error, and data edges", () => {

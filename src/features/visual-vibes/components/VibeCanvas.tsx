@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout";
+import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
 import type {
   AddEdgeOptions,

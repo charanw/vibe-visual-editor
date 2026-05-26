@@ -1,29 +1,6 @@
-import type { VisualVibe } from "./schema";
-
-/** Graph node consumed by layout and canvas rendering code. */
-export type VibeGraphNode = {
-  id: string;
-  functionName: string;
-  kind?: "step" | "errorHub";
-  memberCount?: number;
-};
-
-/** Directed relationship between two Vibe steps. */
-export type VibeGraphEdge = {
-  id: string;
-  source: string;
-  target: string;
-  type: "data" | "next" | "error";
-};
-
-/** Minimal graph model derived from a parsed Vibe workflow. */
-export type VibeGraph = {
-  nodes: VibeGraphNode[];
-  edges: VibeGraphEdge[];
-};
-
-// Matches input expressions such as `${steps.normalize_request.output}`.
-const STEP_REFERENCE_REGEX = /\$\{steps\.([a-zA-Z0-9_-]+)\./g;
+import type { VisualVibe } from "../schema";
+import { getReferencedStepIds } from "./graphTraversal";
+import type { VibeGraph, VibeGraphEdge, VibeGraphNode } from "./graphTypes";
 
 /**
  * Converts a parsed Vibe into the graph model used by layout and rendering.
@@ -70,11 +47,7 @@ export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
   }
 
   for (const step of steps) {
-    const inputText = JSON.stringify(step.input);
-    const matches = inputText.matchAll(STEP_REFERENCE_REGEX);
-
-    for (const match of matches) {
-      const sourceStepId = match[1];
+    for (const sourceStepId of getReferencedStepIds(step.input)) {
       addEdge(sourceStepId, step.id, "data");
     }
 

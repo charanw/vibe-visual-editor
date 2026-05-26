@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { layoutVibeGraph, NODE_HEIGHT, NODE_WIDTH } from "../layout";
-import type { VibeGraph } from "../graph";
+import { layoutVibeGraph } from "../layout/layoutGraph";
+import { NODE_HEIGHT, NODE_WIDTH } from "../layout/layoutTypes";
+import type { VibeGraph } from "../graph/graphTypes";
 
 test("layoutVibeGraph places flow nodes in serpentine rows", () => {
   const graph: VibeGraph = {

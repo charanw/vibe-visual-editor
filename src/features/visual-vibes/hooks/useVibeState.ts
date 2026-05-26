@@ -1,10 +1,8 @@
 import { useMemo, useState } from "react";
-import {
-  parseVisualVibeYaml,
-  getStepDescriptionFromYaml,
-} from "@/lib/visual-vibes/yaml";
+import { getStepDescriptionFromYaml } from "@/lib/visual-vibes/yaml";
+import { parseVisualVibeYaml } from "@/lib/visual-vibes/parser/parseYaml";
 import { validateVisualVibeYaml } from "@/lib/visual-vibes/validation";
-import { visualVibeToGraph } from "@/lib/visual-vibes/graph";
+import { visualVibeToGraph } from "@/lib/visual-vibes/graph/buildGraph";
 
 /**
  * Hook for managing YAML content and parsing state.

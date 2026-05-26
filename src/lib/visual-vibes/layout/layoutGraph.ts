@@ -1,41 +1,12 @@
-import type { VibeGraph, VibeGraphEdge, VibeGraphNode } from "./graph";
-
-/** Graph node with absolute SVG/canvas coordinates. */
-export type PositionedVibeNode = {
-  id: string;
-  functionName: string;
-  kind?: VibeGraphNode["kind"];
-  memberCount?: number;
-  x: number;
-  y: number;
-};
-
-/** Graph edge with concrete connection points on its source and target nodes. */
-export type PositionedVibeEdge = {
-  id: string;
-  source: string;
-  target: string;
-  type: VibeGraphEdge["type"];
-  sourceX: number;
-  sourceY: number;
-  targetX: number;
-  targetY: number;
-};
-
-/** Fully positioned graph consumed by the canvas renderer. */
-export type PositionedVibeGraph = {
-  nodes: PositionedVibeNode[];
-  edges: PositionedVibeEdge[];
-};
-
-/** Layout strategy selected by the canvas view mode. */
-export type VibeGraphLayoutMode = "flow" | "errors";
-
-/** Shared node width used by layout and SVG rendering. */
-export const NODE_WIDTH = 220;
-
-/** Shared node height used by layout and SVG rendering. */
-export const NODE_HEIGHT = 110;
+import type { VibeGraph, VibeGraphEdge, VibeGraphNode } from "../graph/graphTypes";
+import {
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  type PositionedVibeEdge,
+  type PositionedVibeGraph,
+  type PositionedVibeNode,
+  type VibeGraphLayoutMode,
+} from "./layoutTypes";
 
 const START_X = 80;
 const START_Y = 80;

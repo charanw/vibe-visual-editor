@@ -1,4 +1,4 @@
-import { parseVisualVibeYaml } from "./yaml";
+import { parseVisualVibeYaml } from "./parser/parseYaml";
 
 /** User-facing validation item rendered above the source editor. */
 export type VibeValidationIssue = {

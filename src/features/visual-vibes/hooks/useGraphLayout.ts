@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { layoutVibeGraph } from "@/lib/visual-vibes/layout";
+import { layoutVibeGraph } from "@/lib/visual-vibes/layout/layoutGraph";
 import { getErrorGraph, getFlowGraph } from "@/features/visual-vibes/components/editor/editorGraphFilters";
 import type { CanvasViewMode, CenterRequest } from "../types";
-import type { VibeGraph } from "@/lib/visual-vibes/graph";
+import type { VibeGraph } from "@/lib/visual-vibes/graph/graphTypes";
 
 /**
  * Hook for managing graph visualization, layout, and view mode.

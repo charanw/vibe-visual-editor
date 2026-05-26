@@ -1,4 +1,4 @@
-import type { VibeGraph } from "@/lib/visual-vibes/graph";
+import type { VibeGraph } from "@/lib/visual-vibes/graph/graphTypes";
 
 /**
  * Returns only the primary execution path of a vibe graph.

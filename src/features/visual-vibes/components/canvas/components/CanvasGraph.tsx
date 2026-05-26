@@ -4,7 +4,7 @@ import type {
   MouseEvent as ReactMouseEvent,
   WheelEvent as ReactWheelEvent,
 } from "react";
-import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout";
+import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 import type { AddEdgeOptions, EdgeOperationOptions } from "../../../types";
 import {
   CANVAS_VIEWPORT_HEIGHT,

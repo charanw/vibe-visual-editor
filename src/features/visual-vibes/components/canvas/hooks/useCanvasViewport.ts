@@ -11,7 +11,7 @@ import {
   NODE_HEIGHT,
   NODE_WIDTH,
   type PositionedVibeGraph,
-} from "@/lib/visual-vibes/layout";
+} from "@/lib/visual-vibes/layout/layoutTypes";
 import type { CenterRequest } from "../../../types";
 import {
   CANVAS_VIEWPORT_HEIGHT,

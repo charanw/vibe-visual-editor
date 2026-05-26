@@ -1,4 +1,4 @@
-import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout";
+import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 
 /**
  * Returns all nodes that belong to an error lane, including downstream `next`

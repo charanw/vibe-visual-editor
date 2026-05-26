@@ -3,7 +3,7 @@
 import type { ReactNode, RefObject } from "react";
 import { VibeCanvas } from "../VibeCanvas";
 import { AppFooter } from "../editor/AppFooter";
-import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout";
+import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
 import type {
   AddEdgeOptions,
