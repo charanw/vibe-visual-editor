@@ -137,6 +137,7 @@ export function useVisualVibesStore() {
     markYamlClean: yamlHistory.markClean,
     canUndoYaml: yamlHistory.canUndo,
     canRedoYaml: yamlHistory.canRedo,
+    yamlHistoryItems: yamlHistory.historyItems,
     undoYaml: yamlHistory.undo,
     redoYaml: yamlHistory.redo,
     isYamlDirty: yamlHistory.isDirty,

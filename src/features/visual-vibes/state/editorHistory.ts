@@ -1,15 +1,27 @@
 import { useCallback, useMemo, useState, type SetStateAction } from "react";
 
 type HistoryState<T> = {
-  past: T[];
+  past: HistoryEntry<T>[];
   present: T;
-  future: T[];
+  presentLabel: string | null;
+  future: HistoryEntry<T>[];
   cleanValue: T;
 };
 
 type SetHistoryOptions = {
   replace?: boolean;
   markClean?: boolean;
+  label?: string;
+};
+
+export type HistoryEntry<T> = {
+  value: T;
+  label: string;
+};
+
+export type HistoryDisplayItem = {
+  label: string;
+  isCurrent: boolean;
 };
 
 export type EditorHistory<T> = {
@@ -17,8 +29,9 @@ export type EditorHistory<T> = {
   canUndo: boolean;
   canRedo: boolean;
   isDirty: boolean;
+  historyItems: HistoryDisplayItem[];
   setValue: (nextValue: SetStateAction<T>, options?: SetHistoryOptions) => void;
-  reset: (nextValue: T) => void;
+  reset: (nextValue: T, label?: string) => void;
   markClean: () => void;
   undo: () => void;
   redo: () => void;
@@ -29,6 +42,7 @@ export function useEditorHistory<T>(initialValue: T): EditorHistory<T> {
   const [historyState, setHistoryState] = useState<HistoryState<T>>({
     past: [],
     present: initialValue,
+    presentLabel: null,
     future: [],
     cleanValue: initialValue,
   });
@@ -45,11 +59,20 @@ export function useEditorHistory<T>(initialValue: T): EditorHistory<T> {
           return currentState;
         }
 
+        const nextLabel = options.label ?? "Edited YAML";
+
         return {
           past: options.replace
             ? currentState.past
-            : [...currentState.past, currentState.present],
+            : [
+                ...currentState.past,
+                {
+                  value: currentState.present,
+                  label: currentState.presentLabel ?? "Previous YAML",
+                },
+              ],
           present: resolvedValue,
+          presentLabel: nextLabel,
           future: [],
           cleanValue: options.markClean
             ? resolvedValue
@@ -60,10 +83,11 @@ export function useEditorHistory<T>(initialValue: T): EditorHistory<T> {
     [],
   );
 
-  const reset = useCallback((nextValue: T) => {
+  const reset = useCallback((nextValue: T, label: string | null = null) => {
     setHistoryState({
       past: [],
       present: nextValue,
+      presentLabel: label,
       future: [],
       cleanValue: nextValue,
     });
@@ -86,8 +110,15 @@ export function useEditorHistory<T>(initialValue: T): EditorHistory<T> {
 
       return {
         past: currentState.past.slice(0, -1),
-        present: previousValue,
-        future: [currentState.present, ...currentState.future],
+        present: previousValue.value,
+        presentLabel: previousValue.label,
+        future: [
+          {
+            value: currentState.present,
+            label: currentState.presentLabel ?? "Current YAML",
+          },
+          ...currentState.future,
+        ],
         cleanValue: currentState.cleanValue,
       };
     });
@@ -102,13 +133,40 @@ export function useEditorHistory<T>(initialValue: T): EditorHistory<T> {
       }
 
       return {
-        past: [...currentState.past, currentState.present],
-        present: nextValue,
+        past: [
+          ...currentState.past,
+          {
+            value: currentState.present,
+            label: currentState.presentLabel ?? "Previous YAML",
+          },
+        ],
+        present: nextValue.value,
+        presentLabel: nextValue.label,
         future: currentState.future.slice(1),
         cleanValue: currentState.cleanValue,
       };
     });
   }, []);
+
+  const historyItems = useMemo(() => {
+    const items: HistoryDisplayItem[] = [];
+
+    if (historyState.presentLabel) {
+      items.push({
+        label: historyState.presentLabel,
+        isCurrent: true,
+      });
+    }
+
+    for (const entry of historyState.past.slice(-7).reverse()) {
+      items.push({
+        label: entry.label,
+        isCurrent: false,
+      });
+    }
+
+    return items;
+  }, [historyState.past, historyState.presentLabel]);
 
   return useMemo(
     () => ({
@@ -116,12 +174,13 @@ export function useEditorHistory<T>(initialValue: T): EditorHistory<T> {
       canUndo: historyState.past.length > 0,
       canRedo: historyState.future.length > 0,
       isDirty: !Object.is(historyState.present, historyState.cleanValue),
+      historyItems,
       setValue,
       reset,
       markClean,
       undo,
       redo,
     }),
-    [historyState, markClean, redo, reset, setValue, undo],
+    [historyItems, historyState, markClean, redo, reset, setValue, undo],
   );
 }

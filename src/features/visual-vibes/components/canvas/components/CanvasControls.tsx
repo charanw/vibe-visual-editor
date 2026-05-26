@@ -1,6 +1,8 @@
 import { CancelIcon, LockIcon, PlusIcon, SaveIcon } from "./CanvasIcons";
+import { HistoryMenu } from "./HistoryMenu";
 import { LegendItem } from "./CanvasLegend";
 import type { CanvasLayoutDirection, CanvasViewMode } from "../../../types";
+import type { HistoryDisplayItem } from "../../../state/editorHistory";
 
 type CanvasControlsProps = {
   selectedStepId: string | null;
@@ -8,7 +10,12 @@ type CanvasControlsProps = {
   layoutDirection: CanvasLayoutDirection;
   nodeCount: number;
   isEditing: boolean;
+  canUndoYaml: boolean;
+  canRedoYaml: boolean;
+  historyItems: HistoryDisplayItem[];
   onClearSelectedStep: () => void;
+  onUndoYaml: () => void;
+  onRedoYaml: () => void;
   onChangeViewMode: (viewMode: CanvasViewMode) => void;
   onChangeLayoutDirection: (direction: CanvasLayoutDirection) => void;
   onAddStandaloneStep: () => void;
@@ -29,7 +36,12 @@ export function CanvasControls({
   layoutDirection,
   nodeCount,
   isEditing,
+  canUndoYaml,
+  canRedoYaml,
+  historyItems,
   onClearSelectedStep,
+  onUndoYaml,
+  onRedoYaml,
   onChangeViewMode,
   onChangeLayoutDirection,
   onAddStandaloneStep,
@@ -68,6 +80,28 @@ export function CanvasControls({
               Clear selection
             </button>
           )}
+
+          <div className="flex overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)]">
+            <button
+              type="button"
+              onClick={onUndoYaml}
+              disabled={!canUndoYaml}
+              className="px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Undo
+            </button>
+
+            <button
+              type="button"
+              onClick={onRedoYaml}
+              disabled={!canRedoYaml}
+              className="border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Redo
+            </button>
+          </div>
+
+          <HistoryMenu items={historyItems} />
 
           <div className="flex overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)]">
             <button

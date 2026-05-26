@@ -9,6 +9,7 @@ import {
   deleteStepInYaml,
   prependStepBeforeInYaml,
   updateStepDescriptionInYaml,
+  updateConditionalExpressionInYaml,
   updateVibeMetadataInYaml,
   updateVibeStepInYaml,
 } from "@/lib/visual-vibes/yaml";
@@ -77,7 +78,10 @@ export function useVisualVibesEditorActions({
     uploadedFileName: string,
     uploadedYamlText: string,
   ) {
-    vibeState.resetYamlText(uploadedYamlText);
+    vibeState.setYamlText(uploadedYamlText, {
+      label: "Imported Vibe",
+      markClean: true,
+    });
     vibeState.setFileName(uploadedFileName);
     vibeState.setSourceType("upload");
     vibeState.setSelectedExampleName(null);
@@ -102,7 +106,10 @@ export function useVisualVibesEditorActions({
       }
     }
 
-    vibeState.resetYamlText(example.yaml);
+    vibeState.setYamlText(example.yaml, {
+      label: `Loaded example: ${example.name}`,
+      markClean: true,
+    });
     vibeState.setFileName(`${example.id}.yml`);
     vibeState.setSourceType("example");
     vibeState.setSelectedExampleName(example.name);
@@ -132,7 +139,7 @@ export function useVisualVibesEditorActions({
     const nextYamlText = addStandaloneStepInYaml(vibeState.yamlText);
     const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
 
-    vibeState.setYamlText(nextYamlText);
+    vibeState.setYamlText(nextYamlText, { label: "Added step" });
     editingState.setIsCanvasEditing(true);
     centerAddedStep(addedStepId);
   }
@@ -141,7 +148,7 @@ export function useVisualVibesEditorActions({
     const nextYamlText = addStepOnEdgeInYaml(vibeState.yamlText, options);
     const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
 
-    vibeState.setYamlText(nextYamlText);
+    vibeState.setYamlText(nextYamlText, { label: "Added step on connection" });
     centerAddedStep(addedStepId);
   }
 
@@ -154,8 +161,9 @@ export function useVisualVibesEditorActions({
       return;
     }
 
-    vibeState.setYamlText((currentYamlText) =>
-      deleteStepInYaml(currentYamlText, stepId),
+    vibeState.setYamlText(
+      (currentYamlText) => deleteStepInYaml(currentYamlText, stepId),
+      { label: `Deleted step: ${stepId}` },
     );
 
     if (vibeState.selectedStepId === stepId) {
@@ -174,8 +182,9 @@ export function useVisualVibesEditorActions({
       return;
     }
 
-    vibeState.setYamlText((currentYamlText) =>
-      deleteEdgeInYaml(currentYamlText, options),
+    vibeState.setYamlText(
+      (currentYamlText) => deleteEdgeInYaml(currentYamlText, options),
+      { label: "Removed connection" },
     );
   }
 
@@ -186,7 +195,7 @@ export function useVisualVibesEditorActions({
     );
     const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
 
-    vibeState.setYamlText(nextYamlText);
+    vibeState.setYamlText(nextYamlText, { label: "Added step" });
     centerAddedStep(addedStepId);
   }
 
@@ -197,13 +206,14 @@ export function useVisualVibesEditorActions({
     );
     const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
 
-    vibeState.setYamlText(nextYamlText);
+    vibeState.setYamlText(nextYamlText, { label: "Added step" });
     centerAddedStep(addedStepId);
   }
 
   function handleUpdateVibeMetadata(field: MetadataField, value: string) {
-    vibeState.setYamlText((currentYamlText) =>
-      updateVibeMetadataInYaml(currentYamlText, field, value),
+    vibeState.setYamlText(
+      (currentYamlText) => updateVibeMetadataInYaml(currentYamlText, field, value),
+      { label: "Updated workflow metadata" },
     );
 
     editingState.setCanvasEditSnapshot((currentSnapshot) =>
@@ -212,8 +222,10 @@ export function useVisualVibesEditorActions({
   }
 
   function handleUpdateVibeStep(originalStepId: string, updates: StepUpdate) {
-    vibeState.setYamlText((currentYamlText) =>
-      updateVibeStepInYaml(currentYamlText, originalStepId, updates),
+    vibeState.setYamlText(
+      (currentYamlText) =>
+        updateVibeStepInYaml(currentYamlText, originalStepId, updates),
+      { label: getStepUpdateHistoryLabel(originalStepId, updates) },
     );
 
     vibeState.setSelectedStepId(updates.id);
@@ -221,8 +233,10 @@ export function useVisualVibesEditorActions({
   }
 
   function handleUpdateStepDescription(stepId: string, description: string) {
-    vibeState.setYamlText((currentYamlText) =>
-      updateStepDescriptionInYaml(currentYamlText, stepId, description),
+    vibeState.setYamlText(
+      (currentYamlText) =>
+        updateStepDescriptionInYaml(currentYamlText, stepId, description),
+      { label: `Updated description: ${stepId}` },
     );
 
     editingState.setHasUnsavedStepEdits(false);
@@ -248,7 +262,9 @@ export function useVisualVibesEditorActions({
     }
 
     if (editingState.yamlEditSnapshot !== null) {
-      vibeState.setYamlText(editingState.yamlEditSnapshot);
+      vibeState.setYamlText(editingState.yamlEditSnapshot, {
+        label: "Reverted YAML edits",
+      });
     }
 
     editingState.setYamlEditSnapshot(null);
@@ -295,7 +311,9 @@ export function useVisualVibesEditorActions({
     }
 
     if (editingState.canvasEditSnapshot !== null) {
-      vibeState.setYamlText(editingState.canvasEditSnapshot);
+      vibeState.setYamlText(editingState.canvasEditSnapshot, {
+        label: "Reverted canvas edits",
+      });
     }
 
     editingState.setCanvasEditSnapshot(null);
@@ -305,8 +323,17 @@ export function useVisualVibesEditorActions({
   }
 
   function handleAddEdge(options: AddEdgeOptions) {
-    vibeState.setYamlText((currentYamlText) =>
-      addEdgeInYaml(currentYamlText, options),
+    vibeState.setYamlText(
+      (currentYamlText) => addEdgeInYaml(currentYamlText, options),
+      { label: "Connected steps" },
+    );
+  }
+
+  function handleUpdateCondition(stepId: string, expression: string) {
+    vibeState.setYamlText(
+      (currentYamlText) =>
+        updateConditionalExpressionInYaml(currentYamlText, stepId, expression),
+      { label: `Edited condition: ${stepId}` },
     );
   }
 
@@ -329,7 +356,7 @@ export function useVisualVibesEditorActions({
         });
     const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
 
-    vibeState.setYamlText(nextYamlText);
+    vibeState.setYamlText(nextYamlText, { label: "Added step" });
 
     if (selection.placement.kind === "standalone") {
       editingState.setIsCanvasEditing(true);
@@ -392,7 +419,16 @@ export function useVisualVibesEditorActions({
     handleSaveCanvasEditing,
     handleCancelCanvasEditing,
     handleAddEdge,
+    handleUpdateCondition,
     handleCreateStepFromWizard,
     handleStartPaneResize,
   };
+}
+
+function getStepUpdateHistoryLabel(originalStepId: string, updates: StepUpdate) {
+  if (updates.id !== originalStepId) {
+    return `Renamed step: ${originalStepId}`;
+  }
+
+  return `Updated step: ${updates.id}`;
 }

@@ -276,6 +276,40 @@ export function deleteEdgeInYaml(
   return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
+/**
+ * Updates the common conditional shape: input.condition.expression.
+ *
+ * Other condition encodings are left untouched so the editor does not rewrite
+ * Vibes it cannot faithfully preserve.
+ */
+export function updateConditionalExpressionInYaml(
+  yamlText: string,
+  stepId: string,
+  expression: string,
+): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYaml(yamlText);
+  const step = vibe.workflow.steps.find(
+    (workflowStep) =>
+      workflowStep.id === stepId &&
+      workflowStep.function === "handleConditional",
+  );
+
+  if (!step || !isRecord(step.input.condition)) {
+    return yamlText;
+  }
+
+  step.input = {
+    ...step.input,
+    condition: {
+      ...step.input.condition,
+      expression,
+    },
+  };
+
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
+}
+
 /** Inserts a generated step immediately after the given source step. */
 export function appendStepAfterInYaml(
   yamlText: string,
@@ -422,4 +456,8 @@ function getStepIdLineInfo(line: string) {
     indent: match[1],
     stepId,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

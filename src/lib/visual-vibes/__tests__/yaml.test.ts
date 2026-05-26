@@ -6,6 +6,7 @@ import {
   deleteStepInYaml,
   getStepDescriptionFromYaml,
   parseVisualVibeYaml,
+  updateConditionalExpressionInYaml,
   updateStepDescriptionInYaml,
   updateVibeStepInYaml,
 } from "../yaml";
@@ -167,4 +168,33 @@ test("addTemplateStepInYaml inserts a registry-backed step on an edge", () => {
   );
   assert.equal(vibe.workflow.steps[0]?.next_step_id, "new_step_3");
   assert.equal(vibe.workflow.steps[1]?.next_step_id, "respond");
+});
+
+test("updateConditionalExpressionInYaml updates common condition expression", () => {
+  const yaml = `workflow:
+  id: test
+  name: Test
+  steps:
+    - id: branch
+      function: handleConditional
+      input:
+        condition:
+          expression: \${steps.score.output.value > 3}
+          then: done
+          else: failed
+    - id: done
+      function: concludeWorkflow
+      input: {}
+    - id: failed
+      function: concludeWorkflow
+      input: {}
+`;
+
+  const nextYaml = updateConditionalExpressionInYaml(
+    yaml,
+    "branch",
+    "${steps.score.output.value > 7}",
+  );
+
+  assert.match(nextYaml, /expression: \$\{steps\.score\.output\.value > 7\}/);
 });

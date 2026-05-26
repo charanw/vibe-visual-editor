@@ -7,6 +7,7 @@ export type VibeGraphNode = {
   semantic?: {
     kind?: "conditional" | "loop" | "subworkflow" | "terminal";
     badge?: "IF" | "LOOP" | "FLOW" | "END";
+    conditionExpression?: string;
     parallelLaneIndex?: number;
     parallelLaneLabel?: string;
     isParallelLaneStart?: boolean;

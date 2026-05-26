@@ -39,6 +39,7 @@ type CanvasGraphProps = {
   onAddStepOnEdge: (options: EdgeOperationOptions) => void;
   onDeleteEdge: (options: EdgeOperationOptions) => void;
   onAddEdge: (options: AddEdgeOptions) => void;
+  onUpdateCondition: (stepId: string, expression: string) => void;
   onStartConnecting: (stepId: string) => void;
   onClearConnectingStep: () => void;
   onAppendStepAfter: (sourceStepId: string) => void;
@@ -70,6 +71,7 @@ export function CanvasGraph({
   onAddStepOnEdge,
   onDeleteEdge,
   onAddEdge,
+  onUpdateCondition,
   onStartConnecting,
   onClearConnectingStep,
   onAppendStepAfter,
@@ -141,6 +143,7 @@ export function CanvasGraph({
             onDeleteStep={onDeleteStep}
             onStartConnecting={onStartConnecting}
             onAddEdge={onAddEdge}
+            onUpdateCondition={onUpdateCondition}
             onClearConnectingStep={onClearConnectingStep}
             onAppendStepAfter={onAppendStepAfter}
             onPrependStepBefore={onPrependStepBefore}

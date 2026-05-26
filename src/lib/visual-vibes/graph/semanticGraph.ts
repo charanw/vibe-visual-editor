@@ -8,9 +8,13 @@ export function enrichSemanticGraph(
 ): VibeGraph {
   const steps = vibe.workflow.steps;
   const stepIds = new Set(steps.map((step) => step.id));
+  const stepById = new Map(steps.map((step) => [step.id, step]));
   const nodes = graph.nodes.map((node) => ({
     ...node,
-    semantic: getNodeSemanticKind(node.functionName),
+    semantic: getNodeSemanticKind(
+      node.functionName,
+      getConditionExpression(stepById.get(node.id)?.input.condition),
+    ),
   }));
   const edges = graph.edges.map((edge) => ({ ...edge }));
   const edgeByPair = new Map<string, VibeGraphEdge>();
@@ -76,9 +80,21 @@ export function enrichSemanticGraph(
   });
 }
 
-function getNodeSemanticKind(functionName: string): VibeGraphNode["semantic"] {
+function getNodeSemanticKind(
+  functionName: string,
+  conditionExpression: string | null,
+): VibeGraphNode["semantic"] {
   if (functionName === "handleConditional") {
-    return { kind: "conditional", badge: "IF" };
+    const semantic: NonNullable<VibeGraphNode["semantic"]> = {
+      kind: "conditional",
+      badge: "IF",
+    };
+
+    if (conditionExpression) {
+      semantic.conditionExpression = conditionExpression;
+    }
+
+    return semantic;
   }
 
   if (functionName === "loopFlow") {
@@ -94,6 +110,13 @@ function getNodeSemanticKind(functionName: string): VibeGraphNode["semantic"] {
   }
 
   return undefined;
+}
+
+function getConditionExpression(condition: unknown) {
+  const conditionRecord = getRecord(condition);
+  const expression = conditionRecord?.expression;
+
+  return typeof expression === "string" ? expression : null;
 }
 
 function getRecord(value: unknown): Record<string, unknown> | null {

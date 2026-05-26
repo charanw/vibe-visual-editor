@@ -21,6 +21,7 @@ import { useCanvasMetadataEditor } from "./canvas/hooks/useCanvasMetadataEditor"
 import { useCanvasNodeClassifier } from "./canvas/hooks/useCanvasNodeClassifier";
 import { useCanvasViewport } from "./canvas/hooks/useCanvasViewport";
 import type { CanvasViewportState } from "../state/visualVibesStore";
+import type { HistoryDisplayItem } from "../state/editorHistory";
 import type {
   AddStepPlacement,
   AddStepWizardSelection,
@@ -35,8 +36,13 @@ type VibeCanvasProps = {
   viewMode: CanvasViewMode;
   layoutDirection: CanvasLayoutDirection;
   isEditing: boolean;
+  canUndoYaml: boolean;
+  canRedoYaml: boolean;
+  historyItems: HistoryDisplayItem[];
   onSelectStep: (stepId: string) => void;
   onClearSelectedStep: () => void;
+  onUndoYaml: () => void;
+  onRedoYaml: () => void;
   onChangeViewMode: (viewMode: CanvasViewMode) => void;
   onChangeLayoutDirection: (direction: CanvasLayoutDirection) => void;
   onStartEditing: () => void;
@@ -49,6 +55,7 @@ type VibeCanvasProps = {
   onDeleteEdge: (options: EdgeOperationOptions) => void;
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
+  onUpdateCondition: (stepId: string, expression: string) => void;
   onUpdateVibeMetadata: (field: MetadataField, value: string) => void;
   addStepRequest: AddStepPlacement | null;
   onCancelAddStepRequest: () => void;
@@ -72,8 +79,13 @@ export function VibeCanvas({
   viewMode,
   layoutDirection,
   isEditing,
+  canUndoYaml,
+  canRedoYaml,
+  historyItems,
   onSelectStep,
   onClearSelectedStep,
+  onUndoYaml,
+  onRedoYaml,
   onChangeViewMode,
   onChangeLayoutDirection,
   onStartEditing,
@@ -86,6 +98,7 @@ export function VibeCanvas({
   onDeleteEdge,
   onAppendStepAfter,
   onPrependStepBefore,
+  onUpdateCondition,
   onUpdateVibeMetadata,
   addStepRequest,
   onCancelAddStepRequest,
@@ -164,7 +177,12 @@ export function VibeCanvas({
             layoutDirection={layoutDirection}
             nodeCount={graph.nodes.length}
             isEditing={isEditing}
+            canUndoYaml={canUndoYaml}
+            canRedoYaml={canRedoYaml}
+            historyItems={historyItems}
             onClearSelectedStep={onClearSelectedStep}
+            onUndoYaml={onUndoYaml}
+            onRedoYaml={onRedoYaml}
             onChangeViewMode={onChangeViewMode}
             onChangeLayoutDirection={onChangeLayoutDirection}
             onAddStandaloneStep={onAddStandaloneStep}
@@ -211,6 +229,7 @@ export function VibeCanvas({
               onAddStepOnEdge={onAddStepOnEdge}
               onDeleteEdge={onDeleteEdge}
               onAddEdge={onAddEdge}
+              onUpdateCondition={onUpdateCondition}
               onStartConnecting={setConnectingFromStepId}
               onClearConnectingStep={() => setConnectingFromStepId(null)}
               onAppendStepAfter={onAppendStepAfter}

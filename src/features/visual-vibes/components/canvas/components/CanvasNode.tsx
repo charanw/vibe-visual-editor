@@ -11,6 +11,7 @@ import {
   SemanticNodeBadge,
   StartingFlagBadge,
 } from "./CanvasBadges";
+import { EditableConditionLabel } from "./EditableConditionLabel";
 import type { CanvasNodeState } from "../hooks/useCanvasNodeClassifier";
 
 type CanvasNodeProps = {
@@ -25,6 +26,7 @@ type CanvasNodeProps = {
   onDeleteStep: (stepId: string) => void;
   onStartConnecting: (stepId: string) => void;
   onAddEdge: (options: AddEdgeOptions) => void;
+  onUpdateCondition: (stepId: string, expression: string) => void;
   onClearConnectingStep: () => void;
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
@@ -43,6 +45,7 @@ export function CanvasNode({
   onDeleteStep,
   onStartConnecting,
   onAddEdge,
+  onUpdateCondition,
   onClearConnectingStep,
   onAppendStepAfter,
   onPrependStepBefore,
@@ -192,13 +195,22 @@ export function CanvasNode({
 
       <text
         x="18"
-        y="84"
+        y={node.semantic?.kind === "conditional" ? "78" : "84"}
         fill="var(--text-muted)"
         fontSize="12"
         pointerEvents="none"
       >
         {node.functionName}
       </text>
+
+      {node.semantic?.kind === "conditional" && (
+        <EditableConditionLabel
+          stepId={node.id}
+          expression={node.semantic.conditionExpression}
+          isEditing={isEditing}
+          onUpdateCondition={onUpdateCondition}
+        />
+      )}
     </g>
   );
 }

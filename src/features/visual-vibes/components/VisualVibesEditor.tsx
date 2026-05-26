@@ -64,6 +64,7 @@ export function VisualVibesEditor() {
     handleSelectStep,
     handleDeleteStep,
     handleDeleteEdge,
+    handleUpdateCondition,
     handleUpdateVibeMetadata,
     handleUpdateVibeStep,
     handleUpdateStepDescription,
@@ -186,8 +187,13 @@ export function VisualVibesEditor() {
                   canvasViewMode={graphLayout.canvasViewMode}
                   layoutDirection={graphLayout.layoutDirection}
                   isCanvasEditing={editingState.isCanvasEditing}
+                  canUndoYaml={vibeState.canUndoYaml}
+                  canRedoYaml={vibeState.canRedoYaml}
+                  historyItems={vibeState.yamlHistoryItems}
                   onSelectStep={handleSelectStep}
                   onClearSelectedStep={() => vibeState.setSelectedStepId(null)}
+                  onUndoYaml={vibeState.undoYaml}
+                  onRedoYaml={vibeState.redoYaml}
                   onChangeViewMode={graphLayout.setCanvasViewMode}
                   onChangeLayoutDirection={graphLayout.setLayoutDirection}
                   onStartEditing={handleStartCanvasEditing}
@@ -200,6 +206,7 @@ export function VisualVibesEditor() {
                   onDeleteEdge={handleDeleteEdge}
                   onAppendStepAfter={requestAppendStepAfter}
                   onPrependStepBefore={requestPrependStepBefore}
+                  onUpdateCondition={handleUpdateCondition}
                   onUpdateVibeMetadata={handleUpdateVibeMetadata}
                   addStepRequest={addStepRequest}
                   onCancelAddStepRequest={closeAddStepWizard}
@@ -317,8 +324,13 @@ export function VisualVibesEditor() {
             canvasViewMode={graphLayout.canvasViewMode}
             layoutDirection={graphLayout.layoutDirection}
             isCanvasEditing={editingState.isCanvasEditing}
+            canUndoYaml={vibeState.canUndoYaml}
+            canRedoYaml={vibeState.canRedoYaml}
+            historyItems={vibeState.yamlHistoryItems}
             onSelectStep={handleSelectStep}
             onClearSelectedStep={() => vibeState.setSelectedStepId(null)}
+            onUndoYaml={vibeState.undoYaml}
+            onRedoYaml={vibeState.redoYaml}
             onChangeViewMode={graphLayout.setCanvasViewMode}
             onChangeLayoutDirection={graphLayout.setLayoutDirection}
             onStartEditing={handleStartCanvasEditing}
@@ -331,6 +343,7 @@ export function VisualVibesEditor() {
             onDeleteEdge={handleDeleteEdge}
             onAppendStepAfter={requestAppendStepAfter}
             onPrependStepBefore={requestPrependStepBefore}
+            onUpdateCondition={handleUpdateCondition}
             onUpdateVibeMetadata={handleUpdateVibeMetadata}
             addStepRequest={addStepRequest}
             onCancelAddStepRequest={closeAddStepWizard}

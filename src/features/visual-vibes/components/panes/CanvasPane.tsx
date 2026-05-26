@@ -16,6 +16,7 @@ import type {
   MetadataField,
 } from "../../types";
 import type { CanvasViewportState } from "../../state/visualVibesStore";
+import type { HistoryDisplayItem } from "../../state/editorHistory";
 
 /**
  * Props for CanvasPane component
@@ -30,8 +31,13 @@ interface CanvasPaneProps {
   canvasViewMode: CanvasViewMode;
   layoutDirection: CanvasLayoutDirection;
   isCanvasEditing: boolean;
+  canUndoYaml: boolean;
+  canRedoYaml: boolean;
+  historyItems: HistoryDisplayItem[];
   onSelectStep: (stepId: string) => void;
   onClearSelectedStep: () => void;
+  onUndoYaml: () => void;
+  onRedoYaml: () => void;
   onChangeViewMode: (mode: CanvasViewMode) => void;
   onChangeLayoutDirection: (direction: CanvasLayoutDirection) => void;
   onStartEditing: () => void;
@@ -44,6 +50,7 @@ interface CanvasPaneProps {
   onDeleteEdge: (options: EdgeOperationOptions) => void;
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
+  onUpdateCondition: (stepId: string, expression: string) => void;
   onUpdateVibeMetadata: (
     field: MetadataField,
     value: string,
@@ -70,8 +77,13 @@ export function CanvasPane({
   canvasViewMode,
   layoutDirection,
   isCanvasEditing,
+  canUndoYaml,
+  canRedoYaml,
+  historyItems,
   onSelectStep,
   onClearSelectedStep,
+  onUndoYaml,
+  onRedoYaml,
   onChangeViewMode,
   onChangeLayoutDirection,
   onStartEditing,
@@ -84,6 +96,7 @@ export function CanvasPane({
   onDeleteEdge,
   onAppendStepAfter,
   onPrependStepBefore,
+  onUpdateCondition,
   onUpdateVibeMetadata,
   addStepRequest,
   onCancelAddStepRequest,
@@ -103,8 +116,13 @@ export function CanvasPane({
           viewMode={canvasViewMode}
           layoutDirection={layoutDirection}
           isEditing={isCanvasEditing}
+          canUndoYaml={canUndoYaml}
+          canRedoYaml={canRedoYaml}
+          historyItems={historyItems}
           onSelectStep={onSelectStep}
           onClearSelectedStep={onClearSelectedStep}
+          onUndoYaml={onUndoYaml}
+          onRedoYaml={onRedoYaml}
           onChangeViewMode={onChangeViewMode}
           onChangeLayoutDirection={onChangeLayoutDirection}
           onStartEditing={onStartEditing}
@@ -117,6 +135,7 @@ export function CanvasPane({
           onDeleteEdge={onDeleteEdge}
           onAppendStepAfter={onAppendStepAfter}
           onPrependStepBefore={onPrependStepBefore}
+          onUpdateCondition={onUpdateCondition}
           onUpdateVibeMetadata={onUpdateVibeMetadata}
           addStepRequest={addStepRequest}
           onCancelAddStepRequest={onCancelAddStepRequest}

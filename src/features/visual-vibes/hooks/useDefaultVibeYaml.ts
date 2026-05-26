@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { defaultExampleVibe } from "../examples/exampleVibes";
 
 type UseDefaultVibeYamlOptions = {
-  setYamlText: (yamlText: string) => void;
+  setYamlText: (yamlText: string, label?: string) => void;
   setFileName: (fileName: string) => void;
   setSourceType: (sourceType: "default" | "upload" | "example") => void;
   setSelectedExampleName: (exampleName: string | null) => void;
@@ -23,7 +23,7 @@ export function useDefaultVibeYaml({
   setLoadError,
 }: UseDefaultVibeYamlOptions) {
   useEffect(() => {
-    setYamlText(defaultExampleVibe.yaml);
+    setYamlText(defaultExampleVibe.yaml, `Loaded example: ${defaultExampleVibe.name}`);
     setFileName(`${defaultExampleVibe.id}.yml`);
     setSourceType("example");
     setSelectedExampleName(defaultExampleVibe.name);
