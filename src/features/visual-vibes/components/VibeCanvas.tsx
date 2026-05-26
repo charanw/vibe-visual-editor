@@ -62,7 +62,6 @@ type VibeCanvasProps = {
   onSaveEditing: () => void;
   onCancelEditing: () => void;
   onAddStandaloneStep: () => void;
-  onAddErrorHandlerNode: (sourceStepId: string) => void;
   onAddStepOnEdge: (options: EdgeOperationOptions) => void;
   onDeleteStep: (stepId: string) => void;
   onAddEdge: (options: AddEdgeOptions) => void;

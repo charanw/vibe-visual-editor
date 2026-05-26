@@ -57,7 +57,6 @@ export function VisualVibesEditor() {
     handleUploadYaml,
     handleSelectStep,
     handleAddStandaloneStep,
-    handleAddErrorHandlerNode,
     handleAddStepOnEdge,
     handleDeleteStep,
     handleDeleteEdge,
@@ -154,7 +153,6 @@ export function VisualVibesEditor() {
                   onSaveEditing={handleSaveCanvasEditing}
                   onCancelEditing={handleCancelCanvasEditing}
                   onAddStandaloneStep={handleAddStandaloneStep}
-                  onAddErrorHandlerNode={handleAddErrorHandlerNode}
                   onAddStepOnEdge={handleAddStepOnEdge}
                   onDeleteStep={handleDeleteStep}
                   onAddEdge={handleAddEdge}
@@ -277,7 +275,6 @@ export function VisualVibesEditor() {
             onSaveEditing={handleSaveCanvasEditing}
             onCancelEditing={handleCancelCanvasEditing}
             onAddStandaloneStep={handleAddStandaloneStep}
-            onAddErrorHandlerNode={handleAddErrorHandlerNode}
             onAddStepOnEdge={handleAddStepOnEdge}
             onDeleteStep={handleDeleteStep}
             onAddEdge={handleAddEdge}

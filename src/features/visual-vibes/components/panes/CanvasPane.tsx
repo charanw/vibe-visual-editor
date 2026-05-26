@@ -32,7 +32,6 @@ interface CanvasPaneProps {
   onSaveEditing: () => void;
   onCancelEditing: () => void;
   onAddStandaloneStep: () => void;
-  onAddErrorHandlerNode: (sourceStepId: string) => void;
   onAddStepOnEdge: (options: EdgeOperationOptions) => void;
   onDeleteStep: (stepId: string) => void;
   onAddEdge: (options: AddEdgeOptions) => void;
@@ -66,7 +65,6 @@ export function CanvasPane({
   onSaveEditing,
   onCancelEditing,
   onAddStandaloneStep,
-  onAddErrorHandlerNode,
   onAddStepOnEdge,
   onDeleteStep,
   onAddEdge,
@@ -93,7 +91,6 @@ export function CanvasPane({
           onSaveEditing={onSaveEditing}
           onCancelEditing={onCancelEditing}
           onAddStandaloneStep={onAddStandaloneStep}
-          onAddErrorHandlerNode={onAddErrorHandlerNode}
           onAddStepOnEdge={onAddStepOnEdge}
           onDeleteStep={onDeleteStep}
           onAddEdge={onAddEdge}

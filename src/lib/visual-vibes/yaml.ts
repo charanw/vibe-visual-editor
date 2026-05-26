@@ -11,11 +11,6 @@ export function parseVisualVibeYaml(yamlText: string): VisualVibe {
   return VisualVibeSchema.parse(parsed);
 }
 
-/** Serializes a parsed Vibe back to YAML using the shared YAML library. */
-export function stringifyVisualVibe(vibe: VisualVibe): string {
-  return YAML.stringify(vibe);
-}
-
 /**
  * Reads the editable step description stored as YAML comments above a step.
  *
@@ -166,53 +161,6 @@ export function updateVibeStepInYaml(
       descriptions.set(nextStepId, existingDescription);
     }
   }
-
-  return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
-}
-
-/**
- * Adds a generated error-handler step immediately after the source step.
- */
-export function addErrorHandlerNodeInYaml(
-  yamlText: string,
-  sourceStepId: string,
-): string {
-  const descriptions = collectStepDescriptionsFromYaml(yamlText);
-  const vibe = parseVisualVibeYaml(yamlText);
-  const steps = vibe.workflow.steps;
-
-  const sourceStepIndex = steps.findIndex((step) => step.id === sourceStepId);
-  const sourceStep = steps[sourceStepIndex];
-
-  if (!sourceStep) {
-    return yamlText;
-  }
-
-  const existingStepIds = steps.map((step) => step.id);
-  const errorStepId = createUniqueStepIdFromBase(
-    `${sourceStepId}_error_handler`,
-    existingStepIds,
-  );
-
-  sourceStep.on_error_step_id = errorStepId;
-
-  if (!sourceStep.on_error_message) {
-    sourceStep.on_error_message = `Error while running ${sourceStepId}. Please review the failed step output.`;
-  }
-
-  steps.splice(sourceStepIndex + 1, 0, {
-    id: errorStepId,
-    function: "sendResponse",
-    input: {
-      type: "fixed",
-      message: `Something went wrong while running ${sourceStepId}. Please review the failed step output.`,
-    },
-  });
-
-  descriptions.set(
-    errorStepId,
-    `Handles errors from ${sourceStepId} and provides a fallback response.`,
-  );
 
   return applyStepDescriptionsToYaml(YAML.stringify(vibe), descriptions);
 }
@@ -704,33 +652,6 @@ function createUniqueStepId(existingStepIds: string[]): string {
   while (existing.has(candidate)) {
     counter += 1;
     candidate = `new_step_${counter}`;
-  }
-
-  return candidate;
-}
-
-/** Creates a unique id from a requested base, normalizing invalid characters. */
-function createUniqueStepIdFromBase(
-  baseStepId: string,
-  existingStepIds: string[],
-): string {
-  const existing = new Set(existingStepIds);
-  const normalizedBaseStepId =
-    baseStepId
-      .trim()
-      .replace(/[^a-zA-Z0-9_-]+/g, "_")
-      .replace(/^_+|_+$/g, "") || "error_handler";
-
-  if (!existing.has(normalizedBaseStepId)) {
-    return normalizedBaseStepId;
-  }
-
-  let counter = 2;
-  let candidate = `${normalizedBaseStepId}_${counter}`;
-
-  while (existing.has(candidate)) {
-    counter += 1;
-    candidate = `${normalizedBaseStepId}_${counter}`;
   }
 
   return candidate;

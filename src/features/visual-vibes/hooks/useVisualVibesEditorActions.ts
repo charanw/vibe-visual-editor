@@ -1,7 +1,6 @@
 import type { RefObject } from "react";
 import {
   addEdgeInYaml,
-  addErrorHandlerNodeInYaml,
   addStandaloneStepInYaml,
   addStepOnEdgeInYaml,
   appendStepAfterInYaml,
@@ -98,18 +97,6 @@ export function useVisualVibesEditorActions({
 
   function handleAddStandaloneStep() {
     const nextYamlText = addStandaloneStepInYaml(vibeState.yamlText);
-    const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
-
-    vibeState.setYamlText(nextYamlText);
-    editingState.setIsCanvasEditing(true);
-    centerAddedStep(addedStepId);
-  }
-
-  function handleAddErrorHandlerNode(sourceStepId: string) {
-    const nextYamlText = addErrorHandlerNodeInYaml(
-      vibeState.yamlText,
-      sourceStepId,
-    );
     const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
 
     vibeState.setYamlText(nextYamlText);
@@ -328,7 +315,6 @@ export function useVisualVibesEditorActions({
     handleUploadYaml,
     handleSelectStep,
     handleAddStandaloneStep,
-    handleAddErrorHandlerNode,
     handleAddStepOnEdge,
     handleDeleteStep,
     handleDeleteEdge,
