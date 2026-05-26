@@ -13,15 +13,11 @@ import {
   parseJsonInputDraft,
   stripInputRowId,
 } from "./inspector/inputUtils";
-import type {
-  InputEditorMode,
-  InputKeyValueRow,
-} from "./inspector/inputTypes";
+import type { InputEditorMode, InputKeyValueRow } from "./inspector/inputTypes";
 import {
-  cloneTemplateInput,
-  getStepFunctionTemplate,
-  getStepFunctionTemplateGroups,
-} from "./inspector/stepFunctionTemplates";
+  getFunctionDefinition,
+  getFunctionsByCategory,
+} from "@/lib/visual-vibes/functions";
 import type { StepUpdate } from "../types";
 
 type VibeInspectorProps = {
@@ -30,10 +26,7 @@ type VibeInspectorProps = {
   selectedStepDescription: string;
   isEditing: boolean;
   onStartEditing: () => void;
-  onUpdateStep: (
-    originalStepId: string,
-    updates: StepUpdate,
-  ) => void;
+  onUpdateStep: (originalStepId: string, updates: StepUpdate) => void;
   onUpdateStepDescription: (stepId: string, description: string) => void;
   onStepEditDirtyChange: (isDirty: boolean) => void;
 };
@@ -99,10 +92,7 @@ type VibeInspectorFormProps = {
   selectedStepDescription: string;
   isEditing: boolean;
   onStartEditing: () => void;
-  onUpdateStep: (
-    originalStepId: string,
-    updates: StepUpdate,
-  ) => void;
+  onUpdateStep: (originalStepId: string, updates: StepUpdate) => void;
   onUpdateStepDescription: (stepId: string, description: string) => void;
   onStepEditDirtyChange: (isDirty: boolean) => void;
 };
@@ -150,7 +140,7 @@ function VibeInspectorForm({
   );
   const [inputError, setInputError] = useState<string | null>(null);
 
-  const selectedFunctionTemplate = getStepFunctionTemplate(functionNameDraft);
+  const selectedFunctionTemplate = getFunctionDefinition(functionNameDraft);
 
   // Signatures ignore local row ids so dirty-state only reflects actual input
   // key/value/type changes.
@@ -221,7 +211,10 @@ function VibeInspectorForm({
   }
 
   function applyInputTemplate(templateInput: Record<string, unknown>) {
-    const nextInput = cloneTemplateInput(templateInput);
+    const nextInput = JSON.parse(JSON.stringify(templateInput)) as Record<
+      string,
+      unknown
+    >;
 
     setInputDraft(JSON.stringify(nextInput, null, 2));
     setInputRows(inputObjectToRows(nextInput));
@@ -231,13 +224,13 @@ function VibeInspectorForm({
   function handleFunctionSelect(nextFunctionName: string) {
     setFunctionNameDraft(nextFunctionName);
 
-    const template = getStepFunctionTemplate(nextFunctionName);
+    const template = getFunctionDefinition(nextFunctionName);
 
     if (!template) {
       return;
     }
 
-    applyInputTemplate(template.input);
+    applyInputTemplate(template.defaultInput);
   }
 
   function switchInputEditorMode(nextMode: InputEditorMode) {
@@ -409,20 +402,17 @@ function VibeInspectorForm({
           disabled={!isEditing}
           className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {!getStepFunctionTemplate(functionNameDraft) && functionNameDraft && (
+          {!getFunctionDefinition(functionNameDraft) && functionNameDraft && (
             <option value={functionNameDraft}>
               {functionNameDraft} · Custom
             </option>
           )}
 
-          {getStepFunctionTemplateGroups().map((group) => (
+          {getFunctionsByCategory().map((group) => (
             <optgroup key={group.category} label={group.category}>
-              {group.templates.map((template) => (
-                <option
-                  key={template.functionName}
-                  value={template.functionName}
-                >
-                  {template.functionName}
+              {group.functions.map((fn) => (
+                <option key={fn.id} value={fn.id}>
+                  {fn.id}
                 </option>
               ))}
             </optgroup>
@@ -432,7 +422,9 @@ function VibeInspectorForm({
         {isEditing && selectedFunctionTemplate && (
           <button
             type="button"
-            onClick={() => applyInputTemplate(selectedFunctionTemplate.input)}
+            onClick={() =>
+              applyInputTemplate(selectedFunctionTemplate.defaultInput)
+            }
             className="mt-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
           >
             Reapply example input
@@ -603,4 +595,3 @@ function VibeInspectorForm({
     </div>
   );
 }
-
