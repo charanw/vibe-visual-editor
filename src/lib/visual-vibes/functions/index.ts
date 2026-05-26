@@ -7,4 +7,5 @@
 export * from "./types";
 export * from "./categories";
 export * from "./fieldSchemas";
+export * from "./stepTemplates";
 export * from "./registry";

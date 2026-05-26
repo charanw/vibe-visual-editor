@@ -1,6 +1,10 @@
 "use client";
 
-import { useRef, type MouseEvent as ReactMouseEvent } from "react";
+import {
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { PanelHeader } from "./editor/PanelHeader";
 import { PaneResizeHandle } from "./editor/PaneResizeHandler";
 import { SourcePane, CanvasPane, InspectorPane } from "./panes";
@@ -11,6 +15,10 @@ import {
 import { useVisualVibesEditorActions } from "../state/editorActions";
 import { useVisualVibesStore } from "../state/visualVibesStore";
 import { toggleMobilePane } from "../utils";
+import type {
+  AddStepPlacement,
+  AddStepWizardSelection,
+} from "../types";
 
 /**
  * VisualVibesEditor Component
@@ -28,6 +36,8 @@ export function VisualVibesEditor() {
   const store = useVisualVibesStore();
   const { vibeState, editingState, layoutState, graphLayout } = store;
   const { resetYamlText, setFileName, setLoadError, setSourceType } = vibeState;
+  const [addStepRequest, setAddStepRequest] =
+    useState<AddStepPlacement | null>(null);
 
   // Refs
   const canvasPanelRef = useRef<HTMLDivElement | null>(null);
@@ -50,15 +60,12 @@ export function VisualVibesEditor() {
     gridTemplateColumns,
     handleUploadYaml,
     handleSelectStep,
-    handleAddStandaloneStep,
-    handleAddStepOnEdge,
     handleDeleteStep,
     handleDeleteEdge,
-    handleAppendStepAfter,
-    handlePrependStepBefore,
     handleUpdateVibeMetadata,
     handleUpdateVibeStep,
     handleUpdateStepDescription,
+    handleCreateStepFromWizard,
     handleStartYamlEditing,
     handleCancelYamlEditing,
     handleSaveYamlEditing,
@@ -74,6 +81,40 @@ export function VisualVibesEditor() {
     graphLayout,
     editorShellRef,
   });
+
+  function requestStandaloneStep() {
+    setAddStepRequest({ kind: "standalone" });
+  }
+
+  function requestAppendStepAfter(sourceStepId: string) {
+    setAddStepRequest({ kind: "appendAfter", sourceStepId });
+  }
+
+  function requestPrependStepBefore(targetStepId: string) {
+    setAddStepRequest({ kind: "prependBefore", targetStepId });
+  }
+
+  function requestStepOnEdge(options: {
+    sourceStepId: string;
+    targetStepId: string;
+    edgeType: "data" | "next" | "error";
+  }) {
+    setAddStepRequest({
+      kind: "onEdge",
+      sourceStepId: options.sourceStepId,
+      targetStepId: options.targetStepId,
+      edgeType: options.edgeType,
+    });
+  }
+
+  function closeAddStepWizard() {
+    setAddStepRequest(null);
+  }
+
+  function confirmAddStepWizard(selection: AddStepWizardSelection) {
+    handleCreateStepFromWizard(selection);
+    closeAddStepWizard();
+  }
   // Mobile layout
   if (!layoutState.isDesktopLayout) {
     return (
@@ -146,14 +187,17 @@ export function VisualVibesEditor() {
                   onStartEditing={handleStartCanvasEditing}
                   onSaveEditing={handleSaveCanvasEditing}
                   onCancelEditing={handleCancelCanvasEditing}
-                  onAddStandaloneStep={handleAddStandaloneStep}
-                  onAddStepOnEdge={handleAddStepOnEdge}
+                  onAddStandaloneStep={requestStandaloneStep}
+                  onAddStepOnEdge={requestStepOnEdge}
                   onDeleteStep={handleDeleteStep}
                   onAddEdge={handleAddEdge}
                   onDeleteEdge={handleDeleteEdge}
-                  onAppendStepAfter={handleAppendStepAfter}
-                  onPrependStepBefore={handlePrependStepBefore}
+                  onAppendStepAfter={requestAppendStepAfter}
+                  onPrependStepBefore={requestPrependStepBefore}
                   onUpdateVibeMetadata={handleUpdateVibeMetadata}
+                  addStepRequest={addStepRequest}
+                  onCancelAddStepRequest={closeAddStepWizard}
+                  onConfirmAddStepRequest={confirmAddStepWizard}
                   canvasViewport={layoutState.canvasViewport}
                   onCanvasViewportChange={layoutState.setCanvasViewport}
                 />
@@ -270,14 +314,17 @@ export function VisualVibesEditor() {
             onStartEditing={handleStartCanvasEditing}
             onSaveEditing={handleSaveCanvasEditing}
             onCancelEditing={handleCancelCanvasEditing}
-            onAddStandaloneStep={handleAddStandaloneStep}
-            onAddStepOnEdge={handleAddStepOnEdge}
+            onAddStandaloneStep={requestStandaloneStep}
+            onAddStepOnEdge={requestStepOnEdge}
             onDeleteStep={handleDeleteStep}
             onAddEdge={handleAddEdge}
             onDeleteEdge={handleDeleteEdge}
-            onAppendStepAfter={handleAppendStepAfter}
-            onPrependStepBefore={handlePrependStepBefore}
+            onAppendStepAfter={requestAppendStepAfter}
+            onPrependStepBefore={requestPrependStepBefore}
             onUpdateVibeMetadata={handleUpdateVibeMetadata}
+            addStepRequest={addStepRequest}
+            onCancelAddStepRequest={closeAddStepWizard}
+            onConfirmAddStepRequest={confirmAddStepWizard}
             canvasViewport={layoutState.canvasViewport}
             onCanvasViewportChange={layoutState.setCanvasViewport}
           />

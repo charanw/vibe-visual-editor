@@ -1,4 +1,4 @@
-import type { VisualVibe } from "./schema";
+import type { VisualVibe, VibeStep } from "./schema";
 import { parseVisualVibeYaml } from "./parser/parseYaml";
 import { serializeVisualVibeYaml } from "./parser/serializeYaml";
 import { addStandaloneStep, addStepOnEdge } from "./mutations/addStep";
@@ -7,6 +7,7 @@ import { updateStep } from "./mutations/updateStep";
 import { addRoutingEdge, deleteRoutingEdge } from "./mutations/updateRouting";
 import { appendStepAfter, prependStepBefore } from "./mutations/reorderSteps";
 import { updateWorkflowField } from "./mutations/updateStepField";
+import { createStepTemplate, type StepPlacement } from "./functions";
 
 export { parseVisualVibeYaml } from "./parser/parseYaml";
 
@@ -139,11 +140,74 @@ export function addStepOnEdgeInYaml(
 }
 
 /** Adds a generated standalone step, creating a blank Vibe first if needed. */
-export function addStandaloneStepInYaml(yamlText: string): string {
+export function addStandaloneStepInYaml(
+  yamlText: string,
+  options: { step?: VibeStep } = {},
+): string {
   const descriptions = collectStepDescriptionsFromYaml(yamlText);
   const vibe = parseVisualVibeYamlOrCreateBlank(yamlText);
 
-  vibe.workflow = addStandaloneStep(vibe.workflow);
+  vibe.workflow = addStandaloneStep(vibe.workflow, options);
+
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
+}
+
+/**
+ * Inserts a registry-backed step template using the requested placement.
+ */
+export function addTemplateStepInYaml(
+  yamlText: string,
+  options: {
+    functionId: string;
+    input: Record<string, unknown>;
+    placement: StepPlacement;
+  },
+): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYamlOrCreateBlank(yamlText);
+  const workflow = vibe.workflow;
+
+  const nextStepIds = workflow.steps.map((step) => step.id);
+  const targetStepId =
+    options.placement.kind === "prependBefore" ||
+    options.placement.kind === "onEdge"
+      ? options.placement.targetStepId
+      : undefined;
+
+  const step = createStepTemplate(nextStepIds, options.functionId, {
+    input: options.input,
+    nextStepId:
+      options.placement.kind === "prependBefore" ||
+      (options.placement.kind === "onEdge" &&
+        options.placement.edgeType !== "error")
+        ? targetStepId
+        : undefined,
+  });
+
+  if (!step) {
+    return yamlText;
+  }
+
+  if (options.placement.kind === "standalone") {
+    vibe.workflow = addStandaloneStep(workflow, { step });
+  } else if (options.placement.kind === "appendAfter") {
+    vibe.workflow = appendStepAfter(workflow, {
+      stepId: options.placement.sourceStepId,
+      step,
+    });
+  } else if (options.placement.kind === "prependBefore") {
+    vibe.workflow = prependStepBefore(workflow, {
+      stepId: options.placement.targetStepId,
+      step,
+    });
+  } else {
+    vibe.workflow = addStepOnEdge(workflow, {
+      sourceStepId: options.placement.sourceStepId,
+      targetStepId: options.placement.targetStepId,
+      edgeType: options.placement.edgeType,
+      step,
+    });
+  }
 
   return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }

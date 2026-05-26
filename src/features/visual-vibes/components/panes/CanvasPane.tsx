@@ -7,6 +7,8 @@ import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes"
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
 import type {
   AddEdgeOptions,
+  AddStepPlacement,
+  AddStepWizardSelection,
   CanvasViewMode,
   CenterRequest,
   EdgeOperationOptions,
@@ -43,6 +45,9 @@ interface CanvasPaneProps {
     field: MetadataField,
     value: string,
   ) => void;
+  addStepRequest: AddStepPlacement | null;
+  onCancelAddStepRequest: () => void;
+  onConfirmAddStepRequest: (selection: AddStepWizardSelection) => void;
   canvasViewport: CanvasViewportState;
   onCanvasViewportChange: Dispatch<SetStateAction<CanvasViewportState>>;
 }
@@ -75,6 +80,9 @@ export function CanvasPane({
   onAppendStepAfter,
   onPrependStepBefore,
   onUpdateVibeMetadata,
+  addStepRequest,
+  onCancelAddStepRequest,
+  onConfirmAddStepRequest,
   canvasViewport,
   onCanvasViewportChange,
 }: CanvasPaneProps): ReactNode {
@@ -103,6 +111,9 @@ export function CanvasPane({
           onAppendStepAfter={onAppendStepAfter}
           onPrependStepBefore={onPrependStepBefore}
           onUpdateVibeMetadata={onUpdateVibeMetadata}
+          addStepRequest={addStepRequest}
+          onCancelAddStepRequest={onCancelAddStepRequest}
+          onConfirmAddStepRequest={onConfirmAddStepRequest}
           canvasViewport={canvasViewport}
           onCanvasViewportChange={onCanvasViewportChange}
         />

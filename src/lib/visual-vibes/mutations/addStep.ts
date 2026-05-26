@@ -1,4 +1,7 @@
 import type { VisualVibe, VibeStep } from "../schema";
+import { createUniqueStepId } from "../functions";
+
+export { createUniqueStepId } from "../functions";
 
 export type Workflow = VisualVibe["workflow"];
 
@@ -11,6 +14,7 @@ type AddStepOnEdgeOptions = {
   sourceStepId: string;
   targetStepId: string;
   edgeType: "data" | "next" | "error";
+  step?: VibeStep;
 };
 
 export function addStep(
@@ -34,8 +38,11 @@ export function addStep(
   return nextWorkflow;
 }
 
-export function addStandaloneStep(workflow: Workflow): Workflow {
-  return addStep(workflow);
+export function addStandaloneStep(
+  workflow: Workflow,
+  options: AddStepOptions = {},
+): Workflow {
+  return addStep(workflow, options);
 }
 
 export function addStepOnEdge(
@@ -54,9 +61,14 @@ export function addStepOnEdge(
     return workflow;
   }
 
-  const newStep = createGeneratedStep(nextWorkflow, {
-    nextStepId: options.targetStepId,
-  });
+  const newStep =
+    options.step ?? createGeneratedStep(nextWorkflow, {
+      nextStepId: options.targetStepId,
+    });
+
+  if (!newStep.next_step_id) {
+    newStep.next_step_id = options.targetStepId;
+  }
 
   if (options.edgeType === "next") {
     sourceStep.next_step_id = newStep.id;
@@ -86,20 +98,6 @@ export function createGeneratedStep(
     },
     ...(options.nextStepId ? { next_step_id: options.nextStepId } : {}),
   };
-}
-
-export function createUniqueStepId(existingStepIds: string[]): string {
-  const existing = new Set(existingStepIds);
-
-  let counter = existingStepIds.length + 1;
-  let candidate = `new_step_${counter}`;
-
-  while (existing.has(candidate)) {
-    counter += 1;
-    candidate = `new_step_${counter}`;
-  }
-
-  return candidate;
 }
 
 export function cloneWorkflow(workflow: Workflow): Workflow {

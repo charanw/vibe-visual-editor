@@ -12,6 +12,7 @@ import type {
   MetadataField,
 } from "../types";
 import { CanvasControls } from "./canvas/components/CanvasControls";
+import { AddStepWizard } from "./canvas/components/AddStepWizard";
 import { CanvasGraph } from "./canvas/components/CanvasGraph";
 import { CanvasMetadataPanel } from "./canvas/components/CanvasMetadataPanel";
 import { CanvasZoomToolbar } from "./canvas/components/CanvasZoomToolbar";
@@ -19,6 +20,10 @@ import { useCanvasMetadataEditor } from "./canvas/hooks/useCanvasMetadataEditor"
 import { useCanvasNodeClassifier } from "./canvas/hooks/useCanvasNodeClassifier";
 import { useCanvasViewport } from "./canvas/hooks/useCanvasViewport";
 import type { CanvasViewportState } from "../state/visualVibesStore";
+import type {
+  AddStepPlacement,
+  AddStepWizardSelection,
+} from "../types";
 
 type VibeCanvasProps = {
   vibe: VisualVibe | null;
@@ -42,6 +47,9 @@ type VibeCanvasProps = {
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
   onUpdateVibeMetadata: (field: MetadataField, value: string) => void;
+  addStepRequest: AddStepPlacement | null;
+  onCancelAddStepRequest: () => void;
+  onConfirmAddStepRequest: (selection: AddStepWizardSelection) => void;
   canvasViewport: CanvasViewportState;
   onCanvasViewportChange: Dispatch<SetStateAction<CanvasViewportState>>;
 };
@@ -74,6 +82,9 @@ export function VibeCanvas({
   onAppendStepAfter,
   onPrependStepBefore,
   onUpdateVibeMetadata,
+  addStepRequest,
+  onCancelAddStepRequest,
+  onConfirmAddStepRequest,
   canvasViewport,
   onCanvasViewportChange,
 }: VibeCanvasProps) {
@@ -140,10 +151,10 @@ export function VibeCanvas({
             isEditing={isEditing}
             onClearSelectedStep={onClearSelectedStep}
             onChangeViewMode={onChangeViewMode}
-            onAddStandaloneStep={onAddStandaloneStep}
-            onStartEditing={onStartEditing}
-            onSaveEditing={onSaveEditing}
-            onCancelEditing={onCancelEditing}
+          onAddStandaloneStep={onAddStandaloneStep}
+          onStartEditing={onStartEditing}
+          onSaveEditing={onSaveEditing}
+          onCancelEditing={onCancelEditing}
           />
 
           <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--canvas-bg)]">
@@ -191,6 +202,12 @@ export function VibeCanvas({
             />
           </div>
         </div>
+
+        <AddStepWizard
+          placement={addStepRequest}
+          onCancel={onCancelAddStepRequest}
+          onConfirm={onConfirmAddStepRequest}
+        />
       </div>
     </div>
   );

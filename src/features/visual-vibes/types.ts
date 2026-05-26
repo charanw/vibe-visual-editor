@@ -15,6 +15,25 @@ export type CanvasViewMode = "flow" | "errors";
 /** Edge categories understood by the canvas and YAML mutation helpers. */
 export type VibeEdgeType = "data" | "next" | "error";
 
+/** Placement context used when generating a new step from the wizard. */
+export type AddStepPlacement =
+  | { kind: "standalone" }
+  | { kind: "appendAfter"; sourceStepId: string }
+  | { kind: "prependBefore"; targetStepId: string }
+  | {
+      kind: "onEdge";
+      sourceStepId: string;
+      targetStepId: string;
+      edgeType: VibeEdgeType;
+    };
+
+/** Payload passed from the Add Step wizard back to the editor. */
+export type AddStepWizardSelection = {
+  placement: AddStepPlacement;
+  functionId: string;
+  input: Record<string, unknown>;
+};
+
 /** Request object used to center a newly selected or newly created node. */
 export type CenterRequest = {
   stepId: string;

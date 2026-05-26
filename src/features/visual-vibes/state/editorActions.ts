@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 import {
   addEdgeInYaml,
   addStandaloneStepInYaml,
+  addTemplateStepInYaml,
   addStepOnEdgeInYaml,
   appendStepAfterInYaml,
   deleteEdgeInYaml,
@@ -18,6 +19,7 @@ import {
   startPaneResize,
   updateCanvasEditSnapshot,
 } from "../utils";
+import { createUniqueStepId } from "@/lib/visual-vibes/functions";
 import type {
   EditingState,
   GraphLayoutState,
@@ -30,6 +32,7 @@ import type {
   MetadataField,
   StepUpdate,
 } from "../types";
+import type { AddStepWizardSelection } from "../types";
 
 type VibeState = VisualVibesStore["vibeState"];
 type LayoutState = UiState;
@@ -280,6 +283,34 @@ export function useVisualVibesEditorActions({
     );
   }
 
+  function handleCreateStepFromWizard(selection: AddStepWizardSelection) {
+    const isBlankStep = selection.functionId === "__blank__";
+    const nextYamlText = isBlankStep
+      ? addStandaloneStepInYaml(vibeState.yamlText, {
+          step: {
+            id: createUniqueStepId(
+              vibeState.workflow?.steps.map((step) => step.id) ?? [],
+            ),
+            function: "setVariable",
+            input: selection.input,
+          },
+        })
+      : addTemplateStepInYaml(vibeState.yamlText, {
+          functionId: selection.functionId,
+          input: selection.input,
+          placement: selection.placement,
+        });
+    const addedStepId = findAddedStepId(vibeState.yamlText, nextYamlText);
+
+    vibeState.setYamlText(nextYamlText);
+
+    if (selection.placement.kind === "standalone") {
+      editingState.setIsCanvasEditing(true);
+    }
+
+    centerAddedStep(addedStepId);
+  }
+
   function handleStartPaneResize(pane: "left" | "right", startClientX: number) {
     const shell = editorShellRef.current;
 
@@ -333,6 +364,7 @@ export function useVisualVibesEditorActions({
     handleSaveCanvasEditing,
     handleCancelCanvasEditing,
     handleAddEdge,
+    handleCreateStepFromWizard,
     handleStartPaneResize,
   };
 }

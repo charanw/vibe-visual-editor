@@ -100,9 +100,10 @@ export function CanvasControls({
               type="button"
               onClick={onAddStandaloneStep}
               className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
+              title="Add a new step"
             >
               <PlusIcon />
-              Add standalone step
+              Add step
             </button>
           )}
 

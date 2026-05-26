@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   addStandaloneStepInYaml,
+  addTemplateStepInYaml,
   deleteStepInYaml,
   getStepDescriptionFromYaml,
   parseVisualVibeYaml,
@@ -100,4 +101,70 @@ test("addStandaloneStepInYaml creates a blank vibe when source is empty", () => 
   assert.equal(vibe.workflow.id, "new-vibe");
   assert.equal(vibe.workflow.steps.length, 1);
   assert.equal(vibe.workflow.steps[0]?.id, "new_step_1");
+});
+
+test("addStandaloneStepInYaml preserves a provided standalone step template", () => {
+  const nextYaml = addStandaloneStepInYaml("", {
+    step: {
+      id: "new_step_1",
+      function: "setVariable",
+      input: {
+        variable_name: "customer_status",
+        value: "new",
+      },
+    },
+  });
+
+  const vibe = parseVisualVibeYaml(nextYaml);
+
+  assert.equal(vibe.workflow.steps[0]?.function, "setVariable");
+  assert.equal(vibe.workflow.steps[0]?.input.variable_name, "customer_status");
+  assert.equal(vibe.workflow.steps[0]?.input.value, "new");
+});
+
+test("addTemplateStepInYaml preserves YAML comments while inserting a registry-backed step", () => {
+  const nextYaml = addTemplateStepInYaml(exampleYaml, {
+    functionId: "sendResponse",
+    input: {
+      type: "text",
+      message: "Thanks, I can help with that.",
+    },
+    placement: {
+      kind: "appendAfter",
+      sourceStepId: "load_profile",
+    },
+  });
+
+  const vibe = parseVisualVibeYaml(nextYaml);
+
+  assert.equal(vibe.workflow.steps[1]?.function, "sendResponse");
+  assert.equal(vibe.workflow.steps[0]?.next_step_id, "new_step_3");
+  assert.equal(
+    getStepDescriptionFromYaml(nextYaml, "load_profile"),
+    "Load the customer profile before responding.",
+  );
+});
+
+test("addTemplateStepInYaml inserts a registry-backed step on an edge", () => {
+  const nextYaml = addTemplateStepInYaml(exampleYaml, {
+    functionId: "promptUser",
+    input: {
+      message: "Could you please provide a little more detail?",
+    },
+    placement: {
+      kind: "onEdge",
+      sourceStepId: "load_profile",
+      targetStepId: "respond",
+      edgeType: "next",
+    },
+  });
+
+  const vibe = parseVisualVibeYaml(nextYaml);
+
+  assert.deepEqual(
+    vibe.workflow.steps.map((step) => step.id),
+    ["load_profile", "new_step_3", "respond"],
+  );
+  assert.equal(vibe.workflow.steps[0]?.next_step_id, "new_step_3");
+  assert.equal(vibe.workflow.steps[1]?.next_step_id, "respond");
 });

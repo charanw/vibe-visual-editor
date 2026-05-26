@@ -1,8 +1,10 @@
+import type { VibeStep } from "../schema";
 import type { Workflow } from "./addStep";
 import { cloneWorkflow, createGeneratedStep } from "./addStep";
 
 type StepIdOptions = {
   stepId: string;
+  step?: VibeStep;
 };
 
 export function appendStepAfter(
@@ -19,7 +21,7 @@ export function appendStepAfter(
     return workflow;
   }
 
-  const newStep = createGeneratedStep(nextWorkflow);
+  const newStep = options.step ?? createGeneratedStep(nextWorkflow);
 
   sourceStep.next_step_id = newStep.id;
   nextWorkflow.steps.splice(sourceStepIndex + 1, 0, newStep);
@@ -40,9 +42,14 @@ export function prependStepBefore(
     return workflow;
   }
 
-  const newStep = createGeneratedStep(nextWorkflow, {
-    nextStepId: options.stepId,
-  });
+  const newStep =
+    options.step ?? createGeneratedStep(nextWorkflow, {
+      nextStepId: options.stepId,
+    });
+
+  if (!newStep.next_step_id) {
+    newStep.next_step_id = options.stepId;
+  }
 
   nextWorkflow.steps.splice(targetStepIndex, 0, newStep);
 
