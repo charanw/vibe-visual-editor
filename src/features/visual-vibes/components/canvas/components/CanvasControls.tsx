@@ -1,6 +1,6 @@
 import { CancelIcon, LockIcon, PlusIcon, SaveIcon } from "./CanvasIcons";
 import { LegendItem } from "./CanvasLegend";
-import type { CanvasViewMode } from "../../types";
+import type { CanvasViewMode } from "../../../types";
 
 type CanvasControlsProps = {
   selectedStepId: string | null;
