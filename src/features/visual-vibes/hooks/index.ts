@@ -1,14 +1,9 @@
 /**
  * Feature hook exports for Visual Vibes.
  *
- * Hooks are grouped by responsibility so the editor shell can compose YAML,
- * editing, responsive layout, and graph-layout state without one monolithic hook.
+ * Editor state lives in `features/visual-vibes/state`; this barrel keeps
+ * lifecycle and workflow hooks available to the editor shell.
  */
 
-export { useVibeState } from "./useVibeState";
-export { useEditingState } from "./useEditingState";
-export { useLayoutState } from "./useLayoutState";
-export { useGraphLayout } from "./useGraphLayout";
 export { useDefaultVibeYaml } from "./useDefaultVibeYaml";
 export { useCanvasResizeObserver } from "./useCanvasResizeObserver";
-export { useVisualVibesEditorActions } from "./useVisualVibesEditorActions";

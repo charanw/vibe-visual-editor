@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode, RefObject } from "react";
+import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import { VibeCanvas } from "../VibeCanvas";
 import { AppFooter } from "../editor/AppFooter";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
@@ -12,6 +12,7 @@ import type {
   EdgeOperationOptions,
   MetadataField,
 } from "../../types";
+import type { CanvasViewportState } from "../../state/visualVibesStore";
 
 /**
  * Props for CanvasPane component
@@ -42,6 +43,8 @@ interface CanvasPaneProps {
     field: MetadataField,
     value: string,
   ) => void;
+  canvasViewport: CanvasViewportState;
+  onCanvasViewportChange: Dispatch<SetStateAction<CanvasViewportState>>;
 }
 
 /**
@@ -72,6 +75,8 @@ export function CanvasPane({
   onAppendStepAfter,
   onPrependStepBefore,
   onUpdateVibeMetadata,
+  canvasViewport,
+  onCanvasViewportChange,
 }: CanvasPaneProps): ReactNode {
   return (
     <>
@@ -98,6 +103,8 @@ export function CanvasPane({
           onAppendStepAfter={onAppendStepAfter}
           onPrependStepBefore={onPrependStepBefore}
           onUpdateVibeMetadata={onUpdateVibeMetadata}
+          canvasViewport={canvasViewport}
+          onCanvasViewportChange={onCanvasViewportChange}
         />
       </div>
 

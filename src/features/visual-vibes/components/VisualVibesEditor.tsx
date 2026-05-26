@@ -5,14 +5,11 @@ import { PanelHeader } from "./editor/PanelHeader";
 import { PaneResizeHandle } from "./editor/PaneResizeHandler";
 import { SourcePane, CanvasPane, InspectorPane } from "./panes";
 import {
-  useVibeState,
-  useEditingState,
-  useLayoutState,
-  useGraphLayout,
   useDefaultVibeYaml,
   useCanvasResizeObserver,
-  useVisualVibesEditorActions,
 } from "../hooks";
+import { useVisualVibesEditorActions } from "../state/editorActions";
+import { useVisualVibesStore } from "../state/visualVibesStore";
 import { toggleMobilePane } from "../utils";
 
 /**
@@ -28,19 +25,16 @@ import { toggleMobilePane } from "../utils";
  * Handles graph manipulation, YAML editing, and responsive resizing.
  */
 export function VisualVibesEditor() {
-  // State hooks
-  const vibeState = useVibeState();
-  const editingState = useEditingState();
-  const layoutState = useLayoutState();
-  const graphLayout = useGraphLayout(vibeState.parsedResult.graph);
-  const { setFileName, setLoadError, setSourceType, setYamlText } = vibeState;
+  const store = useVisualVibesStore();
+  const { vibeState, editingState, layoutState, graphLayout } = store;
+  const { resetYamlText, setFileName, setLoadError, setSourceType } = vibeState;
 
   // Refs
   const canvasPanelRef = useRef<HTMLDivElement | null>(null);
   const editorShellRef = useRef<HTMLDivElement | null>(null);
 
   useDefaultVibeYaml({
-    setYamlText,
+    setYamlText: resetYamlText,
     setFileName,
     setSourceType,
     setLoadError,
@@ -160,6 +154,8 @@ export function VisualVibesEditor() {
                   onAppendStepAfter={handleAppendStepAfter}
                   onPrependStepBefore={handlePrependStepBefore}
                   onUpdateVibeMetadata={handleUpdateVibeMetadata}
+                  canvasViewport={layoutState.canvasViewport}
+                  onCanvasViewportChange={layoutState.setCanvasViewport}
                 />
               </div>
             )}
@@ -282,6 +278,8 @@ export function VisualVibesEditor() {
             onAppendStepAfter={handleAppendStepAfter}
             onPrependStepBefore={handlePrependStepBefore}
             onUpdateVibeMetadata={handleUpdateVibeMetadata}
+            canvasViewport={layoutState.canvasViewport}
+            onCanvasViewportChange={layoutState.setCanvasViewport}
           />
         </section>
 

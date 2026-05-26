@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
@@ -18,6 +18,7 @@ import { CanvasZoomToolbar } from "./canvas/components/CanvasZoomToolbar";
 import { useCanvasMetadataEditor } from "./canvas/hooks/useCanvasMetadataEditor";
 import { useCanvasNodeClassifier } from "./canvas/hooks/useCanvasNodeClassifier";
 import { useCanvasViewport } from "./canvas/hooks/useCanvasViewport";
+import type { CanvasViewportState } from "../state/visualVibesStore";
 
 type VibeCanvasProps = {
   vibe: VisualVibe | null;
@@ -41,6 +42,8 @@ type VibeCanvasProps = {
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
   onUpdateVibeMetadata: (field: MetadataField, value: string) => void;
+  canvasViewport: CanvasViewportState;
+  onCanvasViewportChange: Dispatch<SetStateAction<CanvasViewportState>>;
 };
 
 /**
@@ -71,6 +74,8 @@ export function VibeCanvas({
   onAppendStepAfter,
   onPrependStepBefore,
   onUpdateVibeMetadata,
+  canvasViewport,
+  onCanvasViewportChange,
 }: VibeCanvasProps) {
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -92,6 +97,8 @@ export function VibeCanvas({
     graph,
     centerRequest,
     selectedStepId,
+    viewport: canvasViewport,
+    onViewportChange: onCanvasViewportChange,
   });
 
   const canvasContent = (

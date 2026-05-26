@@ -5,6 +5,6 @@
  */
 export const visualVibesAppConfig = {
   authorName: "Charan W.",
-  version: "0.3.1",
-  lastUpdated: "5/22/26 2:32 PM CDT",
+  version: "0.4.0",
+  lastUpdated: "5/26/26 12:30 PM CDT",
 };

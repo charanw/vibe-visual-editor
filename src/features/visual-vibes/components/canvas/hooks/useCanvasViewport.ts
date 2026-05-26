@@ -4,7 +4,9 @@ import {
   useCallback,
   useEffect,
   useState,
+  type Dispatch,
   type MouseEvent as ReactMouseEvent,
+  type SetStateAction,
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import {
@@ -20,11 +22,7 @@ import {
   MIN_ZOOM,
 } from "../utils/canvasConstants";
 import { clamp } from "../utils/canvasGraphUtils";
-
-type CanvasPan = {
-  x: number;
-  y: number;
-};
+import type { CanvasViewportState } from "../../../state/visualVibesStore";
 
 type PanStart = {
   clientX: number;
@@ -37,6 +35,8 @@ type UseCanvasViewportOptions = {
   graph: PositionedVibeGraph;
   centerRequest: CenterRequest;
   selectedStepId: string | null;
+  viewport: CanvasViewportState;
+  onViewportChange: Dispatch<SetStateAction<CanvasViewportState>>;
 };
 
 /** Owns zoom, pan, centering, and pointer-driven viewport interactions. */
@@ -44,10 +44,36 @@ export function useCanvasViewport({
   graph,
   centerRequest,
   selectedStepId,
+  viewport,
+  onViewportChange,
 }: UseCanvasViewportOptions) {
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState<CanvasPan>({ x: 0, y: 0 });
   const [panStart, setPanStart] = useState<PanStart>(null);
+  const { zoom, pan } = viewport;
+
+  const setZoom = useCallback(
+    (nextZoom: SetStateAction<number>) => {
+      onViewportChange((currentViewport) => ({
+        ...currentViewport,
+        zoom:
+          typeof nextZoom === "function"
+            ? (nextZoom as (currentZoom: number) => number)(
+                currentViewport.zoom,
+              )
+            : nextZoom,
+      }));
+    },
+    [onViewportChange],
+  );
+
+  const setPan = useCallback(
+    (nextPan: CanvasViewportState["pan"]) => {
+      onViewportChange((currentViewport) => ({
+        ...currentViewport,
+        pan: nextPan,
+      }));
+    },
+    [onViewportChange],
+  );
 
   const worldWidth =
     graph.nodes.length > 0
@@ -87,7 +113,7 @@ export function useCanvasViewport({
       x: CANVAS_VIEWPORT_WIDTH / 2 / zoom - bounds.centerX,
       y: CANVAS_VIEWPORT_HEIGHT / 2 / zoom - bounds.centerY,
     });
-  }, [getGraphBounds, zoom]);
+  }, [getGraphBounds, setPan, zoom]);
 
   const centerNode = useCallback(
     (node: PositionedVibeGraph["nodes"][number]) => {
@@ -96,7 +122,7 @@ export function useCanvasViewport({
         y: CANVAS_VIEWPORT_HEIGHT / 2 / zoom - (node.y + NODE_HEIGHT / 2),
       });
     },
-    [zoom],
+    [setPan, zoom],
   );
 
   useEffect(() => {

@@ -18,10 +18,12 @@ import {
   startPaneResize,
   updateCanvasEditSnapshot,
 } from "../utils";
-import type { useEditingState } from "./useEditingState";
-import type { useGraphLayout } from "./useGraphLayout";
-import type { useLayoutState } from "./useLayoutState";
-import type { useVibeState } from "./useVibeState";
+import type {
+  EditingState,
+  GraphLayoutState,
+  UiState,
+  VisualVibesStore,
+} from "./visualVibesStore";
 import type {
   AddEdgeOptions,
   EdgeOperationOptions,
@@ -29,10 +31,9 @@ import type {
   StepUpdate,
 } from "../types";
 
-type VibeState = ReturnType<typeof useVibeState>;
-type EditingState = ReturnType<typeof useEditingState>;
-type LayoutState = ReturnType<typeof useLayoutState>;
-type GraphLayout = ReturnType<typeof useGraphLayout>;
+type VibeState = VisualVibesStore["vibeState"];
+type LayoutState = UiState;
+type GraphLayout = GraphLayoutState;
 
 type UseVisualVibesEditorActionsOptions = {
   vibeState: VibeState;
@@ -72,7 +73,7 @@ export function useVisualVibesEditorActions({
     uploadedFileName: string,
     uploadedYamlText: string,
   ) {
-    vibeState.setYamlText(uploadedYamlText);
+    vibeState.resetYamlText(uploadedYamlText);
     vibeState.setFileName(uploadedFileName);
     vibeState.setSourceType("upload");
     vibeState.setLoadError(null);
