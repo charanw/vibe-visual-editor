@@ -84,18 +84,24 @@ export function CanvasControls({
           <div className="flex overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)]">
             <button
               type="button"
-              onClick={onUndoYaml}
-              disabled={!canUndoYaml}
-              className="px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                if (canUndoYaml) {
+                  onUndoYaml();
+                }
+              }}
+              className="px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
             >
               Undo
             </button>
 
             <button
               type="button"
-              onClick={onRedoYaml}
-              disabled={!canRedoYaml}
-              className="border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => {
+                if (canRedoYaml) {
+                  onRedoYaml();
+                }
+              }}
+              className="border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
             >
               Redo
             </button>

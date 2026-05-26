@@ -4,6 +4,7 @@ import {
   NODE_WIDTH,
   type PositionedVibeEdge,
   type PositionedVibeGraph,
+  type PositionedVibeLane,
   type PositionedVibeNode,
   type VibeGraphLayoutDirection,
   type VibeGraphLayoutMode,
@@ -12,15 +13,39 @@ import {
 const START_X = 80;
 const START_Y = 80;
 
-const COLUMN_GAP = 120;
-const WRAP_ROW_GAP = 150;
-const LANE_GAP = 170;
-const PARALLEL_LANE_GAP = 110;
-const COLUMNS_PER_ROW = 5;
-const ROWS_PER_COLUMN = 5;
+const LANE_PADDING_X = 36;
+const LANE_PADDING_Y = 38;
 
-const ERROR_COLUMN_GAP = 150;
-const ERROR_ROW_GAP = 95;
+type LayoutSpacing = {
+  rankGap: number;
+  nodeGap: number;
+  laneGap: number;
+  branchGap: number;
+  errorLaneGap: number;
+};
+
+type LaneLayoutResult = {
+  nodes: PositionedVibeNode[];
+  lanes: PositionedVibeLane[];
+};
+
+function getLayoutSpacing(direction: VibeGraphLayoutDirection): LayoutSpacing {
+  return direction === "LR"
+    ? {
+        rankGap: 240,
+        nodeGap: 78,
+        laneGap: 128,
+        branchGap: 82,
+        errorLaneGap: 140,
+      }
+    : {
+        rankGap: 165,
+        nodeGap: 92,
+        laneGap: 188,
+        branchGap: 150,
+        errorLaneGap: 220,
+      };
+}
 
 /**
  * Positions a graph for the canvas.
@@ -38,9 +63,10 @@ export function layoutVibeGraph(
 ): PositionedVibeGraph {
   const mode = options.mode ?? "flow";
   const direction = options.direction ?? "LR";
+  const spacing = getLayoutSpacing(direction);
 
   if (mode === "errors") {
-    return layoutErrorChains(graph, direction);
+    return layoutErrorChains(graph, direction, spacing);
   }
 
   const errorLaneNodeIds = getErrorLaneNodeIds(graph);
@@ -66,36 +92,34 @@ export function layoutVibeGraph(
       errorLaneNodeIds.has(edge.target),
   );
 
-  const normalPositionedNodes = positionNodesInParallelLanes({
+  const normalLayout = layoutParallelLanes({
     nodes: normalNodes,
     edges: normalEdges,
     startX: START_X,
     startY: START_Y,
-    columnsPerRow: COLUMNS_PER_ROW,
-    rowsPerColumn: ROWS_PER_COLUMN,
     lane: "normal",
     direction,
+    spacing,
   });
 
   const normalContentEnd =
-    normalPositionedNodes.length > 0
-      ? getLaneEnd(normalPositionedNodes, direction)
+    normalLayout.nodes.length > 0
+      ? getLaneEnd(normalLayout.nodes, direction)
       : direction === "LR"
         ? START_Y + NODE_HEIGHT
         : START_X + NODE_WIDTH;
 
-  const errorPositionedNodes = positionNodesInParallelLanes({
+  const errorLayout = layoutParallelLanes({
     nodes: errorNodes,
     edges: errorEdges,
-    startX: direction === "LR" ? START_X : normalContentEnd + LANE_GAP,
-    startY: direction === "LR" ? normalContentEnd + LANE_GAP : START_Y,
-    columnsPerRow: COLUMNS_PER_ROW,
-    rowsPerColumn: ROWS_PER_COLUMN,
+    startX: direction === "LR" ? START_X : normalContentEnd + spacing.errorLaneGap,
+    startY: direction === "LR" ? normalContentEnd + spacing.errorLaneGap : START_Y,
     lane: "error",
     direction,
+    spacing,
   });
 
-  const positionedNodes = [...normalPositionedNodes, ...errorPositionedNodes];
+  const positionedNodes = [...normalLayout.nodes, ...errorLayout.nodes];
   const nodeById = new Map(positionedNodes.map((node) => [node.id, node]));
 
   const positionedEdges: PositionedVibeEdge[] = [];
@@ -108,12 +132,13 @@ export function layoutVibeGraph(
       continue;
     }
 
-    positionedEdges.push(positionEdge(edge, source, target));
+    positionedEdges.push(positionEdge(edge, source, target, { direction }));
   }
 
   return {
     nodes: positionedNodes,
     edges: positionedEdges,
+    lanes: [...normalLayout.lanes, ...errorLayout.lanes],
   };
 }
 
@@ -121,6 +146,7 @@ export function layoutVibeGraph(
 function layoutErrorChains(
   graph: VibeGraph,
   direction: VibeGraphLayoutDirection,
+  spacing: LayoutSpacing,
 ): PositionedVibeGraph {
   const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
   const nodeIndexById = new Map(
@@ -136,12 +162,12 @@ function layoutErrorChains(
       const position =
         direction === "LR"
           ? {
-              x: START_X + rowIndex * (NODE_WIDTH + ERROR_COLUMN_GAP),
-              y: START_Y + columnIndex * (NODE_HEIGHT + ERROR_ROW_GAP),
+              x: START_X + rowIndex * (NODE_WIDTH + spacing.rankGap),
+              y: START_Y + columnIndex * (NODE_HEIGHT + spacing.nodeGap),
             }
           : {
-              x: START_X + columnIndex * (NODE_WIDTH + ERROR_COLUMN_GAP),
-              y: START_Y + rowIndex * (NODE_HEIGHT + ERROR_ROW_GAP),
+              x: START_X + columnIndex * (NODE_WIDTH + spacing.laneGap),
+              y: START_Y + rowIndex * (NODE_HEIGHT + spacing.rankGap),
             };
 
       positionedNodes.push({
@@ -174,6 +200,7 @@ function layoutErrorChains(
       positionEdge(edge, source, target, {
         routeVerticalNextOnSide: direction === "TB",
         routeErrorOnSide: direction === "TB",
+        direction,
       }),
     );
   }
@@ -401,25 +428,23 @@ function getEdgeTypeOrderScore(edge: VibeGraphEdge) {
   return 3;
 }
 
-function positionNodesInParallelLanes(options: {
+function layoutParallelLanes(options: {
   nodes: VibeGraphNode[];
   edges: VibeGraphEdge[];
   startX: number;
   startY: number;
-  columnsPerRow: number;
-  rowsPerColumn: number;
   lane: "normal" | "error";
   direction: VibeGraphLayoutDirection;
-}): PositionedVibeNode[] {
+  spacing: LayoutSpacing;
+}): LaneLayoutResult {
   const {
     nodes,
     edges,
     startX,
     startY,
-    columnsPerRow,
-    rowsPerColumn,
     lane,
     direction,
+    spacing,
   } = options;
   const laneIndexes = Array.from(
     new Set(
@@ -430,10 +455,24 @@ function positionNodesInParallelLanes(options: {
   ).sort((a, b) => a - b);
 
   if (laneIndexes.length <= 1) {
-    return positionNodesInSerpentineRows(options);
+    const laneNodes = layoutExecutionLane({
+      nodes,
+      edges,
+      startX,
+      startY,
+      lane,
+      direction,
+      spacing,
+    });
+
+    return {
+      nodes: laneNodes,
+      lanes: [],
+    };
   }
 
   const positionedNodes: PositionedVibeNode[] = [];
+  const laneRegions: PositionedVibeLane[] = [];
   let nextLaneStart = direction === "LR" ? startY : startX;
 
   for (const laneIndex of laneIndexes) {
@@ -444,55 +483,59 @@ function positionNodesInParallelLanes(options: {
     const laneEdges = edges.filter(
       (edge) => laneNodeIds.has(edge.source) && laneNodeIds.has(edge.target),
     );
-    const lanePositionedNodes = positionNodesInSerpentineRows({
+    const lanePositionedNodes = layoutExecutionLane({
       nodes: laneNodes,
       edges: laneEdges,
       startX: direction === "LR" ? startX : nextLaneStart,
       startY: direction === "LR" ? nextLaneStart : startY,
-      columnsPerRow,
-      rowsPerColumn,
       lane,
       direction,
+      spacing,
     });
 
     positionedNodes.push(...lanePositionedNodes);
+    laneRegions.push(
+      ...createLaneRegions(lanePositionedNodes, direction, laneIndex),
+    );
 
-    const laneEnd =
-      lanePositionedNodes.length > 0
-        ? getLaneEnd(lanePositionedNodes, direction)
-        : nextLaneStart + (direction === "LR" ? NODE_HEIGHT : NODE_WIDTH);
+    const laneBounds = measurePathBounds(lanePositionedNodes);
+    const laneEnd = laneBounds
+      ? direction === "LR"
+        ? laneBounds.maxY
+        : laneBounds.maxX
+      : nextLaneStart + (direction === "LR" ? NODE_HEIGHT : NODE_WIDTH);
 
-    nextLaneStart = laneEnd + PARALLEL_LANE_GAP;
+    nextLaneStart = laneEnd + spacing.laneGap;
   }
 
-  return positionedNodes;
+  return {
+    nodes: positionedNodes,
+    lanes: laneRegions,
+  };
 }
 
 /**
- * Places a linear node order into alternating left-to-right/right-to-left rows.
- *
- * This keeps long flows compact without requiring horizontal scrolling for
- * every additional step.
+ * Lays out one executable lane using rank on the primary axis and branch
+ * offsets on the cross axis. This keeps execution moving forward while making
+ * then/else and loop-body paths read as intentional sublanes.
  */
-function positionNodesInSerpentineRows(options: {
+function layoutExecutionLane(options: {
   nodes: VibeGraphNode[];
   edges: VibeGraphEdge[];
   startX: number;
   startY: number;
-  columnsPerRow: number;
-  rowsPerColumn: number;
   lane: "normal" | "error";
   direction: VibeGraphLayoutDirection;
+  spacing: LayoutSpacing;
 }): PositionedVibeNode[] {
   const {
     nodes,
     edges,
     startX,
     startY,
-    columnsPerRow,
-    rowsPerColumn,
     lane,
     direction,
+    spacing,
   } = options;
 
   if (nodes.length === 0) {
@@ -500,25 +543,25 @@ function positionNodesInSerpentineRows(options: {
   }
 
   const orderedNodes = getLinearNodeOrder(nodes, edges, lane);
+  const rankByNodeId = getRankByNodeId(orderedNodes, edges);
+  const crossSlotByNodeId = getCrossSlotByNodeId(orderedNodes, edges);
+  const usedPositions = new Set<string>();
 
   return orderedNodes.map((node, index) => {
-    const rowIndex = Math.floor(index / columnsPerRow);
-    const positionInRow = index % columnsPerRow;
-    const columnIndex = Math.floor(index / rowsPerColumn);
-    const positionInColumn = index % rowsPerColumn;
-    const isRightToLeftRow = rowIndex % 2 === 1;
-    const isBottomToTopColumn = columnIndex % 2 === 1;
-
-    // Serpentine wrapping keeps long flows compact while preserving the chosen
-    // primary reading direction for each row or column.
-    const visualColumnIndex =
-      direction === "LR" && isRightToLeftRow
-        ? columnsPerRow - 1 - positionInRow
-        : positionInRow;
-    const visualRowIndex =
-      direction === "TB" && isBottomToTopColumn
-        ? rowsPerColumn - 1 - positionInColumn
-        : positionInColumn;
+    const rank = rankByNodeId.get(node.id) ?? index;
+    const baseCrossSlot = crossSlotByNodeId.get(node.id) ?? 0;
+    const crossSlot = reservePosition({
+      usedPositions,
+      rank,
+      preferredCrossSlot: baseCrossSlot,
+      fallbackCrossSlot: index,
+    });
+    const rankDistance = direction === "LR"
+      ? NODE_WIDTH + spacing.rankGap
+      : NODE_HEIGHT + spacing.rankGap;
+    const crossDistance = direction === "LR"
+      ? NODE_HEIGHT + spacing.nodeGap + spacing.branchGap
+      : NODE_WIDTH + spacing.nodeGap + spacing.branchGap;
 
     return {
       id: node.id,
@@ -528,14 +571,180 @@ function positionNodesInSerpentineRows(options: {
       semantic: node.semantic,
       x:
         direction === "LR"
-          ? startX + visualColumnIndex * (NODE_WIDTH + COLUMN_GAP)
-          : startX + columnIndex * (NODE_WIDTH + COLUMN_GAP),
+          ? startX + rank * rankDistance
+          : startX + crossSlot * crossDistance,
       y:
         direction === "LR"
-          ? startY + rowIndex * (NODE_HEIGHT + WRAP_ROW_GAP)
-          : startY + visualRowIndex * (NODE_HEIGHT + WRAP_ROW_GAP),
+          ? startY + crossSlot * crossDistance
+          : startY + rank * rankDistance,
     };
   });
+}
+
+function createLaneRegions(
+  positionedNodes: PositionedVibeNode[],
+  direction: VibeGraphLayoutDirection,
+  laneIndex: number,
+): PositionedVibeLane[] {
+  const bounds = measurePathBounds(positionedNodes);
+
+  if (!bounds) {
+    return [];
+  }
+
+  return [
+    {
+      id: `lane-${laneIndex}-${direction}-${bounds.minX}-${bounds.minY}`,
+      label: `Path ${laneIndex + 1}`,
+      x: bounds.minX - LANE_PADDING_X,
+      y: bounds.minY - LANE_PADDING_Y,
+      width: bounds.maxX - bounds.minX + LANE_PADDING_X * 2,
+      height: bounds.maxY - bounds.minY + LANE_PADDING_Y * 2,
+    },
+  ];
+}
+
+function measurePathBounds(positionedNodes: PositionedVibeNode[]) {
+  if (positionedNodes.length === 0) {
+    return null;
+  }
+
+  return {
+    minX: Math.min(...positionedNodes.map((node) => node.x)),
+    maxX: Math.max(...positionedNodes.map((node) => node.x + NODE_WIDTH)),
+    minY: Math.min(...positionedNodes.map((node) => node.y)),
+    maxY: Math.max(...positionedNodes.map((node) => node.y + NODE_HEIGHT)),
+  };
+}
+
+function getRankByNodeId(
+  orderedNodes: VibeGraphNode[],
+  edges: VibeGraphEdge[],
+) {
+  const orderedNodeIds = new Set(orderedNodes.map((node) => node.id));
+  const rankByNodeId = new Map<string, number>(
+    orderedNodes.map((node) => [node.id, 0] as const),
+  );
+
+  for (const node of orderedNodes) {
+    const sourceRank = rankByNodeId.get(node.id) ?? 0;
+    const outgoingEdges = edges
+      .filter(
+        (edge) =>
+          edge.source === node.id &&
+          orderedNodeIds.has(edge.target) &&
+          (edge.type === "next" || edge.type === "semantic"),
+      )
+      .sort(compareEdgesForLayout);
+
+    for (const edge of outgoingEdges) {
+      const currentTargetRank = rankByNodeId.get(edge.target) ?? 0;
+
+      rankByNodeId.set(edge.target, Math.max(currentTargetRank, sourceRank + 1));
+    }
+  }
+
+  return rankByNodeId;
+}
+
+function getCrossSlotByNodeId(
+  orderedNodes: VibeGraphNode[],
+  edges: VibeGraphEdge[],
+) {
+  const orderedNodeIds = new Set(orderedNodes.map((node) => node.id));
+  const crossSlotByNodeId = new Map<string, number>();
+
+  for (const node of orderedNodes) {
+    if (!crossSlotByNodeId.has(node.id)) {
+      crossSlotByNodeId.set(node.id, 0);
+    }
+
+    const sourceSlot = crossSlotByNodeId.get(node.id) ?? 0;
+    const outgoingEdges = edges
+      .filter(
+        (edge) =>
+          edge.source === node.id &&
+          orderedNodeIds.has(edge.target) &&
+          (edge.type === "next" || edge.type === "semantic"),
+      )
+      .sort(compareEdgesForLayout);
+
+    for (const edge of outgoingEdges) {
+      const targetSlot = sourceSlot + getCrossSlotDelta(edge);
+      const existingSlot = crossSlotByNodeId.get(edge.target);
+
+      crossSlotByNodeId.set(
+        edge.target,
+        existingSlot === undefined ? targetSlot : Math.max(existingSlot, targetSlot),
+      );
+    }
+  }
+
+  return crossSlotByNodeId;
+}
+
+function reservePosition(options: {
+  usedPositions: Set<string>;
+  rank: number;
+  preferredCrossSlot: number;
+  fallbackCrossSlot: number;
+}) {
+  const { usedPositions, rank, preferredCrossSlot, fallbackCrossSlot } = options;
+  let crossSlot = preferredCrossSlot;
+  let guard = 0;
+
+  while (usedPositions.has(`${rank}:${crossSlot}`)) {
+    crossSlot = preferredCrossSlot + guard + 1;
+    guard += 1;
+
+    if (guard > 20) {
+      crossSlot = fallbackCrossSlot;
+      break;
+    }
+  }
+
+  usedPositions.add(`${rank}:${crossSlot}`);
+  return crossSlot;
+}
+
+function getCrossSlotDelta(edge: VibeGraphEdge) {
+  if (edge.semantic?.label === "else") {
+    return 1;
+  }
+
+  if (edge.semantic?.label === "each") {
+    return 1;
+  }
+
+  return 0;
+}
+
+function compareEdgesForLayout(a: VibeGraphEdge, b: VibeGraphEdge) {
+  return getLayoutEdgeScore(a) - getLayoutEdgeScore(b);
+}
+
+function getLayoutEdgeScore(edge: VibeGraphEdge) {
+  if (edge.semantic?.label === "then") {
+    return 1;
+  }
+
+  if (edge.semantic?.label === "done") {
+    return 2;
+  }
+
+  if (edge.semantic?.label === "workflow") {
+    return 3;
+  }
+
+  if (edge.semantic?.label === "each") {
+    return 4;
+  }
+
+  if (edge.semantic?.label === "else") {
+    return 5;
+  }
+
+  return edge.type === "next" ? 6 : 7;
 }
 
 function getLaneEnd(
@@ -642,6 +851,7 @@ function getLinearNodeOrder(
 type PositionEdgeOptions = {
   routeVerticalNextOnSide?: boolean;
   routeErrorOnSide?: boolean;
+  direction?: VibeGraphLayoutDirection;
 };
 
 function positionEdge(
@@ -650,6 +860,7 @@ function positionEdge(
   target: PositionedVibeNode,
   options: PositionEdgeOptions = {},
 ): PositionedVibeEdge {
+  const direction = options.direction ?? "LR";
   const isTargetBelow = target.y > source.y + NODE_HEIGHT / 2;
   const isTargetAbove = target.y + NODE_HEIGHT / 2 < source.y;
   const isVertical = isTargetBelow || isTargetAbove;
@@ -677,14 +888,20 @@ function positionEdge(
       target: edge.target,
       type: edge.type,
       semantic: edge.semantic,
-      sourceX: source.x + NODE_WIDTH / 2,
-      sourceY: source.y + NODE_HEIGHT,
-      targetX: target.x + NODE_WIDTH / 2,
-      targetY: target.y,
+      sourceX:
+        direction === "LR" ? source.x + NODE_WIDTH : source.x + NODE_WIDTH / 2,
+      sourceY:
+        direction === "LR" ? source.y + NODE_HEIGHT / 2 : source.y + NODE_HEIGHT,
+      targetX: direction === "LR" ? target.x : target.x + NODE_WIDTH / 2,
+      targetY: direction === "LR" ? target.y + NODE_HEIGHT / 2 : target.y,
     };
   }
 
-  if ((edge.type === "next" || options.routeVerticalNextOnSide) && isVertical) {
+  if (
+    direction === "LR" &&
+    (edge.type === "next" || options.routeVerticalNextOnSide) &&
+    isVertical
+  ) {
     // Vertical next edges route along the node sides, which keeps serpentine
     // row wraps readable.
     return {
@@ -697,6 +914,22 @@ function positionEdge(
       sourceY: source.y + NODE_HEIGHT / 2,
       targetX: target.x + NODE_WIDTH,
       targetY: target.y + NODE_HEIGHT / 2,
+    };
+  }
+
+  if (direction === "TB" && target.y >= source.y) {
+    const sourceXOffset = getSemanticSourceOffset(edge);
+
+    return {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      type: edge.type,
+      semantic: edge.semantic,
+      sourceX: source.x + NODE_WIDTH / 2 + sourceXOffset,
+      sourceY: source.y + NODE_HEIGHT,
+      targetX: target.x + NODE_WIDTH / 2,
+      targetY: target.y,
     };
   }
 
@@ -753,6 +986,18 @@ function positionEdge(
     targetX: target.x + NODE_WIDTH,
     targetY: target.y + NODE_HEIGHT / 2,
   };
+}
+
+function getSemanticSourceOffset(edge: VibeGraphEdge) {
+  if (edge.semantic?.label === "then") {
+    return -36;
+  }
+
+  if (edge.semantic?.label === "else") {
+    return 36;
+  }
+
+  return 0;
 }
 
 /**

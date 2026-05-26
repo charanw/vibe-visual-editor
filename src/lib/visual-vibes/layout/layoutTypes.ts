@@ -24,10 +24,21 @@ export type PositionedVibeEdge = {
   targetY: number;
 };
 
+/** Subtle swimlane region rendered behind a parallel path. */
+export type PositionedVibeLane = {
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 /** Fully positioned graph consumed by the canvas renderer. */
 export type PositionedVibeGraph = {
   nodes: PositionedVibeNode[];
   edges: PositionedVibeEdge[];
+  lanes?: PositionedVibeLane[];
 };
 
 /** Layout strategy selected by the canvas view mode. */

@@ -24,12 +24,30 @@ export function getEdgeLabelPoint(edge: PositionedEdge) {
 
   const isMostlyHorizontal =
     Math.abs(edge.sourceY - edge.targetY) <= SIDE_ROUTE_EPSILON;
+  const isMostlyVertical =
+    Math.abs(edge.sourceX - edge.targetX) <= SIDE_ROUTE_EPSILON;
+
+  if (isMostlyVertical) {
+    const labelYOffset = clampMagnitude(edge.targetY - edge.sourceY, 42, 88);
+
+    return {
+      x: edge.sourceX + 42,
+      y: edge.sourceY + labelYOffset,
+    };
+  }
+
+  if (isMostlyHorizontal) {
+    const labelXOffset = clampMagnitude(edge.targetX - edge.sourceX, 64, 150);
+
+    return {
+      x: edge.sourceX + labelXOffset,
+      y: edge.sourceY - HORIZONTAL_LABEL_Y_OFFSET,
+    };
+  }
 
   return {
-    x: (edge.sourceX + edge.targetX) / 2,
-    y:
-      (edge.sourceY + edge.targetY) / 2 -
-      (isMostlyHorizontal ? HORIZONTAL_LABEL_Y_OFFSET : 0),
+    x: edge.sourceX + clampMagnitude(edge.targetX - edge.sourceX, 56, 132),
+    y: edge.sourceY + clampMagnitude(edge.targetY - edge.sourceY, 32, 86),
   };
 }
 
@@ -41,14 +59,23 @@ export function getEdgePath(edge: PositionedEdge) {
   }
 
   if (edge.type === "error") {
-    const verticalMidY = (edge.sourceY + edge.targetY) / 2;
+    const verticalMidY = edge.sourceY + (edge.targetY - edge.sourceY) * 0.5;
 
-    return `M ${edge.sourceX} ${edge.sourceY} C ${edge.sourceX} ${verticalMidY}, ${edge.targetX} ${verticalMidY}, ${edge.targetX} ${edge.targetY}`;
+    return `M ${edge.sourceX} ${edge.sourceY} L ${edge.sourceX} ${verticalMidY} L ${edge.targetX} ${verticalMidY} L ${edge.targetX} ${edge.targetY}`;
   }
 
-  const horizontalMidX = (edge.sourceX + edge.targetX) / 2;
+  const isMostlyVertical =
+    Math.abs(edge.sourceX - edge.targetX) <= SIDE_ROUTE_EPSILON;
 
-  return `M ${edge.sourceX} ${edge.sourceY} C ${horizontalMidX} ${edge.sourceY}, ${horizontalMidX} ${edge.targetY}, ${edge.targetX} ${edge.targetY}`;
+  if (isMostlyVertical) {
+    const verticalMidY = edge.sourceY + (edge.targetY - edge.sourceY) * 0.5;
+
+    return `M ${edge.sourceX} ${edge.sourceY} L ${edge.sourceX} ${verticalMidY} L ${edge.targetX} ${verticalMidY} L ${edge.targetX} ${edge.targetY}`;
+  }
+
+  const horizontalMidX = edge.sourceX + (edge.targetX - edge.sourceX) * 0.5;
+
+  return `M ${edge.sourceX} ${edge.sourceY} L ${horizontalMidX} ${edge.sourceY} L ${horizontalMidX} ${edge.targetY} L ${edge.targetX} ${edge.targetY}`;
 }
 
 export function getEdgeStroke(edge: PositionedEdge, isTerminalError: boolean) {
@@ -151,4 +178,14 @@ function getSideRouteBendX(edge: PositionedEdge) {
   const laneOffset = getSideRouteLaneOffset(edge);
 
   return edge.sourceX + direction * (SIDE_ROUTE_OFFSET + laneOffset);
+}
+
+function clampMagnitude(value: number, minMagnitude: number, maxMagnitude: number) {
+  const direction = value < 0 ? -1 : 1;
+  const magnitude = Math.min(
+    maxMagnitude,
+    Math.max(minMagnitude, Math.abs(value) * 0.32),
+  );
+
+  return direction * magnitude;
 }

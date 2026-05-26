@@ -74,13 +74,7 @@ export function useVisualVibesStore() {
       canvas: false,
       inspector: false,
     });
-  const [isDesktopLayout, setIsDesktopLayout] = useState(() => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-
-    return window.matchMedia("(min-width: 1024px)").matches;
-  });
+  const [isDesktopLayout, setIsDesktopLayout] = useState(true);
 
   const [isCanvasEditing, setIsCanvasEditing] = useState(false);
   const [canvasEditSnapshot, setCanvasEditSnapshot] = useState<string | null>(

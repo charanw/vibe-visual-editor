@@ -102,6 +102,32 @@ export function CanvasGraph({
       />
 
       <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+        {graph.lanes?.map((lane) => (
+          <g key={lane.id} pointerEvents="none">
+            <rect
+              x={lane.x}
+              y={lane.y}
+              width={lane.width}
+              height={lane.height}
+              rx="22"
+              fill="var(--panel-muted-bg)"
+              stroke="var(--border-subtle)"
+              strokeDasharray="8 8"
+              opacity="0.42"
+            />
+            <text
+              x={lane.x + 18}
+              y={lane.y + 28}
+              fill="var(--text-muted)"
+              fontSize="11"
+              fontWeight="800"
+              letterSpacing="1.2"
+            >
+              {lane.label}
+            </text>
+          </g>
+        ))}
+
         {graph.edges.map((edge) => {
           const targetNode = classifier.nodeById.get(edge.target);
           const isTerminalError = Boolean(
