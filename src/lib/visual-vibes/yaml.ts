@@ -310,6 +310,98 @@ export function updateConditionalExpressionInYaml(
   return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
+/** Replaces an invalid or missing input payload with a safe empty object. */
+export function setStepInputObjectInYaml(
+  yamlText: string,
+  stepId: string,
+): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYaml(yamlText);
+  const step = vibe.workflow.steps.find((workflowStep) => workflowStep.id === stepId);
+
+  if (!step) {
+    return yamlText;
+  }
+
+  step.input = {};
+
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
+}
+
+/** Clears a broken next/error routing field from a specific step. */
+export function clearStepRoutingFieldInYaml(
+  yamlText: string,
+  stepId: string,
+  field: "next_step_id" | "on_error_step_id",
+): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYaml(yamlText);
+  const step = vibe.workflow.steps.find((workflowStep) => workflowStep.id === stepId);
+
+  if (!step) {
+    return yamlText;
+  }
+
+  delete step[field];
+
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
+}
+
+/**
+ * Removes references to a missing step from step input.
+ *
+ * The fix only removes fields or array entries that directly contain the bad
+ * interpolation, preserving neighboring user-authored input.
+ */
+export function removeMissingStepInputReferenceInYaml(
+  yamlText: string,
+  stepId: string,
+  missingStepId: string,
+): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYaml(yamlText);
+  const step = vibe.workflow.steps.find((workflowStep) => workflowStep.id === stepId);
+
+  if (!step) {
+    return yamlText;
+  }
+
+  step.input = removeReferencesFromValue(step.input, missingStepId) as Record<
+    string,
+    unknown
+  >;
+
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
+}
+
+/** Removes a missing then/else branch target from the common condition shape. */
+export function removeConditionalBranchReferenceInYaml(
+  yamlText: string,
+  stepId: string,
+  branch: "then" | "else",
+): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYaml(yamlText);
+  const step = vibe.workflow.steps.find((workflowStep) => workflowStep.id === stepId);
+
+  if (!step) {
+    return yamlText;
+  }
+
+  if (isRecord(step.input.condition)) {
+    const nextCondition = { ...step.input.condition };
+    delete nextCondition[branch];
+    step.input = {
+      ...step.input,
+      condition: nextCondition,
+    };
+  } else {
+    delete step.input[branch];
+  }
+
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
+}
+
 /** Inserts a generated step immediately after the given source step. */
 export function appendStepAfterInYaml(
   yamlText: string,
@@ -460,4 +552,37 @@ function getStepIdLineInfo(line: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function removeReferencesFromValue(value: unknown, missingStepId: string): unknown {
+  const referenceNeedle = `\${steps.${missingStepId}.`;
+
+  if (typeof value === "string") {
+    return value.includes(referenceNeedle) ? undefined : value;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => removeReferencesFromValue(item, missingStepId))
+      .filter((item) => item !== undefined);
+  }
+
+  if (!isRecord(value)) {
+    return value;
+  }
+
+  const nextValue: Record<string, unknown> = {};
+
+  for (const [key, nestedValue] of Object.entries(value)) {
+    const nextNestedValue = removeReferencesFromValue(
+      nestedValue,
+      missingStepId,
+    );
+
+    if (nextNestedValue !== undefined) {
+      nextValue[key] = nextNestedValue;
+    }
+  }
+
+  return nextValue;
 }

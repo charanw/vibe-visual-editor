@@ -3,8 +3,10 @@
 import type { ReactNode } from "react";
 import { VibeFileControls } from "../VibeFileControls";
 import { VibeYamlEditor } from "../VibeYamlEditor";
+import { ValidationIssueList } from "../validation/ValidationIssueList";
 import type { VibeValidationIssue } from "@/lib/visual-vibes/validation";
 import type { ExampleVibe } from "../../examples/exampleVibes";
+import type { ValidationFixId } from "../../utils/validationFixes";
 
 /**
  * Props for SourcePane component
@@ -21,6 +23,11 @@ interface SourcePaneProps {
   validationIssues: VibeValidationIssue[];
   onUploadYaml: (fileName: string, yamlText: string) => void;
   onSelectExample: (example: ExampleVibe) => void;
+  onOpenValidationIssue: (issue: VibeValidationIssue) => void;
+  onApplyValidationFix: (
+    issue: VibeValidationIssue,
+    fixId: ValidationFixId,
+  ) => void;
   onLoadError: (error: string | null) => void;
   onYamlTextChange: (text: string) => void;
   onStartYamlEditing: () => void;
@@ -45,6 +52,8 @@ export function SourcePane({
   validationIssues,
   onUploadYaml,
   onSelectExample,
+  onOpenValidationIssue,
+  onApplyValidationFix,
   onLoadError,
   onYamlTextChange,
   onStartYamlEditing,
@@ -75,23 +84,11 @@ export function SourcePane({
         </div>
       )}
 
-      {validationIssues.length > 0 && (
-        <div className="max-h-40 overflow-auto border-b border-[var(--border-subtle)] bg-yellow-500/10 px-4 py-3 text-xs text-yellow-700 dark:text-yellow-300">
-          <div className="mb-2 font-semibold">
-            Vibe validation found {validationIssues.length}{" "}
-            {validationIssues.length === 1 ? "issue" : "issues"}:
-          </div>
-
-          <ul className="space-y-1">
-            {validationIssues.map((issue, index) => (
-              <li key={`${issue.level}-${issue.stepId ?? "workflow"}-${index}`}>
-                <span className="font-semibold uppercase">{issue.level}:</span>{" "}
-                {issue.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <ValidationIssueList
+        issues={validationIssues}
+        onOpenIssue={onOpenValidationIssue}
+        onApplyFix={onApplyValidationFix}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2">
         <div>

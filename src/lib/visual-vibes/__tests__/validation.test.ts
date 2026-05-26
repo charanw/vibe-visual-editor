@@ -6,9 +6,50 @@ test("validateVisualVibeYaml reports empty YAML", () => {
   assert.deepEqual(validateVisualVibeYaml("   "), [
     {
       level: "error",
+      id: "empty-yaml",
+      code: "empty_yaml",
       message: "YAML is empty.",
     },
   ]);
+});
+
+test("validateVisualVibeYaml reports missing conditional branch references", () => {
+  const issues = validateVisualVibeYaml(`
+workflow:
+  id: invalid_branch_flow
+  name: Invalid Branch Flow
+  steps:
+    - id: branch
+      function: handleConditional
+      input:
+        condition:
+          expression: "\${uniqueData.ready == true}"
+          then: missing_then
+          else: missing_else
+`);
+
+  assert.deepEqual(
+    issues.map((issue) => ({
+      code: issue.code,
+      stepId: issue.stepId,
+      missingStepId: issue.metadata?.missingStepId,
+      branch: issue.metadata?.branch,
+    })),
+    [
+      {
+        code: "missing_conditional_branch",
+        stepId: "branch",
+        missingStepId: "missing_then",
+        branch: "then",
+      },
+      {
+        code: "missing_conditional_branch",
+        stepId: "branch",
+        missingStepId: "missing_else",
+        branch: "else",
+      },
+    ],
+  );
 });
 
 test("validateVisualVibeYaml reports duplicate and missing step references", () => {

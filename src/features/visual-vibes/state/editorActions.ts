@@ -35,6 +35,12 @@ import type {
 } from "../types";
 import type { AddStepWizardSelection } from "../types";
 import type { ExampleVibe } from "../examples/exampleVibes";
+import type { VibeValidationIssue } from "@/lib/visual-vibes/validation";
+import {
+  applyValidationFixInYaml,
+  getValidationFixes,
+  type ValidationFixId,
+} from "../utils/validationFixes";
 
 type VibeState = VisualVibesStore["vibeState"];
 type LayoutState = UiState;
@@ -133,6 +139,43 @@ export function useVisualVibesEditorActions({
       revealMobileInspector(currentPanes),
     );
     layoutState.setActivePanel("inspector");
+  }
+
+  function revealStepInEditor(stepId: string) {
+    vibeState.setSelectedStepId(stepId);
+    layoutState.setIsRightPaneCollapsed(false);
+    layoutState.setMobileCollapsedPanes((currentPanes) =>
+      revealMobileInspector(currentPanes),
+    );
+    layoutState.setActivePanel("inspector");
+    graphLayout.setCenterRequest((currentRequest) => ({
+      stepId,
+      requestId: (currentRequest?.requestId ?? 0) + 1,
+    }));
+  }
+
+  function handleOpenValidationIssue(issue: VibeValidationIssue) {
+    if (!issue.stepId) {
+      return;
+    }
+
+    revealStepInEditor(issue.stepId);
+  }
+
+  function handleApplyValidationFix(
+    issue: VibeValidationIssue,
+    fixId: ValidationFixId,
+  ) {
+    const fix = getValidationFixes(issue).find((candidate) => candidate.id === fixId);
+
+    vibeState.setYamlText(
+      (currentYamlText) => applyValidationFixInYaml(currentYamlText, issue, fixId),
+      { label: fix?.historyLabel ?? "Applied validation fix" },
+    );
+
+    if (issue.stepId) {
+      revealStepInEditor(issue.stepId);
+    }
   }
 
   function handleAddStandaloneStep() {
@@ -403,6 +446,8 @@ export function useVisualVibesEditorActions({
     handleUploadYaml,
     handleLoadExample,
     handleSelectStep,
+    handleOpenValidationIssue,
+    handleApplyValidationFix,
     handleAddStandaloneStep,
     handleAddStepOnEdge,
     handleDeleteStep,

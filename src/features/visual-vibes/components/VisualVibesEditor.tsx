@@ -62,6 +62,8 @@ export function VisualVibesEditor() {
     handleUploadYaml,
     handleLoadExample,
     handleSelectStep,
+    handleOpenValidationIssue,
+    handleApplyValidationFix,
     handleDeleteStep,
     handleDeleteEdge,
     handleUpdateCondition,
@@ -151,6 +153,8 @@ export function VisualVibesEditor() {
                   validationIssues={vibeState.validationIssues}
                   onUploadYaml={handleUploadYaml}
                   onSelectExample={handleLoadExample}
+                  onOpenValidationIssue={handleOpenValidationIssue}
+                  onApplyValidationFix={handleApplyValidationFix}
                   onLoadError={vibeState.setLoadError}
                   onYamlTextChange={vibeState.setYamlText}
                   onStartYamlEditing={handleStartYamlEditing}
@@ -285,6 +289,8 @@ export function VisualVibesEditor() {
               validationIssues={vibeState.validationIssues}
               onUploadYaml={handleUploadYaml}
               onSelectExample={handleLoadExample}
+              onOpenValidationIssue={handleOpenValidationIssue}
+              onApplyValidationFix={handleApplyValidationFix}
               onLoadError={vibeState.setLoadError}
               onYamlTextChange={vibeState.setYamlText}
               onStartYamlEditing={handleStartYamlEditing}
