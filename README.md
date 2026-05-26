@@ -202,7 +202,6 @@ src/
       inspector/
         InspectorField.tsx         Field input components
         InspectorIcons.tsx         Icon utilities
-        stepFunctionTemplates.ts  Function templates
         inputTypes.ts             Input field type definitions
         inputUtils.ts             Input validation/formatting helpers
       panes/
@@ -230,6 +229,13 @@ src/
     yaml.ts                       YAML utilities
     __tests__/                    Unit tests
 
+    functions/                    Function registry
+      registry.ts                 Central function registry
+      types.ts                    Function definition types
+      categories.ts               Function categories
+      fieldSchemas.ts             Reusable input field schemas
+      index.ts                    Barrel export
+
     graph/
       buildGraph.ts              Extract graph from Vibe YAML
       graphTraversal.ts          Graph traversal algorithms
@@ -248,6 +254,15 @@ src/
       updateStepField.ts         Update single step field
       updateRouting.ts           Modify step routing
       index.ts                   Mutations barrel export
+
+    selectors/                    Workflow data queries
+      getStepById.ts             Find step by ID
+      getStepReferences.ts       Find steps that reference a step
+      getIncomingEdges.ts        Find edges pointing to a step
+      getOutgoingEdges.ts        Find edges from a step
+      getDownstreamSteps.ts      Find all reachable steps
+      getUnreachableSteps.ts     Find orphaned steps
+      index.ts                   Barrel export
 
     parser/
       parseYaml.ts               Parse YAML to typed objects
@@ -280,6 +295,58 @@ src/
 - **Mutations Layer** — Pure functions to safely modify Vibes (add/remove/reorder/edit steps)
 - **Parser Layer** — Bidirectional YAML ↔ typed objects with validation
 - **Canvas Layer** — SVG-based interactive visualization with zoom, pan, and node selection
+- **Function Registry** — Centralized definitions of available functions and their metadata
+- **Selectors Layer** — Consistent query functions for workflow data without repeated searches
+
+### Function Registry
+
+The `lib/visual-vibes/functions` module defines what each Studio X function is and how the editor should treat it:
+
+```typescript
+import {
+  getFunctionDefinition,
+  getFunctionsByCategory,
+} from "@/lib/visual-vibes/functions";
+
+const definition = getFunctionDefinition("aiProcessing");
+const groups = getFunctionsByCategory(); // Group functions by category for UI
+```
+
+**Registry includes:**
+
+- Function metadata (id, label, category, description)
+- Default input templates with example values
+- Reusable field schemas for parameter definitions
+- Behavioral flags (isTerminal, isControlFlow, isExperimental)
+
+This replaces ad-hoc function definitions with a single, extensible source of truth.
+
+### Workflow Selectors
+
+The `lib/visual-vibes/selectors` module provides consistent query functions for accessing workflow data:
+
+```typescript
+import {
+  getStepById,
+  getStepReferences,
+  getDownstreamSteps,
+} from "@/lib/visual-vibes/selectors";
+
+const step = getStepById(vibe, "step-id");
+const references = getStepReferences(vibe, "step-id"); // What references this step?
+const downstream = getDownstreamSteps(vibe, "step-id"); // What steps follow?
+```
+
+**Available selectors:**
+
+- `getStepById` — Find a step by ID
+- `getStepReferences` — Find all steps that reference a given step
+- `getIncomingEdges` — Find edges pointing to a step
+- `getOutgoingEdges` — Find edges from a step
+- `getDownstreamSteps` — Find all reachable steps (BFS traversal)
+- `getUnreachableSteps` — Find orphaned/disconnected steps
+
+This keeps components clean, prevents repeated searches, and makes behavior consistent across the codebase.
 
 ### Technology Stack
 
