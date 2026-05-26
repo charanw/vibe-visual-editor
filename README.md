@@ -353,7 +353,6 @@ This keeps components clean, prevents repeated searches, and makes behavior cons
 - **Framework:** Next.js 16 with React 19
 - **Styling:** Tailwind CSS 4
 - **Editor:** Monaco Editor (embedded for YAML editing)
-- **State:** Zustand (lightweight state management)
 - **Type Safety:** TypeScript, Zod (schema validation)
 - **Testing:** Node test runner with TypeScript
 
