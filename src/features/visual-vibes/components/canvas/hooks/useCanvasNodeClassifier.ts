@@ -229,14 +229,19 @@ export function useCanvasNodeClassifier({
     function getEdgeFunctionLabel(
       edge: PositionedVibeGraph["edges"][number],
     ) {
-      if (edge.semantic?.label) {
+      if (
+        edge.semantic?.label === "then" ||
+        edge.semantic?.label === "else" ||
+        edge.semantic?.label === "each"
+      ) {
         return edge.semantic.label;
       }
 
-      const targetNode = nodeById.get(edge.target);
-      const sourceNode = nodeById.get(edge.source);
+      if (edge.type === "data") {
+        return "data";
+      }
 
-      return targetNode?.functionName ?? sourceNode?.functionName ?? edge.type;
+      return "";
     }
 
     return {

@@ -49,7 +49,9 @@ export function CanvasEdge({
   const edgePath = getEdgePath(edge);
   const stroke = getEdgeStroke(edge, isTerminalError);
   const labelWidth = Math.min(190, Math.max(76, label.length * 6.5 + 20));
+  const shouldRenderLabel = label.trim().length > 0;
   const canEditEdge = isEditing && isHovered && edge.type !== "semantic";
+  const canDeleteEdge = canEditEdge && !edge.inferred;
   const editableEdgeType =
     edge.type === "semantic" ? "next" : edge.type;
 
@@ -91,30 +93,32 @@ export function CanvasEdge({
         pointerEvents="none"
       />
 
-      <g pointerEvents="none" opacity={edgeOpacity}>
-        <rect
-          x={addButtonX - labelWidth / 2}
-          y={addButtonY - 11}
-          width={labelWidth}
-          height="22"
-          rx="11"
-          fill="var(--panel-bg)"
-          stroke={stroke}
-          strokeWidth="1"
-          opacity="0.92"
-        />
+      {shouldRenderLabel && (
+        <g pointerEvents="none" opacity={edgeOpacity}>
+          <rect
+            x={addButtonX - labelWidth / 2}
+            y={addButtonY - 11}
+            width={labelWidth}
+            height="22"
+            rx="11"
+            fill="var(--panel-bg)"
+            stroke={stroke}
+            strokeWidth="1"
+            opacity="0.92"
+          />
 
-        <text
-          x={addButtonX}
-          y={addButtonY + 4}
-          textAnchor="middle"
-          fill={getEdgeLabelFill(edge, isTerminalError)}
-          fontSize="10"
-          fontWeight="700"
-        >
-          {label}
-        </text>
-      </g>
+          <text
+            x={addButtonX}
+            y={addButtonY + 4}
+            textAnchor="middle"
+            fill={getEdgeLabelFill(edge, isTerminalError)}
+            fontSize="10"
+            fontWeight="700"
+          >
+            {label}
+          </text>
+        </g>
+      )}
 
       {isHovered && isTerminalError && (
         <EdgeHoverLabel x={addButtonX} y={addButtonY - 20} fill="var(--danger)">
@@ -169,38 +173,40 @@ export function CanvasEdge({
             </text>
           </g>
 
-          <g
-            transform={`translate(${deleteButtonX}, ${deleteButtonY})`}
-            onMouseEnter={() => onHoverStart(edge.id)}
-            onClick={(event) => {
-              event.stopPropagation();
+          {canDeleteEdge && (
+            <g
+              transform={`translate(${deleteButtonX}, ${deleteButtonY})`}
+              onMouseEnter={() => onHoverStart(edge.id)}
+              onClick={(event) => {
+                event.stopPropagation();
 
-              onDeleteEdge({
-                sourceStepId: edge.source,
-                targetStepId: edge.target,
-                edgeType: editableEdgeType,
-              });
-            }}
-            className="cursor-pointer"
-          >
-            <circle
-              r="16"
-              fill="var(--danger-soft)"
-              stroke="var(--danger)"
-              strokeWidth="2"
-            />
-            <text
-              x="0"
-              y="5"
-              textAnchor="middle"
-              fill="var(--danger)"
-              fontSize="16"
-              fontWeight="700"
-              pointerEvents="none"
+                onDeleteEdge({
+                  sourceStepId: edge.source,
+                  targetStepId: edge.target,
+                  edgeType: editableEdgeType,
+                });
+              }}
+              className="cursor-pointer"
             >
-              x
-            </text>
-          </g>
+              <circle
+                r="16"
+                fill="var(--danger-soft)"
+                stroke="var(--danger)"
+                strokeWidth="2"
+              />
+              <text
+                x="0"
+                y="5"
+                textAnchor="middle"
+                fill="var(--danger)"
+                fontSize="16"
+                fontWeight="700"
+                pointerEvents="none"
+              >
+                x
+              </text>
+            </g>
+          )}
         </>
       )}
     </g>

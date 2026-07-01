@@ -13,6 +13,12 @@ import { hashString } from "./canvasGraphUtils";
 type PositionedEdge = PositionedVibeGraph["edges"][number];
 
 export function getEdgeLabelPoint(edge: PositionedEdge) {
+  const routePoints = getRoutePoints(edge);
+
+  if (routePoints.length > 2) {
+    return getPolylineMidpoint(routePoints);
+  }
+
   if (isSideRoutedVerticalEdge(edge)) {
     const direction = getSideRouteDirection(edge);
 
@@ -52,6 +58,17 @@ export function getEdgeLabelPoint(edge: PositionedEdge) {
 }
 
 export function getEdgePath(edge: PositionedEdge) {
+  const routePoints = getRoutePoints(edge);
+
+  if (routePoints.length > 2) {
+    const [startPoint, ...remainingPoints] = routePoints;
+
+    return [
+      `M ${startPoint.x} ${startPoint.y}`,
+      ...remainingPoints.map((point) => `L ${point.x} ${point.y}`),
+    ].join(" ");
+  }
+
   if (isSideRoutedVerticalEdge(edge)) {
     const bendX = getSideRouteBendX(edge);
 
@@ -76,6 +93,54 @@ export function getEdgePath(edge: PositionedEdge) {
   const horizontalMidX = edge.sourceX + (edge.targetX - edge.sourceX) * 0.5;
 
   return `M ${edge.sourceX} ${edge.sourceY} L ${horizontalMidX} ${edge.sourceY} L ${horizontalMidX} ${edge.targetY} L ${edge.targetX} ${edge.targetY}`;
+}
+
+function getRoutePoints(edge: PositionedEdge) {
+  return [
+    { x: edge.sourceX, y: edge.sourceY },
+    ...(edge.bendPoints ?? []),
+    { x: edge.targetX, y: edge.targetY },
+  ];
+}
+
+function getPolylineMidpoint(points: Array<{ x: number; y: number }>) {
+  const segmentLengths = points.map((point, index) => {
+    const nextPoint = points[index + 1];
+
+    if (!nextPoint) {
+      return 0;
+    }
+
+    return Math.hypot(nextPoint.x - point.x, nextPoint.y - point.y);
+  });
+  const totalLength = segmentLengths.reduce(
+    (total, length) => total + length,
+    0,
+  );
+  let walkedLength = 0;
+
+  for (const [index, segmentLength] of segmentLengths.entries()) {
+    const point = points[index];
+    const nextPoint = points[index + 1];
+
+    if (!nextPoint) {
+      break;
+    }
+
+    if (walkedLength + segmentLength >= totalLength / 2) {
+      const segmentProgress =
+        segmentLength === 0 ? 0 : (totalLength / 2 - walkedLength) / segmentLength;
+
+      return {
+        x: point.x + (nextPoint.x - point.x) * segmentProgress,
+        y: point.y + (nextPoint.y - point.y) * segmentProgress,
+      };
+    }
+
+    walkedLength += segmentLength;
+  }
+
+  return points[Math.floor(points.length / 2)] ?? { x: 0, y: 0 };
 }
 
 export function getEdgeStroke(edge: PositionedEdge, isTerminalError: boolean) {
@@ -123,10 +188,6 @@ export function getEdgeStrokeDasharray(
 
   if (edge.type === "data") {
     return "3 5";
-  }
-
-  if (edge.type === "semantic") {
-    return "6 4";
   }
 
   return undefined;
