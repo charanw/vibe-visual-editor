@@ -20,6 +20,7 @@ export type VibeGraphEdge = {
   source: string;
   target: string;
   type: "data" | "next" | "error" | "semantic";
+  inferred?: boolean;
   semantic?: {
     label?: "then" | "else" | "each" | "done" | "workflow";
   };

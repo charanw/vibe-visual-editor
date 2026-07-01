@@ -1,4 +1,5 @@
 import type { VisualVibe } from "../schema";
+import { getEffectiveNextStepId, isInferredNextStep } from "../routing";
 import { getReferencedStepIds } from "./graphTraversal";
 import { enrichSemanticGraph } from "./semanticGraph";
 import type { VibeGraph, VibeGraphEdge, VibeGraphNode } from "./graphTypes";
@@ -8,7 +9,7 @@ import type { VibeGraph, VibeGraphEdge, VibeGraphNode } from "./graphTypes";
  *
  * Edges come from three sources:
  * - `${steps.some_step...}` references inside step input objects
- * - `next_step_id` main-flow routing
+ * - explicit `next_step_id` routing, or YAML-order fallthrough when omitted
  * - `on_error_step_id` error routing
  */
 export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
@@ -28,6 +29,7 @@ export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
     source: string,
     target: string,
     type: VibeGraphEdge["type"],
+    options: { inferred?: boolean } = {},
   ) {
     if (!source || !target) {
       return;
@@ -44,16 +46,21 @@ export function visualVibeToGraph(vibe: VisualVibe): VibeGraph {
       source,
       target,
       type,
+      ...(options.inferred ? { inferred: true } : {}),
     });
   }
 
-  for (const step of steps) {
+  for (const [stepIndex, step] of steps.entries()) {
     for (const sourceStepId of getReferencedStepIds(step.input)) {
       addEdge(sourceStepId, step.id, "data");
     }
 
-    if (step.next_step_id) {
-      addEdge(step.id, step.next_step_id, "next");
+    const nextStepId = getEffectiveNextStepId(steps, stepIndex);
+
+    if (nextStepId) {
+      addEdge(step.id, nextStepId, "next", {
+        inferred: isInferredNextStep(steps, stepIndex),
+      });
     }
 
     if (step.on_error_step_id) {

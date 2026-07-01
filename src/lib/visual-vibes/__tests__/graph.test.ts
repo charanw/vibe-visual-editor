@@ -72,11 +72,23 @@ test("visualVibeToGraph creates next, error, and data edges", () => {
         target: "summarize_profile",
         type: "next",
       },
+      {
+        source: "summarize_profile",
+        target: "profile_error",
+        type: "next",
+      },
     ],
   );
+
+  const inferredEdge = graph.edges.find(
+    (edge) =>
+      edge.source === "summarize_profile" && edge.target === "profile_error",
+  );
+
+  assert.equal(inferredEdge?.inferred, true);
 });
 
-test("visualVibeToGraph de-duplicates repeated data references", () => {
+test("visualVibeToGraph de-duplicates repeated data references while preserving sequence", () => {
   const vibe: VisualVibe = {
     workflow: {
       id: "dedupe",
@@ -102,13 +114,25 @@ test("visualVibeToGraph de-duplicates repeated data references", () => {
 
   const graph = visualVibeToGraph(vibe);
 
-  assert.equal(graph.edges.length, 1);
-  assert.deepEqual(graph.edges[0], {
+  const dataEdges = graph.edges.filter((edge) => edge.type === "data");
+  const nextEdges = graph.edges.filter((edge) => edge.type === "next");
+
+  assert.equal(dataEdges.length, 1);
+  assert.deepEqual(dataEdges[0], {
     id: "extract-respond-data",
     source: "extract",
     target: "respond",
     type: "data",
   });
+  assert.deepEqual(nextEdges, [
+    {
+      id: "extract-respond-next",
+      source: "extract",
+      target: "respond",
+      type: "next",
+      inferred: true,
+    },
+  ]);
 });
 
 test("visualVibeToGraph enriches handleConditional branches", () => {
@@ -132,7 +156,7 @@ test("visualVibeToGraph enriches handleConditional branches", () => {
 
   const branch = graph.nodes.find((node) => node.id === "branch");
   const semanticEdges = graph.edges.filter(
-    (edge) => edge.source === "branch" && edge.type === "semantic",
+    (edge) => edge.source === "branch" && edge.semantic?.label,
   );
 
   assert.deepEqual(branch?.semantic, {
@@ -220,7 +244,28 @@ test("visualVibeToGraph classifies invokeWorkflow and concludeWorkflow", () => {
   assert.equal(workflowEdge?.semantic?.label, "workflow");
 });
 
-test("visualVibeToGraph marks disconnected executable chains as parallel lanes", () => {
+test("visualVibeToGraph does not infer fallthrough after concludeWorkflow", () => {
+  const graph = visualVibeToGraph(
+    createVibe([
+      {
+        id: "done",
+        function: "concludeWorkflow",
+        input: {},
+      },
+      step("parallel_lane"),
+    ]),
+  );
+
+  assert.equal(
+    graph.edges.some(
+      (edge) => edge.source === "done" && edge.target === "parallel_lane",
+    ),
+    false,
+  );
+  assert.equal(graph.nodes.find((node) => node.id === "done")?.semantic?.badge, "END");
+});
+
+test("visualVibeToGraph uses YAML order as the default executable lane", () => {
   const graph = visualVibeToGraph(
     createVibe([
       { ...step("first_a"), next_step_id: "second_a" },
@@ -237,14 +282,24 @@ test("visualVibeToGraph marks disconnected executable chains as parallel lanes",
   }));
 
   assert.deepEqual(laneSummary, [
-    { id: "first_a", lane: "Path 1", isStart: true },
-    { id: "second_a", lane: "Path 1", isStart: false },
-    { id: "first_b", lane: "Path 2", isStart: true },
-    { id: "second_b", lane: "Path 2", isStart: false },
+    { id: "first_a", lane: undefined, isStart: undefined },
+    { id: "second_a", lane: undefined, isStart: undefined },
+    { id: "first_b", lane: undefined, isStart: undefined },
+    { id: "second_b", lane: undefined, isStart: undefined },
   ]);
+
+  assert.ok(
+    graph.edges.some(
+      (edge) =>
+        edge.source === "second_a" &&
+        edge.target === "first_b" &&
+        edge.type === "next" &&
+        edge.inferred,
+    ),
+  );
 });
 
-test("visualVibeToGraph does not use data references as sequential lane connections", () => {
+test("visualVibeToGraph uses YAML order, not data references, for sequential fallback", () => {
   const graph = visualVibeToGraph(
     createVibe([
       step("producer"),
@@ -258,10 +313,25 @@ test("visualVibeToGraph does not use data references as sequential lane connecti
     ]),
   );
 
-  assert.equal(graph.edges[0]?.type, "data");
+  const dataEdge = graph.edges.find((edge) => edge.type === "data");
+  const nextEdge = graph.edges.find((edge) => edge.type === "next");
+
+  assert.deepEqual(dataEdge, {
+    id: "producer-consumer-data",
+    source: "producer",
+    target: "consumer",
+    type: "data",
+  });
+  assert.deepEqual(nextEdge, {
+    id: "producer-consumer-next",
+    source: "producer",
+    target: "consumer",
+    type: "next",
+    inferred: true,
+  });
   assert.deepEqual(
     graph.nodes.map((node) => node.semantic?.parallelLaneLabel),
-    ["Path 1", "Path 2"],
+    [undefined, undefined],
   );
 });
 

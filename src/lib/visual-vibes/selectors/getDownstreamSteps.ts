@@ -3,13 +3,14 @@
  */
 
 import type { VisualVibe, VibeStep } from "../schema";
+import { getEffectiveNextStepId } from "../routing";
 import { getStepById } from "./getStepById";
 
 /**
  * Finds all steps that can be reached from a starting step by following edges.
  *
  * This performs a breadth-first traversal starting from the given step,
- * following both next_step_id and on_error_step_id paths.
+ * following both effective next-step and on_error_step_id paths.
  *
  * @param vibe - The workflow document
  * @param startStepId - The starting step ID
@@ -45,9 +46,17 @@ export function getDownstreamSteps(
       downstream.push(currentStep);
     }
 
-    // Queue next steps
-    if (currentStep.next_step_id && !visited.has(currentStep.next_step_id)) {
-      queue.push(currentStep.next_step_id);
+    const currentStepIndex = vibe.workflow.steps.findIndex(
+      (step) => step.id === currentStep.id,
+    );
+    const nextStepId = getEffectiveNextStepId(
+      vibe.workflow.steps,
+      currentStepIndex,
+    );
+
+    // Queue next steps, including YAML-order fallthrough when next_step_id is omitted.
+    if (nextStepId && !visited.has(nextStepId)) {
+      queue.push(nextStepId);
     }
     if (currentStep.on_error_step_id && !visited.has(currentStep.on_error_step_id)) {
       queue.push(currentStep.on_error_step_id);

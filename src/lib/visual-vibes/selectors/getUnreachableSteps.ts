@@ -3,6 +3,7 @@
  */
 
 import type { VisualVibe, VibeStep } from "../schema";
+import { getEffectiveNextStepId } from "../routing";
 import { getStepById } from "./getStepById";
 
 /**
@@ -46,9 +47,17 @@ export function getUnreachableSteps(
       continue;
     }
 
-    // Queue next steps
-    if (currentStep.next_step_id && !visited.has(currentStep.next_step_id)) {
-      queue.push(currentStep.next_step_id);
+    const currentStepIndex = vibe.workflow.steps.findIndex(
+      (step) => step.id === currentStep.id,
+    );
+    const nextStepId = getEffectiveNextStepId(
+      vibe.workflow.steps,
+      currentStepIndex,
+    );
+
+    // Queue next steps, including YAML-order fallthrough when next_step_id is omitted.
+    if (nextStepId && !visited.has(nextStepId)) {
+      queue.push(nextStepId);
     }
     if (currentStep.on_error_step_id && !visited.has(currentStep.on_error_step_id)) {
       queue.push(currentStep.on_error_step_id);

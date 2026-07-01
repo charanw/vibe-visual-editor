@@ -50,14 +50,27 @@ function getMainFlowNodeIds(graph: VibeGraph) {
     );
   }
 
+  // Flow View should always include the authored first step, even if a loop
+  // points back to it and gives it an incoming edge.
+  const authoredStartNodeId = graph.nodes.find(
+    (node) => !errorTargetIds.has(node.id),
+  )?.id;
+
   // Starting nodes have no incoming next edge and are not entered from an error edge.
-  const startingNodeIds = graph.nodes
+  const discoveredStartNodeIds = graph.nodes
     .filter((node) => {
       const hasIncomingNext = (incomingNextCountByNode.get(node.id) ?? 0) > 0;
 
       return !hasIncomingNext && !errorTargetIds.has(node.id);
     })
     .map((node) => node.id);
+  const startingNodeIds = Array.from(
+    new Set(
+      [authoredStartNodeId, ...discoveredStartNodeIds].filter(
+        (nodeId): nodeId is string => Boolean(nodeId),
+      ),
+    ),
+  );
 
   const mainFlowNodeIds = new Set<string>();
   const queue = [...startingNodeIds];
