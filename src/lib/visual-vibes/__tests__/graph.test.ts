@@ -161,7 +161,7 @@ test("visualVibeToGraph enriches handleConditional branches", () => {
 
   assert.equal(branch?.semantic?.kind, "conditional");
   assert.equal(branch?.semantic?.badge, "IF");
-  assert.deepEqual(branch?.semantic?.outputPreview, ["output"]);
+  assert.deepEqual(branch?.semantic?.outputPreview, []);
   assert.deepEqual(
     semanticEdges.map((edge) => ({
       target: edge.target,

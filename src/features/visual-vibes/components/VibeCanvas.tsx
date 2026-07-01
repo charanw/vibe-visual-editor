@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { createPortal } from "react-dom";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
@@ -124,15 +131,26 @@ export function VibeCanvas({
     viewport: canvasViewport,
     onViewportChange: onCanvasViewportChange,
   });
-  const { recenterCanvas } = viewport;
+  const viewportRef = useRef(viewport);
+  const graphLayoutKey = useMemo(
+    () =>
+      graph.nodes
+        .map((node) => `${node.id}:${Math.round(node.x)}:${Math.round(node.y)}`)
+        .join("|"),
+    [graph.nodes],
+  );
+
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
 
   useEffect(() => {
     const animationFrameId = window.requestAnimationFrame(() => {
-      recenterCanvas();
+      viewportRef.current.centerGraph();
     });
 
     return () => window.cancelAnimationFrame(animationFrameId);
-  }, [graph, recenterCanvas]);
+  }, [graphLayoutKey]);
 
   const canvasContent = (
     <div

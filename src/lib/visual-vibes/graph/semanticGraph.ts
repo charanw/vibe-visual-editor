@@ -135,37 +135,30 @@ function getStepPreviewSemantic(
 }
 
 function summarizeInput(input: Record<string, unknown>) {
-  const entries = Object.entries(input)
-    .filter(([key]) => key !== "steps" && key !== "condition")
-    .slice(0, 3);
-
-  return entries.map(([key, value]) => `${key}: ${summarizeValue(value)}`);
+  return getVariableBindings(input)
+    .filter(({ path }) => path !== "steps")
+    .slice(0, 3)
+    .map(({ path, references }) => `${path}: ${references.join(", ")}`);
 }
 
 function summarizeOutput(step: VisualVibe["workflow"]["steps"][number]) {
-  const outputType = step.input.output_type;
+  const variableNames = getStringArray(
+    step.input.variables ?? step.input.variables_to_extract,
+  );
 
-  if (step.function === "concludeWorkflow") {
-    return [`status: ${summarizeValue(step.input.status ?? "complete")}`];
+  if (variableNames.length > 0) {
+    return variableNames.slice(0, 3).map((variableName) => `output.${variableName}`);
   }
 
-  if (step.function === "sendResponse" || step.function === "promptUser") {
-    return ["response sent"];
+  if (typeof step.input.variable_name === "string") {
+    return [step.input.variable_name];
   }
 
-  if (step.function === "apiRequest") {
-    return ["api result"];
+  if (step.function === "loopFlow" && typeof step.input.item_variable === "string") {
+    return [`each: ${step.input.item_variable}`];
   }
 
-  if (step.function === "loopFlow") {
-    return ["per-item results"];
-  }
-
-  if (typeof outputType === "string") {
-    return [`output: ${outputType}`];
-  }
-
-  return ["output"];
+  return [];
 }
 
 function summarizeValue(value: unknown): string {
@@ -217,6 +210,73 @@ function getStringArray(value: unknown): string[] {
   }
 
   return value.filter((item): item is string => typeof item === "string");
+}
+
+type VariableBinding = {
+  path: string;
+  references: string[];
+};
+
+const VARIABLE_REFERENCE_REGEX = /\$\{([^}]+)\}|\{\{([^}]+)\}\}/g;
+
+function getVariableBindings(input: Record<string, unknown>): VariableBinding[] {
+  const bindings: VariableBinding[] = [];
+
+  collectVariableBindings(input, "", bindings);
+
+  return bindings;
+}
+
+function collectVariableBindings(
+  value: unknown,
+  path: string,
+  bindings: VariableBinding[],
+) {
+  if (typeof value === "string") {
+    const references = getVariableReferences(value);
+
+    if (references.length > 0) {
+      bindings.push({
+        path: path || "input",
+        references,
+      });
+    }
+
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      collectVariableBindings(item, path ? `${path}.${index}` : String(index), bindings);
+    });
+    return;
+  }
+
+  const record = getRecord(value);
+
+  if (!record) {
+    return;
+  }
+
+  for (const [key, childValue] of Object.entries(record)) {
+    collectVariableBindings(childValue, path ? `${path}.${key}` : key, bindings);
+  }
+}
+
+function getVariableReferences(value: string): string[] {
+  return Array.from(value.matchAll(VARIABLE_REFERENCE_REGEX), (match) =>
+    summarizeVariableReference(match[1] ?? match[2] ?? ""),
+  ).filter((reference, index, references) => references.indexOf(reference) === index);
+}
+
+function summarizeVariableReference(reference: string): string {
+  const trimmedReference = reference.trim();
+
+  if (trimmedReference.length <= 34) {
+    return trimmedReference;
+  }
+
+  return `${trimmedReference.slice(0, 31)}...`;
 }
 
 function addParallelLaneMetadata(graph: VibeGraph): VibeGraph {

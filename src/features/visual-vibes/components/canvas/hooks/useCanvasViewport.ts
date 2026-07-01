@@ -3,9 +3,10 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type Dispatch,
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type SetStateAction,
   type WheelEvent as ReactWheelEvent,
 } from "react";
@@ -29,6 +30,7 @@ type PanStart = {
   clientY: number;
   panX: number;
   panY: number;
+  pointerId: number;
 } | null;
 
 type UseCanvasViewportOptions = {
@@ -48,6 +50,9 @@ export function useCanvasViewport({
   onViewportChange,
 }: UseCanvasViewportOptions) {
   const [panStart, setPanStart] = useState<PanStart>(null);
+  const panStartRef = useRef<PanStart>(null);
+  const pendingPanRef = useRef<CanvasViewportState["pan"] | null>(null);
+  const panAnimationFrameRef = useRef<number | null>(null);
   const { zoom, pan } = viewport;
 
   const setZoom = useCallback(
@@ -162,6 +167,31 @@ export function useCanvasViewport({
     setPan({ x: 0, y: 0 });
   }
 
+  const flushPendingPan = useCallback(() => {
+    panAnimationFrameRef.current = null;
+
+    if (!pendingPanRef.current) {
+      return;
+    }
+
+    setPan(pendingPanRef.current);
+    pendingPanRef.current = null;
+  }, [setPan]);
+
+  const schedulePan = useCallback(
+    (nextPan: CanvasViewportState["pan"]) => {
+      pendingPanRef.current = nextPan;
+
+      if (panAnimationFrameRef.current !== null) {
+        return;
+      }
+
+      panAnimationFrameRef.current =
+        window.requestAnimationFrame(flushPendingPan);
+    },
+    [flushPendingPan],
+  );
+
   function handleWheelZoom(event: ReactWheelEvent<SVGSVGElement>) {
     event.preventDefault();
 
@@ -202,32 +232,66 @@ export function useCanvasViewport({
     centerGraph();
   }, [centerGraph, centerNode, graph.nodes, selectedStepId, setPan]);
 
-  function startPanning(event: ReactMouseEvent<SVGRectElement>) {
-    setPanStart({
+  function startPanning(event: ReactPointerEvent<SVGRectElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const nextPanStart = {
       clientX: event.clientX,
       clientY: event.clientY,
       panX: pan.x,
       panY: pan.y,
-    });
+      pointerId: event.pointerId,
+    };
+
+    panStartRef.current = nextPanStart;
+    setPanStart(nextPanStart);
   }
 
-  function continuePanning(event: ReactMouseEvent<SVGSVGElement>) {
-    if (!panStart) {
+  function continuePanning(event: ReactPointerEvent<SVGSVGElement>) {
+    const activePanStart = panStartRef.current;
+
+    if (!activePanStart || activePanStart.pointerId !== event.pointerId) {
       return;
     }
 
-    const deltaX = (event.clientX - panStart.clientX) / zoom;
-    const deltaY = (event.clientY - panStart.clientY) / zoom;
+    const deltaX = (event.clientX - activePanStart.clientX) / zoom;
+    const deltaY = (event.clientY - activePanStart.clientY) / zoom;
 
-    setPan({
-      x: panStart.panX + deltaX,
-      y: panStart.panY + deltaY,
+    schedulePan({
+      x: activePanStart.panX + deltaX,
+      y: activePanStart.panY + deltaY,
     });
   }
 
-  function stopPanning() {
+  function stopPanning(event?: ReactPointerEvent<SVGSVGElement | SVGRectElement>) {
+    if (
+      event &&
+      event.currentTarget.hasPointerCapture?.(event.pointerId)
+    ) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (panAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(panAnimationFrameRef.current);
+      panAnimationFrameRef.current = null;
+    }
+
+    if (pendingPanRef.current) {
+      setPan(pendingPanRef.current);
+      pendingPanRef.current = null;
+    }
+
+    panStartRef.current = null;
     setPanStart(null);
   }
+
+  useEffect(() => {
+    return () => {
+      if (panAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(panAnimationFrameRef.current);
+      }
+    };
+  }, []);
 
   return {
     zoom,
@@ -240,6 +304,7 @@ export function useCanvasViewport({
     resetZoom,
     resetZoomAndPan,
     recenterCanvas,
+    centerGraph,
     handleWheelZoom,
     startPanning,
     continuePanning,

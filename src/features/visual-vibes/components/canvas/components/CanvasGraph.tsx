@@ -1,7 +1,7 @@
 "use client";
 
 import type {
-  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from "react";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
@@ -30,9 +30,9 @@ type CanvasGraphProps = {
   connectingFromStepId: string | null;
   onHoverEdge: (edgeId: string | null) => void;
   onHoverNode: (nodeId: string | null) => void;
-  onStartPanning: (event: ReactMouseEvent<SVGRectElement>) => void;
-  onContinuePanning: (event: ReactMouseEvent<SVGSVGElement>) => void;
-  onStopPanning: () => void;
+  onStartPanning: (event: ReactPointerEvent<SVGRectElement>) => void;
+  onContinuePanning: (event: ReactPointerEvent<SVGSVGElement>) => void;
+  onStopPanning: (event?: ReactPointerEvent<SVGSVGElement | SVGRectElement>) => void;
   onWheelZoom: (event: ReactWheelEvent<SVGSVGElement>) => void;
   onSelectStep: (stepId: string) => void;
   onDeleteStep: (stepId: string) => void;
@@ -86,9 +86,9 @@ export function CanvasGraph({
         isPanning ? "cursor-grabbing" : "cursor-grab"
       }`}
       onWheel={onWheelZoom}
-      onMouseMove={onContinuePanning}
-      onMouseUp={onStopPanning}
-      onMouseLeave={onStopPanning}
+      onPointerMove={onContinuePanning}
+      onPointerUp={onStopPanning}
+      onPointerCancel={onStopPanning}
     >
       <CanvasSvgDefs />
 
@@ -98,7 +98,7 @@ export function CanvasGraph({
         width={Math.max(worldWidth + 4000, 6000)}
         height={Math.max(worldHeight + 4000, 6000)}
         fill="transparent"
-        onMouseDown={onStartPanning}
+        onPointerDown={onStartPanning}
       />
 
       <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
