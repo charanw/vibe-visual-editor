@@ -8,6 +8,10 @@ export type VibeGraphNode = {
     kind?: "conditional" | "loop" | "subworkflow" | "terminal";
     badge?: "IF" | "LOOP" | "FLOW" | "END";
     conditionExpression?: string;
+    inputPreview?: string[];
+    outputPreview?: string[];
+    loopItemsPreview?: string;
+    loopStepIds?: string[];
     parallelLaneIndex?: number;
     parallelLaneLabel?: string;
     isParallelLaneStart?: boolean;

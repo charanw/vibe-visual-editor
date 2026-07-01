@@ -51,6 +51,11 @@ export function CanvasNode({
   onPrependStepBefore,
 }: CanvasNodeProps) {
   const statusBadgeX = node.semantic?.badge ? NODE_WIDTH - 82 : NODE_WIDTH - 30;
+  const inputPreview = node.semantic?.inputPreview ?? [];
+  const outputPreview = node.semantic?.outputPreview ?? [];
+  const loopStepIds = node.semantic?.loopStepIds ?? [];
+  const hoverHeight =
+    node.semantic?.kind === "loop" ? NODE_HEIGHT + 142 : NODE_HEIGHT + 82;
 
   return (
     <g
@@ -66,7 +71,7 @@ export function CanvasNode({
         x="-34"
         y="-14"
         width={NODE_WIDTH + 68}
-        height={NODE_HEIGHT + 82}
+        height={hoverHeight}
         rx="24"
         fill="transparent"
       />
@@ -195,7 +200,7 @@ export function CanvasNode({
 
       <text
         x="18"
-        y={node.semantic?.kind === "conditional" ? "78" : "84"}
+        y={node.semantic?.kind === "conditional" ? "76" : "78"}
         fill="var(--text-muted)"
         fontSize="12"
         pointerEvents="none"
@@ -211,6 +216,173 @@ export function CanvasNode({
           onUpdateCondition={onUpdateCondition}
         />
       )}
+
+      <PreviewSection
+        x={18}
+        y={node.semantic?.kind === "conditional" ? 88 : 88}
+        label="IN"
+        items={inputPreview}
+        accent="var(--brand-primary)"
+      />
+
+      <PreviewSection
+        x={118}
+        y={88}
+        label="OUT"
+        items={outputPreview}
+        accent="#22c55e"
+      />
+
+      {node.semantic?.kind === "loop" && (
+        <LoopSubnodes
+          loopItemsPreview={node.semantic.loopItemsPreview}
+          loopStepIds={loopStepIds}
+        />
+      )}
+    </g>
+  );
+}
+
+function PreviewSection({
+  x,
+  y,
+  label,
+  items,
+  accent,
+}: {
+  x: number;
+  y: number;
+  label: string;
+  items: string[];
+  accent: string;
+}) {
+  const visibleItems = items.slice(0, 2);
+
+  if (visibleItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <g pointerEvents="none">
+      <text
+        x={x}
+        y={y}
+        fill={accent}
+        fontSize="8"
+        fontWeight="800"
+        letterSpacing="1.1"
+      >
+        {label}
+      </text>
+      {visibleItems.map((item, index) => (
+        <text
+          key={`${label}-${item}-${index}`}
+          x={x}
+          y={y + 12 + index * 10}
+          fill="var(--text-muted)"
+          fontSize="8.5"
+        >
+          {item}
+        </text>
+      ))}
+    </g>
+  );
+}
+
+function LoopSubnodes({
+  loopItemsPreview,
+  loopStepIds,
+}: {
+  loopItemsPreview?: string;
+  loopStepIds: string[];
+}) {
+  if (loopStepIds.length === 0) {
+    return null;
+  }
+
+  const visibleStepIds = loopStepIds.slice(0, 3);
+  const startX = 16;
+  const startY = NODE_HEIGHT + 42;
+  const cardWidth = 104;
+  const cardHeight = 40;
+  const gap = 12;
+  const returnY = startY + cardHeight + 22;
+  const returnStartX = startX + (visibleStepIds.length - 1) * (cardWidth + gap) + cardWidth;
+
+  return (
+    <g pointerEvents="none">
+      <text
+        x={startX}
+        y={NODE_HEIGHT + 24}
+        fill="var(--brand-primary)"
+        fontSize="9"
+        fontWeight="800"
+        letterSpacing="1.2"
+      >
+        LOOP ITEMS {loopItemsPreview ? `· ${loopItemsPreview}` : ""}
+      </text>
+
+      {visibleStepIds.map((stepId, index) => {
+        const x = startX + index * (cardWidth + gap);
+
+        return (
+          <g key={stepId} transform={`translate(${x}, ${startY})`}>
+            <rect
+              width={cardWidth}
+              height={cardHeight}
+              rx="10"
+              fill="rgba(14, 165, 233, 0.08)"
+              stroke="var(--brand-primary)"
+              strokeWidth="1.4"
+              strokeDasharray="4 4"
+            />
+            <text
+              x="10"
+              y="17"
+              fill="var(--brand-primary)"
+              fontSize="8"
+              fontWeight="800"
+              letterSpacing="1"
+            >
+              EACH
+            </text>
+            <text
+              x="10"
+              y="31"
+              fill="var(--text-primary)"
+              fontSize="10"
+              fontWeight="700"
+            >
+              {stepId}
+            </text>
+          </g>
+        );
+      })}
+
+      {visibleStepIds.length > 1 && (
+        <path
+          d={`M ${startX + cardWidth} ${startY + cardHeight / 2} H ${returnStartX - cardWidth - gap}`}
+          fill="none"
+          stroke="var(--brand-primary)"
+          strokeWidth="1.4"
+          strokeDasharray="4 4"
+        />
+      )}
+
+      <path
+        d={`M ${returnStartX} ${startY + cardHeight / 2} V ${returnY} H ${startX - 8} V ${startY + cardHeight / 2}`}
+        fill="none"
+        stroke="var(--brand-primary)"
+        strokeWidth="1.4"
+        strokeDasharray="4 4"
+      />
+      <path
+        d={`M ${startX - 8} ${startY + cardHeight / 2} l5 -5 m-5 5 l5 5`}
+        fill="none"
+        stroke="var(--brand-primary)"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
     </g>
   );
 }

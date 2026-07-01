@@ -11,10 +11,13 @@ export function enrichSemanticGraph(
   const stepById = new Map(steps.map((step) => [step.id, step]));
   const nodes = graph.nodes.map((node) => ({
     ...node,
-    semantic: getNodeSemanticKind(
-      node.functionName,
-      getConditionExpression(stepById.get(node.id)?.input.condition),
-    ),
+    semantic: {
+      ...getNodeSemanticKind(
+        node.functionName,
+        getConditionExpression(stepById.get(node.id)?.input.condition),
+      ),
+      ...getStepPreviewSemantic(stepById.get(node.id)),
+    },
   }));
   const edges = graph.edges.map((edge) => ({ ...edge }));
   const edgeByPair = new Map<string, VibeGraphEdge>();
@@ -110,6 +113,83 @@ function getNodeSemanticKind(
   }
 
   return undefined;
+}
+
+function getStepPreviewSemantic(
+  step: VisualVibe["workflow"]["steps"][number] | undefined,
+): VibeGraphNode["semantic"] {
+  if (!step) {
+    return undefined;
+  }
+
+  return {
+    inputPreview: summarizeInput(step.input),
+    outputPreview: summarizeOutput(step),
+    ...(step.function === "loopFlow"
+      ? {
+          loopItemsPreview: summarizeValue(step.input.items),
+          loopStepIds: getStringArray(step.input.steps),
+        }
+      : {}),
+  };
+}
+
+function summarizeInput(input: Record<string, unknown>) {
+  const entries = Object.entries(input)
+    .filter(([key]) => key !== "steps" && key !== "condition")
+    .slice(0, 3);
+
+  return entries.map(([key, value]) => `${key}: ${summarizeValue(value)}`);
+}
+
+function summarizeOutput(step: VisualVibe["workflow"]["steps"][number]) {
+  const outputType = step.input.output_type;
+
+  if (step.function === "concludeWorkflow") {
+    return [`status: ${summarizeValue(step.input.status ?? "complete")}`];
+  }
+
+  if (step.function === "sendResponse" || step.function === "promptUser") {
+    return ["response sent"];
+  }
+
+  if (step.function === "apiRequest") {
+    return ["api result"];
+  }
+
+  if (step.function === "loopFlow") {
+    return ["per-item results"];
+  }
+
+  if (typeof outputType === "string") {
+    return [`output: ${outputType}`];
+  }
+
+  return ["output"];
+}
+
+function summarizeValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value.length > 36 ? `${value.slice(0, 33)}...` : value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.length} item${value.length === 1 ? "" : "s"}]`;
+  }
+
+  if (value && typeof value === "object") {
+    return "{...}";
+  }
+
+  if (value === null) {
+    return "null";
+  }
+
+  return "unset";
 }
 
 function getConditionExpression(condition: unknown) {

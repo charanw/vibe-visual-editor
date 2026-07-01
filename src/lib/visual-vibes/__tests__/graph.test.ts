@@ -159,10 +159,9 @@ test("visualVibeToGraph enriches handleConditional branches", () => {
     (edge) => edge.source === "branch" && edge.semantic?.label,
   );
 
-  assert.deepEqual(branch?.semantic, {
-    kind: "conditional",
-    badge: "IF",
-  });
+  assert.equal(branch?.semantic?.kind, "conditional");
+  assert.equal(branch?.semantic?.badge, "IF");
+  assert.deepEqual(branch?.semantic?.outputPreview, ["output"]);
   assert.deepEqual(
     semanticEdges.map((edge) => ({
       target: edge.target,
@@ -201,6 +200,8 @@ test("visualVibeToGraph enriches loop edges without duplicating next edges", () 
   );
 
   assert.equal(loop?.semantic?.badge, "LOOP");
+  assert.equal(loop?.semantic?.loopItemsPreview, "${steps.load.output}");
+  assert.deepEqual(loop?.semantic?.loopStepIds, ["process_item"]);
   assert.equal(eachEdge?.type, "semantic");
   assert.equal(eachEdge?.semantic?.label, "each");
   assert.equal(doneEdge?.type, "next");
