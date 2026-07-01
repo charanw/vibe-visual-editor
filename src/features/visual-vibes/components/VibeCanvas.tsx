@@ -6,7 +6,6 @@ import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes"
 import type { VisualVibe } from "@/lib/visual-vibes/schema";
 import type {
   AddEdgeOptions,
-  CanvasLayoutDirection,
   CanvasViewMode,
   CenterRequest,
   EdgeOperationOptions,
@@ -34,7 +33,6 @@ type VibeCanvasProps = {
   selectedStepId: string | null;
   centerRequest: CenterRequest;
   viewMode: CanvasViewMode;
-  layoutDirection: CanvasLayoutDirection;
   isEditing: boolean;
   canUndoYaml: boolean;
   canRedoYaml: boolean;
@@ -44,7 +42,6 @@ type VibeCanvasProps = {
   onUndoYaml: () => void;
   onRedoYaml: () => void;
   onChangeViewMode: (viewMode: CanvasViewMode) => void;
-  onChangeLayoutDirection: (direction: CanvasLayoutDirection) => void;
   onStartEditing: () => void;
   onSaveEditing: () => void;
   onCancelEditing: () => void;
@@ -77,7 +74,6 @@ export function VibeCanvas({
   selectedStepId,
   centerRequest,
   viewMode,
-  layoutDirection,
   isEditing,
   canUndoYaml,
   canRedoYaml,
@@ -87,7 +83,6 @@ export function VibeCanvas({
   onUndoYaml,
   onRedoYaml,
   onChangeViewMode,
-  onChangeLayoutDirection,
   onStartEditing,
   onSaveEditing,
   onCancelEditing,
@@ -137,7 +132,7 @@ export function VibeCanvas({
     });
 
     return () => window.cancelAnimationFrame(animationFrameId);
-  }, [layoutDirection, recenterCanvas]);
+  }, [graph, recenterCanvas]);
 
   const canvasContent = (
     <div
@@ -174,7 +169,6 @@ export function VibeCanvas({
           <CanvasControls
             selectedStepId={selectedStepId}
             viewMode={viewMode}
-            layoutDirection={layoutDirection}
             nodeCount={graph.nodes.length}
             isEditing={isEditing}
             canUndoYaml={canUndoYaml}
@@ -184,7 +178,6 @@ export function VibeCanvas({
             onUndoYaml={onUndoYaml}
             onRedoYaml={onRedoYaml}
             onChangeViewMode={onChangeViewMode}
-            onChangeLayoutDirection={onChangeLayoutDirection}
             onAddStandaloneStep={onAddStandaloneStep}
             onStartEditing={onStartEditing}
             onSaveEditing={onSaveEditing}

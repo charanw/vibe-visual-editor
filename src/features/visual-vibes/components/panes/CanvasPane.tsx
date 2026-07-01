@@ -9,7 +9,6 @@ import type {
   AddEdgeOptions,
   AddStepPlacement,
   AddStepWizardSelection,
-  CanvasLayoutDirection,
   CanvasViewMode,
   CenterRequest,
   EdgeOperationOptions,
@@ -29,7 +28,6 @@ interface CanvasPaneProps {
   selectedStepId: string | null;
   centerRequest: CenterRequest;
   canvasViewMode: CanvasViewMode;
-  layoutDirection: CanvasLayoutDirection;
   isCanvasEditing: boolean;
   canUndoYaml: boolean;
   canRedoYaml: boolean;
@@ -39,7 +37,6 @@ interface CanvasPaneProps {
   onUndoYaml: () => void;
   onRedoYaml: () => void;
   onChangeViewMode: (mode: CanvasViewMode) => void;
-  onChangeLayoutDirection: (direction: CanvasLayoutDirection) => void;
   onStartEditing: () => void;
   onSaveEditing: () => void;
   onCancelEditing: () => void;
@@ -75,7 +72,6 @@ export function CanvasPane({
   selectedStepId,
   centerRequest,
   canvasViewMode,
-  layoutDirection,
   isCanvasEditing,
   canUndoYaml,
   canRedoYaml,
@@ -85,7 +81,6 @@ export function CanvasPane({
   onUndoYaml,
   onRedoYaml,
   onChangeViewMode,
-  onChangeLayoutDirection,
   onStartEditing,
   onSaveEditing,
   onCancelEditing,
@@ -114,7 +109,6 @@ export function CanvasPane({
           selectedStepId={selectedStepId}
           centerRequest={centerRequest}
           viewMode={canvasViewMode}
-          layoutDirection={layoutDirection}
           isEditing={isCanvasEditing}
           canUndoYaml={canUndoYaml}
           canRedoYaml={canRedoYaml}
@@ -124,7 +118,6 @@ export function CanvasPane({
           onUndoYaml={onUndoYaml}
           onRedoYaml={onRedoYaml}
           onChangeViewMode={onChangeViewMode}
-          onChangeLayoutDirection={onChangeLayoutDirection}
           onStartEditing={onStartEditing}
           onSaveEditing={onSaveEditing}
           onCancelEditing={onCancelEditing}

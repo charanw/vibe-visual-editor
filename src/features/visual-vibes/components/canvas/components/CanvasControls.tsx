@@ -1,13 +1,12 @@
 import { CancelIcon, LockIcon, PlusIcon, SaveIcon } from "./CanvasIcons";
 import { HistoryMenu } from "./HistoryMenu";
 import { LegendItem } from "./CanvasLegend";
-import type { CanvasLayoutDirection, CanvasViewMode } from "../../../types";
+import type { CanvasViewMode } from "../../../types";
 import type { HistoryDisplayItem } from "../../../state/editorHistory";
 
 type CanvasControlsProps = {
   selectedStepId: string | null;
   viewMode: CanvasViewMode;
-  layoutDirection: CanvasLayoutDirection;
   nodeCount: number;
   isEditing: boolean;
   canUndoYaml: boolean;
@@ -17,7 +16,6 @@ type CanvasControlsProps = {
   onUndoYaml: () => void;
   onRedoYaml: () => void;
   onChangeViewMode: (viewMode: CanvasViewMode) => void;
-  onChangeLayoutDirection: (direction: CanvasLayoutDirection) => void;
   onAddStandaloneStep: () => void;
   onStartEditing: () => void;
   onSaveEditing: () => void;
@@ -33,7 +31,6 @@ type CanvasControlsProps = {
 export function CanvasControls({
   selectedStepId,
   viewMode,
-  layoutDirection,
   nodeCount,
   isEditing,
   canUndoYaml,
@@ -43,7 +40,6 @@ export function CanvasControls({
   onUndoYaml,
   onRedoYaml,
   onChangeViewMode,
-  onChangeLayoutDirection,
   onAddStandaloneStep,
   onStartEditing,
   onSaveEditing,
@@ -132,32 +128,6 @@ export function CanvasControls({
               }`}
             >
               Error View
-            </button>
-          </div>
-
-          <div className="flex overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)]">
-            <button
-              type="button"
-              onClick={() => onChangeLayoutDirection("LR")}
-              className={`px-3 py-2 text-xs font-semibold ${
-                layoutDirection === "LR"
-                  ? "bg-[var(--brand-primary)] text-white"
-                  : "text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
-              }`}
-            >
-              Left to right
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onChangeLayoutDirection("TB")}
-              className={`border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold ${
-                layoutDirection === "TB"
-                  ? "bg-[var(--brand-primary)] text-white"
-                  : "text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
-              }`}
-            >
-              Top to bottom
             </button>
           </div>
 

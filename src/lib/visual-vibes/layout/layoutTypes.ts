@@ -17,11 +17,13 @@ export type PositionedVibeEdge = {
   source: string;
   target: string;
   type: VibeGraphEdge["type"];
+  inferred?: VibeGraphEdge["inferred"];
   semantic?: VibeGraphEdge["semantic"];
   sourceX: number;
   sourceY: number;
   targetX: number;
   targetY: number;
+  bendPoints?: Array<{ x: number; y: number }>;
 };
 
 /** Subtle swimlane region rendered behind a parallel path. */
@@ -44,7 +46,7 @@ export type PositionedVibeGraph = {
 /** Layout strategy selected by the canvas view mode. */
 export type VibeGraphLayoutMode = "flow" | "errors";
 
-/** Direction selected by the canvas layout control. */
+/** Internal flow direction used by the ELK layout adapter. */
 export type VibeGraphLayoutDirection = "LR" | "TB";
 
 /** Shared node width used by layout and SVG rendering. */

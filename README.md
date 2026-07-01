@@ -63,9 +63,16 @@ workflow:
 
 ### Flow View
 
-Flow View shows the main execution path of the Vibe.
+Flow View shows the main execution path of the Vibe. Explicit
+`next_step_id` values define authored routing; when a step omits
+`next_step_id`, the visualizer treats the next step in YAML order as the
+effective next step.
 
-It uses a serpentine layout so larger Vibes can remain readable on one page:
+The custom SVG canvas uses ELK Layered (`elkjs`) to compute workflow geometry.
+Visual Vibes keeps the YAML-derived graph as the source of truth, then asks ELK
+for node positions and routed edge bend points without using React Flow. Desktop
+canvases default to horizontal flow, while mobile canvases default to vertical
+flow:
 
 ```txt
 1  ->  2  ->  3  ->  4  ->  5
@@ -77,9 +84,10 @@ It uses a serpentine layout so larger Vibes can remain readable on one page:
 
 ### Error View
 
-Error View shows error paths as vertical chains.
+Error View shows error paths as readable chains.
 
-Each error path is organized into its own column, making it easier to see:
+Each error path is grouped with its source and recovery steps, making it easier
+to see:
 
 - Which step has an error path
 - Where the error path goes
@@ -242,8 +250,12 @@ src/
       graphTypes.ts              Graph type definitions
 
     layout/
-      layoutGraph.ts             Graph-to-canvas layout algorithm
+      layoutGraph.ts             ELK Layered graph-to-canvas layout adapter
       layoutTypes.ts             Layout type definitions
+
+    routing/
+      effectiveRouting.ts        Resolve explicit and YAML-order next steps
+      index.ts                   Routing barrel export
 
     mutations/
       addStep.ts                 Add new workflow step
@@ -291,7 +303,8 @@ src/
 **Key Modules:**
 
 - **Graph Layer** — Converts Vibe YAML structure into graph nodes/edges for visualization
-- **Layout Layer** — Computes canvas positions for nodes using serpentine layout algorithm
+- **Routing Layer** — Resolves effective execution order from explicit routing and YAML-order fallthrough
+- **Layout Layer** — Uses ELK Layered to compute node positions and routed edges for the custom SVG canvas
 - **Mutations Layer** — Pure functions to safely modify Vibes (add/remove/reorder/edit steps)
 - **Parser Layer** — Bidirectional YAML ↔ typed objects with validation
 - **Canvas Layer** — SVG-based interactive visualization with zoom, pan, and node selection

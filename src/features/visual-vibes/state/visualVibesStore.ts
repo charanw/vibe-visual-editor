@@ -6,11 +6,14 @@ import {
   type SetStateAction,
 } from "react";
 import type {
-  CanvasLayoutDirection,
   CanvasViewMode,
   CenterRequest,
 } from "../types";
 import { layoutVibeGraph } from "@/lib/visual-vibes/layout/layoutGraph";
+import type {
+  PositionedVibeGraph,
+  VibeGraphLayoutDirection,
+} from "@/lib/visual-vibes/layout/layoutTypes";
 import type { VibeGraph } from "@/lib/visual-vibes/graph/graphTypes";
 import { getErrorGraph, getFlowGraph } from "../components/editor/editorGraphFilters";
 import { calculateGridTemplateColumns } from "../utils";
@@ -56,8 +59,6 @@ export function useVisualVibesStore() {
   const [activePanel, setActivePanel] = useState<ActivePanel>("canvas");
   const [canvasViewMode, setCanvasViewMode] =
     useState<CanvasViewMode>("flow");
-  const [layoutDirection, setLayoutDirection] =
-    useState<CanvasLayoutDirection>("LR");
   const [centerRequest, setCenterRequest] = useState<CenterRequest>(null);
   const [canvasViewport, setCanvasViewport] = useState<CanvasViewportState>({
     zoom: 1,
@@ -114,7 +115,7 @@ export function useVisualVibesStore() {
   const graphLayout = useGraphLayoutState(
     parsedResult.graph,
     canvasViewMode,
-    layoutDirection,
+    isDesktopLayout,
   );
 
   const gridTemplateColumns = calculateGridTemplateColumns(
@@ -159,8 +160,6 @@ export function useVisualVibesStore() {
     setActivePanel,
     canvasViewMode,
     setCanvasViewMode,
-    layoutDirection,
-    setLayoutDirection,
     centerRequest,
     setCenterRequest,
     canvasViewport,
@@ -204,8 +203,6 @@ export function useVisualVibesStore() {
       ...graphLayout,
       canvasViewMode,
       setCanvasViewMode,
-      layoutDirection,
-      setLayoutDirection,
       centerRequest,
       setCenterRequest,
     },
@@ -224,8 +221,12 @@ export function useVisualVibesStore() {
 function useGraphLayoutState(
   displayGraph: VibeGraph | null,
   canvasViewMode: CanvasViewMode,
-  layoutDirection: CanvasLayoutDirection,
+  isDesktopLayout: boolean,
 ) {
+  const [positionedDisplayGraph, setPositionedDisplayGraph] =
+    useState<PositionedVibeGraph>({ nodes: [], edges: [] });
+  const [positionedGraph, setPositionedGraph] =
+    useState<PositionedVibeGraph>({ nodes: [], edges: [] });
   const visibleGraph = useMemo(() => {
     if (!displayGraph) {
       return null;
@@ -237,24 +238,55 @@ function useGraphLayoutState(
 
     return getFlowGraph(displayGraph);
   }, [displayGraph, canvasViewMode]);
+  const layoutDirection: VibeGraphLayoutDirection = isDesktopLayout ? "LR" : "TB";
 
-  const positionedDisplayGraph = useMemo(() => {
-    if (!displayGraph) {
-      return { nodes: [], edges: [] };
-    }
+  useEffect(() => {
+    let isStale = false;
+    const layoutPromise = displayGraph
+      ? layoutVibeGraph(displayGraph, { direction: layoutDirection })
+      : Promise.resolve({ nodes: [], edges: [] } satisfies PositionedVibeGraph);
 
-    return layoutVibeGraph(displayGraph, { direction: layoutDirection });
+    layoutPromise
+      .then((nextGraph) => {
+        if (!isStale) {
+          setPositionedDisplayGraph(nextGraph);
+        }
+      })
+      .catch(() => {
+        if (!isStale) {
+          setPositionedDisplayGraph({ nodes: [], edges: [] });
+        }
+      });
+
+    return () => {
+      isStale = true;
+    };
   }, [displayGraph, layoutDirection]);
 
-  const positionedGraph = useMemo(() => {
-    if (!visibleGraph) {
-      return { nodes: [], edges: [] };
-    }
+  useEffect(() => {
+    let isStale = false;
+    const layoutPromise = visibleGraph
+      ? layoutVibeGraph(visibleGraph, {
+          mode: canvasViewMode,
+          direction: layoutDirection,
+        })
+      : Promise.resolve({ nodes: [], edges: [] } satisfies PositionedVibeGraph);
 
-    return layoutVibeGraph(visibleGraph, {
-      mode: canvasViewMode,
-      direction: layoutDirection,
-    });
+    layoutPromise
+      .then((nextGraph) => {
+        if (!isStale) {
+          setPositionedGraph(nextGraph);
+        }
+      })
+      .catch(() => {
+        if (!isStale) {
+          setPositionedGraph({ nodes: [], edges: [] });
+        }
+      });
+
+    return () => {
+      isStale = true;
+    };
   }, [visibleGraph, canvasViewMode, layoutDirection]);
 
   return {

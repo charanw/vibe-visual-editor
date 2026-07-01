@@ -12,9 +12,6 @@ export type MetadataField = "id" | "name" | "description";
 /** Canvas graph mode selected by the user. */
 export type CanvasViewMode = "flow" | "errors";
 
-/** Canvas layout direction selected by the user. */
-export type CanvasLayoutDirection = "LR" | "TB";
-
 /** Edge categories understood by the canvas and YAML mutation helpers. */
 export type VibeEdgeType = "data" | "next" | "error";
 
