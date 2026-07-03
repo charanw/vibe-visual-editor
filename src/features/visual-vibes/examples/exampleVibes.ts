@@ -15,28 +15,48 @@ export const exampleVibes: ExampleVibe[] = [
     yaml: `workflow:
   id: customer-intake-starter
   name: Customer Intake
-  description: Customer request intake with branching, loops, workflow invocation, and error handling.
+  description: |
+    Captures customer service requests, extracts required intake details,
+    routes incomplete requests for follow-up, scores preferred appointment
+    windows, and starts a booking recommendation workflow.
   steps:
     - id: normalize_intake
       function: aiExtractVariables
       next_step_id: intake_quality_gate
       on_error_step_id: intake_failed
       input:
-        text: \${uniqueData.message}
-        output_type: json
-        variables:
-          - customer_name
-          - email
-          - service_address
-          - issue_summary
-          - preferred_times
+        text: "\${conversationContext}"
+        variables_to_extract:
+          - name: customer_name
+            description: Full name of the customer requesting service.
+            validation:
+              required: true
+          - name: email
+            description: Customer email address for follow-up.
+            validation:
+              required: true
+          - name: service_address
+            description: Address where service is needed.
+            validation:
+              required: true
+          - name: issue_summary
+            description: Short summary of the service issue.
+            validation:
+              required: true
+          - name: preferred_times
+            description: Appointment windows the customer prefers.
+            validation:
+              required: false
 
     - id: intake_quality_gate
       function: handleConditional
       on_error_step_id: intake_failed
       input:
         condition:
-          expression: \${steps.normalize_intake.output.service_address != null}
+          type: if
+          condition:
+            operator: exists
+            left: "\${steps.normalize_intake.output.service_address}"
           then: create_customer_record
           else: request_missing_information
 
@@ -52,38 +72,40 @@ export const exampleVibes: ExampleVibe[] = [
       next_step_id: process_preferred_times
       on_error_step_id: intake_failed
       input:
-        endpoint: https://api.example.com/customers
+        endpoint: "https://api.example.com/customers"
         method: POST
         body:
-          name: \${steps.normalize_intake.output.customer_name}
-          address: \${steps.normalize_intake.output.service_address}
+          type: json
+          content:
+            name: "\${steps.normalize_intake.output.customer_name}"
+            email: "\${steps.normalize_intake.output.email}"
+            address: "\${steps.normalize_intake.output.service_address}"
+            issue_summary: "\${steps.normalize_intake.output.issue_summary}"
 
     - id: process_preferred_times
       function: loopFlow
       next_step_id: start_booking_workflow
       on_error_step_id: intake_failed
       input:
-        items: \${steps.normalize_intake.output.preferred_times}
-        item_variable: preferredTime
+        iterable: "\${steps.normalize_intake.output.preferred_times}"
         steps:
-          - score_time_window
-          - save_time_window
+          - id: score_time_window
+            function: aiProcessing
+            next_step_id: save_time_window
+            input:
+              output_type: json
+              prompt: "Score this appointment window for dispatch fit: \${currentElement}"
 
-    - id: score_time_window
-      function: aiProcessing
-      next_step_id: save_time_window
-      input:
-        output_type: json
-        prompt: "Score this appointment window for dispatch fit: \${preferredTime}"
-
-    - id: save_time_window
-      function: apiRequest
-      input:
-        endpoint: https://api.example.com/availability
-        method: POST
-        body:
-          window: \${preferredTime}
-          score: \${steps.score_time_window.output.score}
+          - id: save_time_window
+            function: apiRequest
+            input:
+              endpoint: "https://api.example.com/availability"
+              method: POST
+              body:
+                type: json
+                content:
+                  window: "\${currentElement}"
+                  score: "\${currentElementSteps.score_time_window.output.score}"
 
     - id: start_booking_workflow
       function: invokeWorkflow
@@ -92,26 +114,22 @@ export const exampleVibes: ExampleVibe[] = [
       input:
         workflow_id: booking-recommendation
         payload:
-          customer_id: \${steps.create_customer_record.output.customer_id}
+          customer_id: "\${steps.create_customer_record.output.customer_id}"
 
     - id: send_confirmation
       function: sendResponse
       next_step_id: intake_done
       input:
-        type: dynamic
-        channel: \${uniqueData.source}
+        type: fixed
         message: We have your request and are reviewing appointment options.
 
     - id: intake_done
       function: concludeWorkflow
-      input:
-        status: completed
+      input: {}
 
     - id: intake_failed
       function: concludeWorkflow
-      input:
-        status: failed
-        reason: \${system.error.message}
+      input: {}
 
     - id: enrich_source_context
       function: aiProcessing
@@ -122,8 +140,7 @@ export const exampleVibes: ExampleVibe[] = [
 
     - id: enrichment_done
       function: concludeWorkflow
-      input:
-        status: enrichment_complete
+      input: {}
 `,
   },
   {
@@ -134,20 +151,34 @@ export const exampleVibes: ExampleVibe[] = [
     yaml: `workflow:
   id: lead-qualification-starter
   name: Lead Qualification
-  description: Lead scoring flow with conditionals, loops, workflow invocation, and a parallel research lane.
+  description: |
+    Scores inbound sales leads, routes qualified prospects to sales,
+    processes stated objections, and sends nurture follow-up when the
+    lead is not ready for handoff.
   steps:
     - id: capture_lead
       function: aiExtractVariables
       next_step_id: score_lead
       on_error_step_id: qualification_failed
       input:
-        text: \${uniqueData.transcript}
-        output_type: json
-        variables:
-          - name
-          - email
-          - company
-          - objections
+        text: "\${conversationContext}"
+        variables_to_extract:
+          - name: name
+            description: Lead name.
+            validation:
+              required: true
+          - name: email
+            description: Lead email address.
+            validation:
+              required: true
+          - name: company
+            description: Lead company or organization.
+            validation:
+              required: false
+          - name: objections
+            description: Buying objections or concerns the lead raised.
+            validation:
+              required: false
 
     - id: score_lead
       function: aiProcessing
@@ -155,13 +186,17 @@ export const exampleVibes: ExampleVibe[] = [
       on_error_step_id: qualification_failed
       input:
         output_type: json
-        prompt: "Score this lead from 0 to 100: \${steps.capture_lead.output}"
+        prompt: "Score this lead from 0 to 100 and explain the score: \${steps.capture_lead.output}"
 
     - id: qualification_gate
       function: handleConditional
       input:
         condition:
-          expression: \${steps.score_lead.output.score >= 70}
+          type: if
+          condition:
+            operator: gte
+            left: "\${steps.score_lead.output.score}"
+            right: 70
           then: inspect_objections
           else: nurture_lead
 
@@ -170,27 +205,26 @@ export const exampleVibes: ExampleVibe[] = [
       next_step_id: start_sales_handoff
       on_error_step_id: qualification_failed
       input:
-        items: \${steps.capture_lead.output.objections}
-        item_variable: objection
+        iterable: "\${steps.capture_lead.output.objections}"
         steps:
-          - classify_objection
-          - save_objection_note
+          - id: classify_objection
+            function: aiProcessing
+            next_step_id: save_objection_note
+            input:
+              output_type: json
+              prompt: "Classify this objection and suggest a response: \${currentElement}"
 
-    - id: classify_objection
-      function: aiProcessing
-      next_step_id: save_objection_note
-      input:
-        output_type: json
-        prompt: "Classify this objection: \${objection}"
-
-    - id: save_objection_note
-      function: apiRequest
-      input:
-        endpoint: https://api.example.com/leads/notes
-        method: POST
-        body:
-          objection: \${objection}
-          classification: \${steps.classify_objection.output}
+          - id: save_objection_note
+            function: apiRequest
+            input:
+              endpoint: "https://api.example.com/leads/notes"
+              method: POST
+              body:
+                type: json
+                content:
+                  lead_email: "\${steps.capture_lead.output.email}"
+                  objection: "\${currentElement}"
+                  classification: "\${currentElementSteps.classify_objection.output}"
 
     - id: start_sales_handoff
       function: invokeWorkflow
@@ -199,53 +233,50 @@ export const exampleVibes: ExampleVibe[] = [
       input:
         workflow_id: sales-consultation-booking
         payload:
-          lead: \${steps.capture_lead.output}
+          lead: "\${steps.capture_lead.output}"
 
     - id: send_qualified_reply
       function: sendEmail
       next_step_id: qualified_done
       input:
-        to: \${steps.capture_lead.output.email}
+        to_email: "\${steps.capture_lead.output.email}"
         subject: Next step for your consultation
         body: We can help. Here is the best next step.
 
     - id: qualified_done
       function: concludeWorkflow
-      input:
-        status: qualified
+      input: {}
 
     - id: nurture_lead
       function: sendEmail
       next_step_id: nurture_done
       input:
-        to: \${steps.capture_lead.output.email}
+        to_email: "\${steps.capture_lead.output.email}"
         subject: Helpful resources
         body: Here are resources until the timing is better.
 
     - id: nurture_done
       function: concludeWorkflow
-      input:
-        status: nurture
+      input: {}
 
     - id: qualification_failed
       function: concludeWorkflow
-      input:
-        status: failed
-        reason: \${system.error.message}
+      input: {}
 
     - id: research_company
       function: apiRequest
       next_step_id: research_done
       input:
-        endpoint: https://api.example.com/company-enrichment
+        endpoint: "https://api.example.com/company-enrichment"
         method: POST
         body:
-          company: \${steps.capture_lead.output.company}
+          type: json
+          content:
+            company: "\${steps.capture_lead.output.company}"
 
     - id: research_done
       function: concludeWorkflow
-      input:
-        status: research_complete
+      input: {}
 `,
   },
   {
@@ -256,14 +287,16 @@ export const exampleVibes: ExampleVibe[] = [
     yaml: `workflow:
   id: estimate-follow-up-starter
   name: Estimate Follow-Up
-  description: Estimate follow-up with recommendation routing, looped options, and reminder scheduling.
+  description: |
+    Loads a customer estimate, recommends the next best offer, loops over
+    value points for active options, and schedules a future follow-up check.
   steps:
     - id: load_estimate
       function: apiRequest
       next_step_id: create_followup_strategy
       on_error_step_id: followup_failed
       input:
-        endpoint: https://api.example.com/estimates/\${uniqueData.estimateId}
+        endpoint: "https://api.example.com/estimates/\${uniqueData.estimateId}"
         method: GET
 
     - id: create_followup_strategy
@@ -278,7 +311,11 @@ export const exampleVibes: ExampleVibe[] = [
       function: handleConditional
       input:
         condition:
-          expression: \${steps.create_followup_strategy.output.recommended_option != "defer"}
+          type: if
+          condition:
+            operator: ne
+            left: "\${steps.create_followup_strategy.output.recommended_option}"
+            right: defer
           then: prepare_option_loop
           else: send_defer_followup
 
@@ -287,26 +324,25 @@ export const exampleVibes: ExampleVibe[] = [
       next_step_id: invoke_payment_or_booking
       on_error_step_id: followup_failed
       input:
-        items: \${steps.create_followup_strategy.output.options}
-        item_variable: estimateOption
+        iterable: "\${steps.create_followup_strategy.output.options}"
         steps:
-          - build_option_value
-          - save_option_summary
+          - id: build_option_value
+            function: aiProcessing
+            next_step_id: save_option_summary
+            input:
+              output_type: json
+              prompt: Create value points for \${currentElement}.
 
-    - id: build_option_value
-      function: aiProcessing
-      next_step_id: save_option_summary
-      input:
-        output_type: json
-        prompt: Create value points for \${estimateOption}.
-
-    - id: save_option_summary
-      function: apiRequest
-      input:
-        endpoint: https://api.example.com/option-summaries
-        method: POST
-        body:
-          option: \${estimateOption}
+          - id: save_option_summary
+            function: apiRequest
+            input:
+              endpoint: "https://api.example.com/option-summaries"
+              method: POST
+              body:
+                type: json
+                content:
+                  option: "\${currentElement}"
+                  value_points: "\${currentElementSteps.build_option_value.output}"
 
     - id: invoke_payment_or_booking
       function: invokeWorkflow
@@ -314,13 +350,13 @@ export const exampleVibes: ExampleVibe[] = [
       input:
         workflow_id: booking-or-payment-link-generator
         payload:
-          estimate_id: \${uniqueData.estimateId}
+          estimate_id: "\${uniqueData.estimateId}"
 
     - id: send_recommended_followup
       function: sendEmail
       next_step_id: followup_done
       input:
-        to: \${steps.load_estimate.output.customer.email}
+        to_email: "\${steps.load_estimate.output.customer.email}"
         subject: Recommended next step
         body: "Here is the recommended path: \${steps.invoke_payment_or_booking.output.link}"
 
@@ -328,33 +364,38 @@ export const exampleVibes: ExampleVibe[] = [
       function: sendEmail
       next_step_id: followup_done
       input:
-        to: \${steps.load_estimate.output.customer.email}
+        to_email: "\${steps.load_estimate.output.customer.email}"
         subject: Keeping your estimate handy
         body: We will check back later.
 
     - id: followup_done
       function: concludeWorkflow
-      input:
-        status: completed
+      input: {}
 
     - id: followup_failed
       function: concludeWorkflow
-      input:
-        status: failed
-        reason: \${system.error.message}
+      input: {}
 
     - id: schedule_followup_reminder
       function: scheduleFlow
       next_step_id: reminder_done
       input:
-        workflow_id: estimate-follow-up-starter
-        start_datetime: \${uniqueData.followupDate}
-        timezone: America/Chicago
+        start_date_time: "\${uniqueData.followupDate}"
+        start_date_time_format: "YYYY-MM-DD HH:mm"
+        time_zone: America/Chicago
+        is_recurring: false
+        steps:
+          - id: send_reminder
+            function: sendEmail
+            input:
+              to_email: "\${steps.load_estimate.output.customer.email}"
+              subject: Checking in on your estimate
+              body: We are following up on your estimate.
+            next_step_id: vibe_break
 
     - id: reminder_done
       function: concludeWorkflow
-      input:
-        status: reminder_scheduled
+      input: {}
 `,
   },
   {
@@ -365,7 +406,9 @@ export const exampleVibes: ExampleVibe[] = [
     yaml: `workflow:
   id: support-escalation-starter
   name: Support Escalation
-  description: Support flow with escalation routing, evidence collection, subworkflow handoff, and SLA monitoring.
+  description: |
+    Classifies support urgency, collects requested evidence for critical
+    cases, escalates to a manager handoff workflow, and schedules SLA monitoring.
   steps:
     - id: classify_support_case
       function: aiProcessing
@@ -379,7 +422,11 @@ export const exampleVibes: ExampleVibe[] = [
       function: handleConditional
       input:
         condition:
-          expression: \${steps.classify_support_case.output.urgency == "critical"}
+          type: if
+          condition:
+            operator: eq
+            left: "\${steps.classify_support_case.output.urgency}"
+            right: critical
           then: collect_evidence
           else: standard_support_reply
 
@@ -388,26 +435,25 @@ export const exampleVibes: ExampleVibe[] = [
       next_step_id: invoke_escalation_subflow
       on_error_step_id: escalation_failed
       input:
-        items: \${steps.classify_support_case.output.evidence_needed}
-        item_variable: evidenceItem
+        iterable: "\${steps.classify_support_case.output.evidence_needed}"
         steps:
-          - request_evidence_item
-          - store_evidence_request
+          - id: request_evidence_item
+            function: promptUser
+            next_step_id: store_evidence_request
+            input:
+              message: "Please provide this item: \${currentElement}"
+              response_type: text
 
-    - id: request_evidence_item
-      function: promptUser
-      next_step_id: store_evidence_request
-      input:
-        message: "Please provide this item: \${evidenceItem}"
-        response_type: text
-
-    - id: store_evidence_request
-      function: apiRequest
-      input:
-        endpoint: https://api.example.com/support/evidence
-        method: POST
-        body:
-          requested_item: \${evidenceItem}
+          - id: store_evidence_request
+            function: apiRequest
+            input:
+              endpoint: "https://api.example.com/support/evidence"
+              method: POST
+              body:
+                type: json
+                content:
+                  case_id: "\${uniqueData.caseId}"
+                  requested_item: "\${currentElement}"
 
     - id: invoke_escalation_subflow
       function: invokeWorkflow
@@ -416,14 +462,13 @@ export const exampleVibes: ExampleVibe[] = [
       input:
         workflow_id: manager-escalation-handoff
         payload:
-          case_id: \${uniqueData.caseId}
+          case_id: "\${uniqueData.caseId}"
 
     - id: send_escalation_ack
       function: sendResponse
       next_step_id: escalation_done
       input:
         type: fixed
-        channel: \${uniqueData.source}
         message: We escalated this to the right team.
 
     - id: standard_support_reply
@@ -431,19 +476,15 @@ export const exampleVibes: ExampleVibe[] = [
       next_step_id: escalation_done
       input:
         type: dynamic
-        channel: \${uniqueData.source}
         message: "Support has the right context: \${steps.classify_support_case.output.summary}"
 
     - id: escalation_done
       function: concludeWorkflow
-      input:
-        status: completed
+      input: {}
 
     - id: escalation_failed
       function: concludeWorkflow
-      input:
-        status: failed
-        reason: \${system.error.message}
+      input: {}
 
     - id: calculate_sla_deadline
       function: aiProcessing
@@ -456,14 +497,22 @@ export const exampleVibes: ExampleVibe[] = [
       function: scheduleFlow
       next_step_id: sla_monitor_done
       input:
-        workflow_id: support-sla-check
-        start_datetime: \${steps.calculate_sla_deadline.output.deadline}
-        timezone: America/Chicago
+        start_date_time: "\${steps.calculate_sla_deadline.output.deadline}"
+        start_date_time_format: "YYYY-MM-DD HH:mm"
+        time_zone: America/Chicago
+        is_recurring: false
+        steps:
+          - id: run_sla_check
+            function: invokeWorkflow
+            input:
+              workflow_id: support-sla-check
+              payload:
+                case_id: "\${uniqueData.caseId}"
+            next_step_id: vibe_break
 
     - id: sla_monitor_done
       function: concludeWorkflow
-      input:
-        status: sla_monitor_scheduled
+      input: {}
 `,
   },
   {
@@ -474,7 +523,9 @@ export const exampleVibes: ExampleVibe[] = [
     yaml: `workflow:
   id: conditional-branch-demo
   name: Conditional Branch Demo
-  description: Branch-heavy demo with nested conditionals, looped technical tasks, and audit output.
+  description: |
+    Demonstrates nested conditionals, looped technical tasks, workflow
+    invocation, and separate terminal outcomes for branch-heavy workflows.
   steps:
     - id: inspect_request
       function: aiProcessing
@@ -488,7 +539,11 @@ export const exampleVibes: ExampleVibe[] = [
       function: handleConditional
       input:
         condition:
-          expression: \${steps.inspect_request.output.type == "technical"}
+          type: if
+          condition:
+            operator: eq
+            left: "\${steps.inspect_request.output.type}"
+            right: technical
           then: technical_priority_branch
           else: non_technical_branch
 
@@ -496,7 +551,11 @@ export const exampleVibes: ExampleVibe[] = [
       function: handleConditional
       input:
         condition:
-          expression: \${steps.inspect_request.output.priority == "high"}
+          type: if
+          condition:
+            operator: eq
+            left: "\${steps.inspect_request.output.priority}"
+            right: high
           then: run_technical_task_loop
           else: send_standard_technical_reply
 
@@ -505,26 +564,25 @@ export const exampleVibes: ExampleVibe[] = [
       next_step_id: invoke_technical_handoff
       on_error_step_id: branch_failed
       input:
-        items: \${steps.inspect_request.output.tasks}
-        item_variable: task
+        iterable: "\${steps.inspect_request.output.tasks}"
         steps:
-          - summarize_task
-          - create_task_ticket
+          - id: summarize_task
+            function: aiProcessing
+            next_step_id: create_task_ticket
+            input:
+              output_type: json
+              prompt: Summarize \${currentElement}.
 
-    - id: summarize_task
-      function: aiProcessing
-      next_step_id: create_task_ticket
-      input:
-        output_type: json
-        prompt: Summarize \${task}.
-
-    - id: create_task_ticket
-      function: apiRequest
-      input:
-        endpoint: https://api.example.com/tasks
-        method: POST
-        body:
-          task: \${task}
+          - id: create_task_ticket
+            function: apiRequest
+            input:
+              endpoint: "https://api.example.com/tasks"
+              method: POST
+              body:
+                type: json
+                content:
+                  task: "\${currentElement}"
+                  summary: "\${currentElementSteps.summarize_task.output}"
 
     - id: invoke_technical_handoff
       function: invokeWorkflow
@@ -532,14 +590,13 @@ export const exampleVibes: ExampleVibe[] = [
       input:
         workflow_id: technical-escalation
         payload:
-          request: \${steps.inspect_request.output}
+          request: "\${steps.inspect_request.output}"
 
     - id: send_escalated_technical_reply
       function: sendResponse
       next_step_id: branch_done
       input:
         type: fixed
-        channel: \${uniqueData.source}
         message: Your technical request has been escalated.
 
     - id: send_standard_technical_reply
@@ -547,14 +604,17 @@ export const exampleVibes: ExampleVibe[] = [
       next_step_id: branch_done
       input:
         type: fixed
-        channel: \${uniqueData.source}
         message: Your technical request has been sent to support.
 
     - id: non_technical_branch
       function: handleConditional
       input:
         condition:
-          expression: \${steps.inspect_request.output.type == "sales"}
+          type: if
+          condition:
+            operator: eq
+            left: "\${steps.inspect_request.output.type}"
+            right: sales
           then: send_sales_reply
           else: send_billing_reply
 
@@ -562,7 +622,7 @@ export const exampleVibes: ExampleVibe[] = [
       function: sendEmail
       next_step_id: branch_done
       input:
-        to: \${uniqueData.email}
+        to_email: "\${uniqueData.email}"
         subject: Next step with sales
         body: Sales will help with the next option.
 
@@ -570,19 +630,17 @@ export const exampleVibes: ExampleVibe[] = [
       function: sendEmail
       next_step_id: branch_done
       input:
-        to: \${uniqueData.email}
+        to_email: "\${uniqueData.email}"
         subject: Billing support next step
         body: Billing will review this.
 
     - id: branch_done
       function: concludeWorkflow
-      input:
-        status: completed
+      input: {}
 
     - id: branch_failed
       function: concludeWorkflow
-      input:
-        status: failed
+      input: {}
 `,
   },
   {
@@ -593,21 +651,28 @@ export const exampleVibes: ExampleVibe[] = [
     yaml: `workflow:
   id: loop-and-parallel-demo
   name: Loop and Parallel Demo
-  description: Loop and parallel path demo with a batch processor, quality report, and scheduled notification lane.
+  description: |
+    Demonstrates a batch-processing lane, a quality-report lane, and a
+    scheduled completion-check lane using API-standard loop and schedule shapes.
   steps:
     - id: parse_batch
       function: extractDataFromSheet
       next_step_id: batch_size_gate
       on_error_step_id: batch_failed
       input:
-        filename: \${uniqueData.uploadedFile}
-        return_format: json
+        query_string: Extract each customer row with email, order total, and status.
+        file_buffer: "\${file-buffer:uniqueData.uploadedFile}"
+        file_name: "\${uniqueData.uploadedFileName}"
 
     - id: batch_size_gate
       function: handleConditional
       input:
         condition:
-          expression: \${steps.parse_batch.output.rows.length > 0}
+          type: if
+          condition:
+            operator: gt
+            left: "\${steps.parse_batch.output.recordCount}"
+            right: 0
           then: process_each_row
           else: empty_batch_done
 
@@ -616,27 +681,25 @@ export const exampleVibes: ExampleVibe[] = [
       next_step_id: invoke_batch_summary
       on_error_step_id: batch_failed
       input:
-        items: \${steps.parse_batch.output.rows}
-        item_variable: row
+        iterable: "\${steps.parse_batch.output.data}"
         steps:
-          - classify_row
-          - write_row_result
+          - id: classify_row
+            function: aiProcessing
+            next_step_id: write_row_result
+            input:
+              output_type: json
+              prompt: "Classify this row: \${currentElement}"
 
-    - id: classify_row
-      function: aiProcessing
-      next_step_id: write_row_result
-      input:
-        output_type: json
-        prompt: "Classify this row: \${row}"
-
-    - id: write_row_result
-      function: apiRequest
-      input:
-        endpoint: https://api.example.com/batch-results
-        method: POST
-        body:
-          row: \${row}
-          classification: \${steps.classify_row.output}
+          - id: write_row_result
+            function: apiRequest
+            input:
+              endpoint: "https://api.example.com/batch-results"
+              method: POST
+              body:
+                type: json
+                content:
+                  row: "\${currentElement}"
+                  classification: "\${currentElementSteps.classify_row.output}"
 
     - id: invoke_batch_summary
       function: invokeWorkflow
@@ -644,53 +707,57 @@ export const exampleVibes: ExampleVibe[] = [
       input:
         workflow_id: batch-summary-generator
         payload:
-          row_count: \${steps.parse_batch.output.rows.length}
+          row_count: "\${steps.parse_batch.output.recordCount}"
 
     - id: batch_done
       function: concludeWorkflow
-      input:
-        status: completed
+      input: {}
 
     - id: empty_batch_done
       function: concludeWorkflow
-      input:
-        status: empty_batch
+      input: {}
 
     - id: batch_failed
       function: concludeWorkflow
-      input:
-        status: failed
+      input: {}
 
     - id: profile_uploaded_file
       function: aiProcessing
       next_step_id: create_quality_report
       input:
         output_type: json
-        prompt: Profile file quality for \${uniqueData.uploadedFile}.
+        prompt: Profile file quality for \${uniqueData.uploadedFileName}.
 
     - id: create_quality_report
       function: createHtmlTable
       next_step_id: quality_report_done
       input:
-        data: \${steps.profile_uploaded_file.output}
+        data: "\${steps.profile_uploaded_file.output}"
 
     - id: quality_report_done
       function: concludeWorkflow
-      input:
-        status: quality_report_complete
+      input: {}
 
     - id: schedule_completion_check
       function: scheduleFlow
       next_step_id: notify_lane_done
       input:
-        workflow_id: batch-completion-check
-        start_datetime: \${system.timestamp_plus_15_minutes}
-        timezone: America/Chicago
+        start_date_time: "\${system.timestamp_plus_15_minutes}"
+        start_date_time_format: "YYYY-MM-DD HH:mm"
+        time_zone: America/Chicago
+        is_recurring: false
+        steps:
+          - id: check_batch_completion
+            function: invokeWorkflow
+            input:
+              workflow_id: batch-completion-check
+              payload:
+                file_name: "\${uniqueData.uploadedFileName}"
+            next_step_id: vibe_break
 
     - id: notify_lane_done
       function: concludeWorkflow
-      input:
-        status: completion_check_scheduled
+      input: {}
 `,
   },
 ];
