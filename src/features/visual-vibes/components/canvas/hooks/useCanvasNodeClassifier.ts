@@ -144,7 +144,9 @@ export function useCanvasNodeClassifier({
       isTerminalError: boolean;
       isConclusion: boolean;
       isErrorHandler: boolean;
-      semanticKind?: PositionedVibeGraph["nodes"][number]["semantic"]["kind"];
+      semanticKind?: NonNullable<
+        PositionedVibeGraph["nodes"][number]["semantic"]
+      >["kind"];
     }): CanvasNodeColors {
       const {
         isSelected,

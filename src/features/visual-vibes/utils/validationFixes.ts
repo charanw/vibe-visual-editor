@@ -3,6 +3,7 @@ import {
   clearStepRoutingFieldInYaml,
   removeConditionalBranchReferenceInYaml,
   removeMissingStepInputReferenceInYaml,
+  removeSwitchCaseReferenceInYaml,
   setStepInputObjectInYaml,
   updateVibeMetadataInYaml,
 } from "@/lib/visual-vibes/yaml";
@@ -160,10 +161,22 @@ export function applyValidationFixInYaml(
     issue.stepId &&
     issue.metadata?.branch
   ) {
+    const branch = issue.metadata.branch;
+
+    if (branch === "case") {
+      return issue.metadata.missingStepId
+        ? removeSwitchCaseReferenceInYaml(
+            yamlText,
+            issue.stepId,
+            issue.metadata.missingStepId,
+          )
+        : yamlText;
+    }
+
     return removeConditionalBranchReferenceInYaml(
       yamlText,
       issue.stepId,
-      issue.metadata.branch,
+      branch,
     );
   }
 

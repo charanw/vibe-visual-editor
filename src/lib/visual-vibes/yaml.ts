@@ -498,6 +498,42 @@ export function removeConditionalBranchReferenceInYaml(
   return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
 }
 
+/** Removes switch cases that target a missing step from a conditional input. */
+export function removeSwitchCaseReferenceInYaml(
+  yamlText: string,
+  stepId: string,
+  missingStepId: string,
+): string {
+  const descriptions = collectStepDescriptionsFromYaml(yamlText);
+  const vibe = parseVisualVibeYaml(yamlText);
+  const step = vibe.workflow.steps.find((workflowStep) => workflowStep.id === stepId);
+
+  if (!step || !isRecord(step.input.condition)) {
+    return yamlText;
+  }
+
+  const condition = step.input.condition;
+
+  if (!Array.isArray(condition.cases)) {
+    return yamlText;
+  }
+
+  step.input = {
+    ...step.input,
+    condition: {
+      ...condition,
+      cases: condition.cases.filter((switchCase) => {
+        const caseRecord = isRecord(switchCase) ? switchCase : null;
+        const targetStepId = caseRecord?.stepId ?? caseRecord?.step_id;
+
+        return targetStepId !== missingStepId;
+      }),
+    },
+  };
+
+  return applyStepDescriptionsToYaml(serializeVisualVibeYaml(vibe), descriptions);
+}
+
 /** Inserts a generated step immediately after the given source step. */
 export function appendStepAfterInYaml(
   yamlText: string,
