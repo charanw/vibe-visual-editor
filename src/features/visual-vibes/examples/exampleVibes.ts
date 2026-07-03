@@ -16,10 +16,18 @@ export const exampleVibes: ExampleVibe[] = [
   id: customer-intake-starter
   name: Customer Intake
   description: |
-    Captures customer service requests, extracts required intake details,
-    routes incomplete requests for follow-up, scores preferred appointment
-    windows, and starts a booking recommendation workflow.
+    Summarizes source context, captures customer service requests, extracts
+    required intake details, routes incomplete requests for follow-up, scores
+    preferred appointment windows, and starts a booking recommendation workflow.
   steps:
+    - id: enrich_source_context
+      function: aiProcessing
+      next_step_id: normalize_intake
+      on_error_step_id: enrichment_failed
+      input:
+        output_type: json
+        prompt: Summarize source quality for \${uniqueData.source}.
+
     - id: normalize_intake
       function: aiExtractVariables
       next_step_id: intake_quality_gate
@@ -128,19 +136,18 @@ export const exampleVibes: ExampleVibe[] = [
       input: {}
 
     - id: intake_failed
-      function: concludeWorkflow
-      input: {}
-
-    - id: enrich_source_context
-      function: aiProcessing
-      next_step_id: enrichment_done
+      function: sendResponse
+      next_step_id: null
       input:
-        output_type: json
-        prompt: Summarize source quality for \${uniqueData.source}.
+        type: fixed
+        message: We could not complete intake. Please review the failed step details.
 
-    - id: enrichment_done
-      function: concludeWorkflow
-      input: {}
+    - id: enrichment_failed
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Source enrichment failed and needs review.
 `,
   },
   {
@@ -190,6 +197,7 @@ export const exampleVibes: ExampleVibe[] = [
 
     - id: qualification_gate
       function: handleConditional
+      on_error_step_id: qualification_failed
       input:
         condition:
           type: if
@@ -260,12 +268,16 @@ export const exampleVibes: ExampleVibe[] = [
       input: {}
 
     - id: qualification_failed
-      function: concludeWorkflow
-      input: {}
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Lead qualification failed and needs review.
 
     - id: research_company
       function: apiRequest
       next_step_id: research_done
+      on_error_step_id: research_failed
       input:
         endpoint: "https://api.example.com/company-enrichment"
         method: POST
@@ -277,6 +289,13 @@ export const exampleVibes: ExampleVibe[] = [
     - id: research_done
       function: concludeWorkflow
       input: {}
+
+    - id: research_failed
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Company research failed and needs review.
 `,
   },
   {
@@ -309,6 +328,7 @@ export const exampleVibes: ExampleVibe[] = [
 
     - id: recommendation_gate
       function: handleConditional
+      on_error_step_id: followup_failed
       input:
         condition:
           type: if
@@ -347,6 +367,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: invoke_payment_or_booking
       function: invokeWorkflow
       next_step_id: send_recommended_followup
+      on_error_step_id: followup_failed
       input:
         workflow_id: booking-or-payment-link-generator
         payload:
@@ -355,6 +376,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: send_recommended_followup
       function: sendEmail
       next_step_id: followup_done
+      on_error_step_id: followup_failed
       input:
         to_email: "\${steps.load_estimate.output.customer.email}"
         subject: Recommended next step
@@ -363,6 +385,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: send_defer_followup
       function: sendEmail
       next_step_id: followup_done
+      on_error_step_id: followup_failed
       input:
         to_email: "\${steps.load_estimate.output.customer.email}"
         subject: Keeping your estimate handy
@@ -373,12 +396,16 @@ export const exampleVibes: ExampleVibe[] = [
       input: {}
 
     - id: followup_failed
-      function: concludeWorkflow
-      input: {}
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Estimate follow-up failed and needs review.
 
     - id: schedule_followup_reminder
       function: scheduleFlow
       next_step_id: reminder_done
+      on_error_step_id: reminder_failed
       input:
         start_date_time: "\${uniqueData.followupDate}"
         start_date_time_format: "YYYY-MM-DD HH:mm"
@@ -396,6 +423,13 @@ export const exampleVibes: ExampleVibe[] = [
     - id: reminder_done
       function: concludeWorkflow
       input: {}
+
+    - id: reminder_failed
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Follow-up reminder scheduling failed and needs review.
 `,
   },
   {
@@ -420,6 +454,7 @@ export const exampleVibes: ExampleVibe[] = [
 
     - id: escalation_gate
       function: handleConditional
+      on_error_step_id: escalation_failed
       input:
         condition:
           type: if
@@ -467,6 +502,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: send_escalation_ack
       function: sendResponse
       next_step_id: escalation_done
+      on_error_step_id: escalation_failed
       input:
         type: fixed
         message: We escalated this to the right team.
@@ -474,6 +510,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: standard_support_reply
       function: sendResponse
       next_step_id: escalation_done
+      on_error_step_id: escalation_failed
       input:
         type: dynamic
         message: "Support has the right context: \${steps.classify_support_case.output.summary}"
@@ -483,12 +520,16 @@ export const exampleVibes: ExampleVibe[] = [
       input: {}
 
     - id: escalation_failed
-      function: concludeWorkflow
-      input: {}
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Support escalation failed and needs review.
 
     - id: calculate_sla_deadline
       function: aiProcessing
       next_step_id: schedule_sla_check
+      on_error_step_id: sla_monitor_failed
       input:
         output_type: json
         prompt: Calculate the SLA deadline for \${uniqueData.caseId}.
@@ -496,6 +537,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: schedule_sla_check
       function: scheduleFlow
       next_step_id: sla_monitor_done
+      on_error_step_id: sla_monitor_failed
       input:
         start_date_time: "\${steps.calculate_sla_deadline.output.deadline}"
         start_date_time_format: "YYYY-MM-DD HH:mm"
@@ -513,6 +555,13 @@ export const exampleVibes: ExampleVibe[] = [
     - id: sla_monitor_done
       function: concludeWorkflow
       input: {}
+
+    - id: sla_monitor_failed
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: SLA monitoring setup failed and needs review.
 `,
   },
   {
@@ -537,6 +586,7 @@ export const exampleVibes: ExampleVibe[] = [
 
     - id: first_branch
       function: handleConditional
+      on_error_step_id: branch_failed
       input:
         condition:
           type: if
@@ -549,6 +599,7 @@ export const exampleVibes: ExampleVibe[] = [
 
     - id: technical_priority_branch
       function: handleConditional
+      on_error_step_id: branch_failed
       input:
         condition:
           type: if
@@ -587,6 +638,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: invoke_technical_handoff
       function: invokeWorkflow
       next_step_id: send_escalated_technical_reply
+      on_error_step_id: branch_failed
       input:
         workflow_id: technical-escalation
         payload:
@@ -595,6 +647,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: send_escalated_technical_reply
       function: sendResponse
       next_step_id: branch_done
+      on_error_step_id: branch_failed
       input:
         type: fixed
         message: Your technical request has been escalated.
@@ -602,12 +655,14 @@ export const exampleVibes: ExampleVibe[] = [
     - id: send_standard_technical_reply
       function: sendResponse
       next_step_id: branch_done
+      on_error_step_id: branch_failed
       input:
         type: fixed
         message: Your technical request has been sent to support.
 
     - id: non_technical_branch
       function: handleConditional
+      on_error_step_id: branch_failed
       input:
         condition:
           type: if
@@ -621,6 +676,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: send_sales_reply
       function: sendEmail
       next_step_id: branch_done
+      on_error_step_id: branch_failed
       input:
         to_email: "\${uniqueData.email}"
         subject: Next step with sales
@@ -629,6 +685,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: send_billing_reply
       function: sendEmail
       next_step_id: branch_done
+      on_error_step_id: branch_failed
       input:
         to_email: "\${uniqueData.email}"
         subject: Billing support next step
@@ -639,8 +696,11 @@ export const exampleVibes: ExampleVibe[] = [
       input: {}
 
     - id: branch_failed
-      function: concludeWorkflow
-      input: {}
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Conditional branch demo failed and needs review.
 `,
   },
   {
@@ -666,6 +726,7 @@ export const exampleVibes: ExampleVibe[] = [
 
     - id: batch_size_gate
       function: handleConditional
+      on_error_step_id: batch_failed
       input:
         condition:
           type: if
@@ -704,6 +765,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: invoke_batch_summary
       function: invokeWorkflow
       next_step_id: batch_done
+      on_error_step_id: batch_failed
       input:
         workflow_id: batch-summary-generator
         payload:
@@ -718,12 +780,16 @@ export const exampleVibes: ExampleVibe[] = [
       input: {}
 
     - id: batch_failed
-      function: concludeWorkflow
-      input: {}
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Batch processing failed and needs review.
 
     - id: profile_uploaded_file
       function: aiProcessing
       next_step_id: create_quality_report
+      on_error_step_id: quality_report_failed
       input:
         output_type: json
         prompt: Profile file quality for \${uniqueData.uploadedFileName}.
@@ -731,6 +797,7 @@ export const exampleVibes: ExampleVibe[] = [
     - id: create_quality_report
       function: createHtmlTable
       next_step_id: quality_report_done
+      on_error_step_id: quality_report_failed
       input:
         data: "\${steps.profile_uploaded_file.output}"
 
@@ -738,9 +805,17 @@ export const exampleVibes: ExampleVibe[] = [
       function: concludeWorkflow
       input: {}
 
+    - id: quality_report_failed
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Quality report generation failed and needs review.
+
     - id: schedule_completion_check
       function: scheduleFlow
       next_step_id: notify_lane_done
+      on_error_step_id: schedule_failed
       input:
         start_date_time: "\${system.timestamp_plus_15_minutes}"
         start_date_time_format: "YYYY-MM-DD HH:mm"
@@ -758,6 +833,13 @@ export const exampleVibes: ExampleVibe[] = [
     - id: notify_lane_done
       function: concludeWorkflow
       input: {}
+
+    - id: schedule_failed
+      function: sendResponse
+      next_step_id: null
+      input:
+        type: fixed
+        message: Completion-check scheduling failed and needs review.
 `,
   },
 ];

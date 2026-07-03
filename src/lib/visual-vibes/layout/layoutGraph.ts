@@ -1,4 +1,4 @@
-import ELK, { type ElkExtendedEdge, type ElkNode } from "elkjs/lib/elk.bundled";
+import ELK, { type ElkNode } from "elkjs/lib/elk.bundled";
 import type { VibeGraph, VibeGraphEdge } from "../graph/graphTypes";
 import {
   NODE_HEIGHT,
@@ -21,8 +21,12 @@ const ROOT_ID = "visual-vibe-layout";
 const TARGET_CANVAS_ASPECT_RATIO = 1200 / 720;
 const LANE_PADDING_X = 36;
 const LANE_PADDING_Y = 38;
+const CANVAS_GRID_SIZE = 24;
+const EDGE_OBSTACLE_PADDING = 12;
+const MAX_EDGE_AVOIDANCE_PASSES = 8;
 
 type LayoutDirectionOption = VibeGraphLayoutDirection | "auto";
+type RoutePoint = { x: number; y: number };
 
 /**
  * Positions a graph for the custom Visual Vibes canvas using ELK Layered.
@@ -145,8 +149,8 @@ function fromElkGraph(
         kind: sourceNode.kind,
         memberCount: sourceNode.memberCount,
         semantic: sourceNode.semantic,
-        x: node.x ?? 0,
-        y: node.y ?? 0,
+        x: snapToGrid(node.x ?? 0),
+        y: snapToGrid(node.y ?? 0),
       };
     })
     .filter((node): node is PositionedVibeNode => Boolean(node));
@@ -159,7 +163,7 @@ function fromElkGraph(
         return null;
       }
 
-      return toPositionedEdge(edge, sourceEdge, nodeById);
+      return toPositionedEdge(sourceEdge, nodeById);
     })
     .filter((edge): edge is PositionedVibeEdge => Boolean(edge));
 
@@ -167,7 +171,6 @@ function fromElkGraph(
 }
 
 function toPositionedEdge(
-  elkEdge: ElkExtendedEdge,
   sourceEdge: VibeGraphEdge,
   nodeById: Map<string, PositionedVibeNode>,
 ): PositionedVibeEdge | null {
@@ -179,6 +182,32 @@ function toPositionedEdge(
   }
 
   const route = getLogicalEdgeRoute(sourceEdge, sourceNode, targetNode);
+  const routePoints = simplifyOrthogonalRoute(
+    avoidNodeIntersections(
+      [
+        {
+          x: snapToGrid(route.source.x),
+          y: snapToGrid(route.source.y),
+        },
+        ...(route.bendPoints ?? []).map((point) => ({
+          x: snapToGrid(point.x),
+          y: snapToGrid(point.y),
+        })),
+        {
+          x: snapToGrid(route.target.x),
+          y: snapToGrid(route.target.y),
+        },
+      ],
+      sourceEdge,
+      Array.from(nodeById.values()),
+    ),
+  );
+  const sourcePoint = routePoints[0];
+  const targetPoint = routePoints.at(-1);
+
+  if (!sourcePoint || !targetPoint) {
+    return null;
+  }
 
   return {
     id: sourceEdge.id,
@@ -187,12 +216,221 @@ function toPositionedEdge(
     type: sourceEdge.type,
     inferred: sourceEdge.inferred,
     semantic: sourceEdge.semantic,
-    sourceX: route.source.x,
-    sourceY: route.source.y,
-    targetX: route.target.x,
-    targetY: route.target.y,
-    bendPoints: route.bendPoints,
+    sourceX: sourcePoint.x,
+    sourceY: sourcePoint.y,
+    targetX: targetPoint.x,
+    targetY: targetPoint.y,
+    bendPoints:
+      routePoints.length > 2 ? routePoints.slice(1, routePoints.length - 1) : undefined,
   };
+}
+
+function snapToGrid(value: number) {
+  return Math.round(value / CANVAS_GRID_SIZE) * CANVAS_GRID_SIZE;
+}
+
+function avoidNodeIntersections(
+  routePoints: RoutePoint[],
+  edge: VibeGraphEdge,
+  nodes: PositionedVibeNode[],
+) {
+  const obstacles = nodes
+    .filter((node) => node.id !== edge.source && node.id !== edge.target)
+    .map(getPaddedNodeBounds);
+  let nextRoutePoints = removeDuplicatePoints(routePoints);
+
+  for (let pass = 0; pass < MAX_EDGE_AVOIDANCE_PASSES; pass += 1) {
+    const detour = findFirstNodeDetour(nextRoutePoints, obstacles);
+
+    if (!detour) {
+      return nextRoutePoints;
+    }
+
+    nextRoutePoints = removeDuplicatePoints([
+      ...nextRoutePoints.slice(0, detour.segmentIndex + 1),
+      ...detour.points,
+      ...nextRoutePoints.slice(detour.segmentIndex + 1),
+    ]);
+  }
+
+  return nextRoutePoints;
+}
+
+function findFirstNodeDetour(
+  routePoints: RoutePoint[],
+  obstacles: Array<ReturnType<typeof getPaddedNodeBounds>>,
+) {
+  for (let segmentIndex = 0; segmentIndex < routePoints.length - 1; segmentIndex += 1) {
+    const source = routePoints[segmentIndex];
+    const target = routePoints[segmentIndex + 1];
+
+    if (!source || !target) {
+      continue;
+    }
+
+    for (const obstacle of obstacles) {
+      if (isHorizontalSegment(source, target) && segmentCrossesObstacle(source, target, obstacle)) {
+        return {
+          segmentIndex,
+          points: chooseHorizontalDetour(source, target, obstacle, obstacles),
+        };
+      }
+
+      if (isVerticalSegment(source, target) && segmentCrossesObstacle(source, target, obstacle)) {
+        return {
+          segmentIndex,
+          points: chooseVerticalDetour(source, target, obstacle, obstacles),
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function chooseHorizontalDetour(
+  source: RoutePoint,
+  target: RoutePoint,
+  obstacle: ReturnType<typeof getPaddedNodeBounds>,
+  obstacles: Array<ReturnType<typeof getPaddedNodeBounds>>,
+) {
+  const candidates = [
+    snapToGrid(obstacle.top - EDGE_OBSTACLE_PADDING),
+    snapToGrid(obstacle.bottom + EDGE_OBSTACLE_PADDING),
+  ].map((detourY) => [
+    { x: source.x, y: detourY },
+    { x: target.x, y: detourY },
+  ]);
+
+  return chooseLowestCostDetour(source, target, candidates, obstacles);
+}
+
+function chooseVerticalDetour(
+  source: RoutePoint,
+  target: RoutePoint,
+  obstacle: ReturnType<typeof getPaddedNodeBounds>,
+  obstacles: Array<ReturnType<typeof getPaddedNodeBounds>>,
+) {
+  const candidates = [
+    snapToGrid(obstacle.left - EDGE_OBSTACLE_PADDING),
+    snapToGrid(obstacle.right + EDGE_OBSTACLE_PADDING),
+  ].map((detourX) => [
+    { x: detourX, y: source.y },
+    { x: detourX, y: target.y },
+  ]);
+
+  return chooseLowestCostDetour(source, target, candidates, obstacles);
+}
+
+function chooseLowestCostDetour(
+  source: RoutePoint,
+  target: RoutePoint,
+  candidates: RoutePoint[][],
+  obstacles: Array<ReturnType<typeof getPaddedNodeBounds>>,
+) {
+  return [...candidates].sort((a, b) => {
+    const aPoints = [source, ...a, target];
+    const bPoints = [source, ...b, target];
+
+    return scoreRoute(aPoints, obstacles) - scoreRoute(bPoints, obstacles);
+  })[0] ?? [];
+}
+
+function scoreRoute(
+  points: RoutePoint[],
+  obstacles: Array<ReturnType<typeof getPaddedNodeBounds>>,
+) {
+  const intersections = points.slice(0, -1).reduce((total, point, index) => {
+    const target = points[index + 1];
+
+    if (!target) {
+      return total;
+    }
+
+    return (
+      total +
+      obstacles.filter((obstacle) => segmentCrossesObstacle(point, target, obstacle))
+        .length
+    );
+  }, 0);
+
+  return measurePolylineLength(points) + intersections * 100_000;
+}
+
+function getPaddedNodeBounds(node: PositionedVibeNode) {
+  const left = node.x - EDGE_OBSTACLE_PADDING;
+  const right = node.x + NODE_WIDTH + EDGE_OBSTACLE_PADDING;
+  const top = node.y - EDGE_OBSTACLE_PADDING;
+  const bottom = node.y + NODE_HEIGHT + EDGE_OBSTACLE_PADDING;
+
+  return {
+    left,
+    right,
+    top,
+    bottom,
+    centerX: left + (right - left) / 2,
+    centerY: top + (bottom - top) / 2,
+  };
+}
+
+function segmentCrossesObstacle(
+  source: { x: number; y: number },
+  target: { x: number; y: number },
+  obstacle: ReturnType<typeof getPaddedNodeBounds>,
+) {
+  const minX = Math.min(source.x, target.x);
+  const maxX = Math.max(source.x, target.x);
+  const minY = Math.min(source.y, target.y);
+  const maxY = Math.max(source.y, target.y);
+
+  return (
+    maxX > obstacle.left &&
+    minX < obstacle.right &&
+    maxY > obstacle.top &&
+    minY < obstacle.bottom
+  );
+}
+
+function isHorizontalSegment(
+  source: { x: number; y: number },
+  target: { x: number; y: number },
+) {
+  return source.y === target.y && source.x !== target.x;
+}
+
+function isVerticalSegment(
+  source: { x: number; y: number },
+  target: { x: number; y: number },
+) {
+  return source.x === target.x && source.y !== target.y;
+}
+
+function removeDuplicatePoints(points: Array<{ x: number; y: number }>) {
+  return points.filter((point, index) => {
+    const previousPoint = points[index - 1];
+
+    return !previousPoint || previousPoint.x !== point.x || previousPoint.y !== point.y;
+  });
+}
+
+function simplifyOrthogonalRoute(points: Array<{ x: number; y: number }>) {
+  const dedupedPoints = removeDuplicatePoints(points);
+
+  return dedupedPoints.filter((point, index) => {
+    const previousPoint = dedupedPoints[index - 1];
+    const nextPoint = dedupedPoints[index + 1];
+
+    if (!previousPoint || !nextPoint) {
+      return true;
+    }
+
+    const isCollinearHorizontal =
+      previousPoint.y === point.y && point.y === nextPoint.y;
+    const isCollinearVertical =
+      previousPoint.x === point.x && point.x === nextPoint.x;
+
+    return !isCollinearHorizontal && !isCollinearVertical;
+  });
 }
 
 function chooseBestLayout(layouts: PositionedVibeGraph[]) {

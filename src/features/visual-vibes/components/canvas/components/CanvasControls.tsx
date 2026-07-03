@@ -1,4 +1,3 @@
-import { PlusIcon } from "./CanvasIcons";
 import { HistoryMenu } from "./HistoryMenu";
 import { LegendItem } from "./CanvasLegend";
 import type { CanvasViewMode } from "../../../types";
@@ -15,7 +14,6 @@ type CanvasControlsProps = {
   onUndoYaml: () => void;
   onRedoYaml: () => void;
   onChangeViewMode: (viewMode: CanvasViewMode) => void;
-  onAddStandaloneStep: () => void;
 };
 
 /**
@@ -35,7 +33,6 @@ export function CanvasControls({
   onUndoYaml,
   onRedoYaml,
   onChangeViewMode,
-  onAddStandaloneStep,
 }: CanvasControlsProps) {
   const isSelectionMode = Boolean(selectedStepId);
 
@@ -124,15 +121,6 @@ export function CanvasControls({
             {nodeCount} {nodeCount === 1 ? "step" : "steps"}
           </div>
 
-          <button
-            type="button"
-            onClick={onAddStandaloneStep}
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
-            title="Add a new step"
-          >
-            <PlusIcon />
-            Add step
-          </button>
         </div>
       </div>
 
@@ -172,19 +160,24 @@ export function CanvasControls({
           variant="hex"
         />
         <LegendItem
+          className="border-cyan-400 bg-cyan-500/15"
+          label="Statement"
+          variant="document"
+        />
+        <LegendItem
           className="border-indigo-400 bg-indigo-500/15"
           label="Subworkflow"
-          variant="node"
+          variant="stack"
         />
         <LegendItem
           className="border-green-500 bg-green-500/15"
           label="Stop"
-          variant="node"
+          variant="pill"
         />
         <LegendItem
           className="border-yellow-500 bg-yellow-500/15"
           label="Error handler"
-          variant="node"
+          variant="chevron"
         />
       </div>
     </>

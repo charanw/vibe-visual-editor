@@ -49,19 +49,29 @@ export function getErrorBranchSourceNodeIds(graph: PositionedVibeGraph) {
   return errorBranchSourceNodeIds;
 }
 
-/** Returns nodes with no incoming `next` edge in the visible graph. */
+/** Returns the authored flow entry and any explicit parallel-lane entries. */
 export function getStartingFlowNodeIds(graph: PositionedVibeGraph) {
   const incomingNextTargetIds = new Set(
     graph.edges
       .filter((edge) => isSequentialEdge(edge))
       .map((edge) => edge.target),
   );
-
-  return new Set(
-    graph.nodes
-      .filter((node) => !incomingNextTargetIds.has(node.id))
-      .map((node) => node.id),
+  const firstFlowStart = graph.nodes.find(
+    (node) => !incomingNextTargetIds.has(node.id),
   );
+  const startingNodeIds = new Set<string>();
+
+  if (firstFlowStart) {
+    startingNodeIds.add(firstFlowStart.id);
+  }
+
+  for (const node of graph.nodes) {
+    if (node.semantic?.isParallelLaneStart) {
+      startingNodeIds.add(node.id);
+    }
+  }
+
+  return startingNodeIds;
 }
 
 /** Clamps a numeric value between inclusive minimum and maximum bounds. */

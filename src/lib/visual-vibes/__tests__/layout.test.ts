@@ -158,6 +158,27 @@ test("layoutVibeGraph separates conditional branches in both directions", async 
   assert.notEqual(tbThen?.x, tbElse?.x);
 });
 
+test("layoutVibeGraph detours edges around intermediate nodes", async () => {
+  const graph: VibeGraph = {
+    nodes: [
+      { id: "source", functionName: "setVariable", kind: "step" },
+      { id: "obstacle", functionName: "setVariable", kind: "step" },
+      { id: "target", functionName: "setVariable", kind: "step" },
+    ],
+    edges: [
+      {
+        id: "source-target-next",
+        source: "source",
+        target: "target",
+        type: "next",
+      },
+    ],
+  };
+  const positionedGraph = await layoutVibeGraph(graph, { direction: "LR" });
+
+  assertNoEdgesCrossNodes(positionedGraph);
+});
+
 function getNode(
   graph: Awaited<ReturnType<typeof layoutVibeGraph>>,
   nodeId: string,
@@ -216,4 +237,54 @@ function assertNoNodeOverlaps(
       );
     }
   }
+}
+
+function assertNoEdgesCrossNodes(
+  graph: Awaited<ReturnType<typeof layoutVibeGraph>>,
+) {
+  for (const edge of graph.edges) {
+    const points = [
+      { x: edge.sourceX, y: edge.sourceY },
+      ...(edge.bendPoints ?? []),
+      { x: edge.targetX, y: edge.targetY },
+    ];
+
+    for (let index = 0; index < points.length - 1; index += 1) {
+      const source = points[index];
+      const target = points[index + 1];
+
+      assert.ok(source);
+      assert.ok(target);
+
+      for (const node of graph.nodes) {
+        if (node.id === edge.source || node.id === edge.target) {
+          continue;
+        }
+
+        assert.equal(
+          segmentIntersectsNode(source, target, node),
+          false,
+          `Expected edge "${edge.id}" not to cross node "${node.id}".`,
+        );
+      }
+    }
+  }
+}
+
+function segmentIntersectsNode(
+  source: { x: number; y: number },
+  target: { x: number; y: number },
+  node: Awaited<ReturnType<typeof layoutVibeGraph>>["nodes"][number],
+) {
+  const minX = Math.min(source.x, target.x);
+  const maxX = Math.max(source.x, target.x);
+  const minY = Math.min(source.y, target.y);
+  const maxY = Math.max(source.y, target.y);
+
+  return (
+    maxX > node.x &&
+    minX < node.x + NODE_WIDTH &&
+    maxY > node.y &&
+    minY < node.y + NODE_HEIGHT
+  );
 }

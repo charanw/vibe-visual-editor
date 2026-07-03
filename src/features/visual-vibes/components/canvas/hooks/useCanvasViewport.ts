@@ -226,7 +226,7 @@ const worldWidth =
   }
 
   function resetZoom() {
-    setZoom(1);
+    fitGraph();
   }
 
   function resetZoomAndPan() {

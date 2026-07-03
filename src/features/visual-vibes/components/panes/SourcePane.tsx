@@ -38,8 +38,6 @@ interface SourcePaneProps {
   onYamlTextChange: (text: string) => void;
   onSelectStepFromYamlCursor: (stepId: string | null) => void;
   onUpdateVibeMetadata: (field: MetadataField, value: string) => void;
-  onSaveChanges: () => void;
-  onDiscardChanges: () => void;
 }
 
 /**
@@ -67,8 +65,6 @@ export function SourcePane({
   onYamlTextChange,
   onSelectStepFromYamlCursor,
   onUpdateVibeMetadata,
-  onSaveChanges,
-  onDiscardChanges,
 }: SourcePaneProps): ReactNode {
   const metadataEditor = useCanvasMetadataEditor({
     onUpdateVibeMetadata,
@@ -122,26 +118,6 @@ export function SourcePane({
           <div className="text-xs text-[var(--text-muted)]">
             {isDirty ? "Unsaved changes" : "Saved"}
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={onDiscardChanges}
-            disabled={!isDirty}
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Discard changes
-          </button>
-
-          <button
-            type="button"
-            onClick={onSaveChanges}
-            disabled={!isDirty}
-            className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Save changes
-          </button>
         </div>
       </div>
 

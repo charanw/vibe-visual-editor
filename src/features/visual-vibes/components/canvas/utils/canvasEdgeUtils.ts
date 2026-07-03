@@ -1,13 +1,4 @@
-import {
-  NODE_HEIGHT,
-  type PositionedVibeGraph,
-} from "@/lib/visual-vibes/layout/layoutTypes";
-import {
-  HORIZONTAL_LABEL_Y_OFFSET,
-  SIDE_ROUTE_EPSILON,
-  SIDE_ROUTE_LABEL_OFFSET,
-  SIDE_ROUTE_OFFSET,
-} from "./canvasConstants";
+import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 import { hashString } from "./canvasGraphUtils";
 
 type PositionedEdge = PositionedVibeGraph["edges"][number];
@@ -19,46 +10,7 @@ export function getEdgeLabelPoint(edge: PositionedEdge) {
 
   const routePoints = getRoutePoints(edge);
 
-  if (routePoints.length > 2) {
-    return getPolylineMidpoint(routePoints);
-  }
-
-  if (isSideRoutedVerticalEdge(edge)) {
-    const direction = getSideRouteDirection(edge);
-
-    return {
-      x: getSideRouteBendX(edge) + direction * SIDE_ROUTE_LABEL_OFFSET,
-      y: (edge.sourceY + edge.targetY) / 2,
-    };
-  }
-
-  const isMostlyHorizontal =
-    Math.abs(edge.sourceY - edge.targetY) <= SIDE_ROUTE_EPSILON;
-  const isMostlyVertical =
-    Math.abs(edge.sourceX - edge.targetX) <= SIDE_ROUTE_EPSILON;
-
-  if (isMostlyVertical) {
-    const labelYOffset = clampMagnitude(edge.targetY - edge.sourceY, 42, 88);
-
-    return {
-      x: edge.sourceX + 42,
-      y: edge.sourceY + labelYOffset,
-    };
-  }
-
-  if (isMostlyHorizontal) {
-    const labelXOffset = clampMagnitude(edge.targetX - edge.sourceX, 64, 150);
-
-    return {
-      x: edge.sourceX + labelXOffset,
-      y: edge.sourceY - HORIZONTAL_LABEL_Y_OFFSET,
-    };
-  }
-
-  return {
-    x: edge.sourceX + clampMagnitude(edge.targetX - edge.sourceX, 56, 132),
-    y: edge.sourceY + clampMagnitude(edge.targetY - edge.sourceY, 32, 86),
-  };
+  return getOffsetPolylinePoint(routePoints, edge);
 }
 
 function isDecisionBranchLabel(label: string | undefined) {
@@ -72,59 +24,53 @@ function isDecisionBranchLabel(label: string | undefined) {
     normalizedLabel === "then" ||
     normalizedLabel === "else" ||
     normalizedLabel === "default" ||
+    normalizedLabel === "each" ||
+    normalizedLabel === "next" ||
+    normalizedLabel === "next item" ||
+    normalizedLabel === "done" ||
     normalizedLabel.startsWith("case ")
   );
 }
 
 function getDecisionBranchLabelPoint(edge: PositionedEdge) {
-  const verticalDelta = edge.targetY - edge.sourceY;
-  const isUpperBranch = verticalDelta < -SIDE_ROUTE_EPSILON;
-  const isLowerBranch = verticalDelta > SIDE_ROUTE_EPSILON;
-  const yOffset = isUpperBranch ? -24 : isLowerBranch ? 24 : -20;
-  const xOffset = clampMagnitude(edge.targetX - edge.sourceX, 58, 92);
+  const routePoints = getRoutePoints(edge);
+  const normalizedLabel = edge.semantic?.label?.toLowerCase() ?? "";
+  const basePoint = getPointAtRouteProgress(routePoints, 0.34);
+  const branchOffset =
+    normalizedLabel === "then"
+      ? 38
+      : normalizedLabel === "else"
+        ? -38
+        : normalizedLabel === "each"
+          ? 42
+          : normalizedLabel === "next item"
+            ? -44
+            : normalizedLabel === "next"
+              ? 36
+              : normalizedLabel === "done"
+                ? -36
+                : getStableLabelOffset(edge);
+  const segment = getNearestSegment(routePoints, basePoint.segmentIndex);
+  const perpendicular = getPerpendicularUnit(segment);
 
   return {
-    x: edge.sourceX + xOffset,
-    y: edge.sourceY + yOffset,
+    x: basePoint.x + perpendicular.x * branchOffset,
+    y: basePoint.y + perpendicular.y * branchOffset,
   };
 }
 
 export function getEdgePath(edge: PositionedEdge) {
   const routePoints = getRoutePoints(edge);
+  const [startPoint, ...remainingPoints] = routePoints;
 
-  if (routePoints.length > 2) {
-    const [startPoint, ...remainingPoints] = routePoints;
-
-    return [
-      `M ${startPoint.x} ${startPoint.y}`,
-      ...remainingPoints.map((point) => `L ${point.x} ${point.y}`),
-    ].join(" ");
+  if (!startPoint) {
+    return "";
   }
 
-  if (isSideRoutedVerticalEdge(edge)) {
-    const bendX = getSideRouteBendX(edge);
-
-    return `M ${edge.sourceX} ${edge.sourceY} L ${bendX} ${edge.sourceY} L ${bendX} ${edge.targetY} L ${edge.targetX} ${edge.targetY}`;
-  }
-
-  if (edge.type === "error") {
-    const verticalMidY = edge.sourceY + (edge.targetY - edge.sourceY) * 0.5;
-
-    return `M ${edge.sourceX} ${edge.sourceY} L ${edge.sourceX} ${verticalMidY} L ${edge.targetX} ${verticalMidY} L ${edge.targetX} ${edge.targetY}`;
-  }
-
-  const isMostlyVertical =
-    Math.abs(edge.sourceX - edge.targetX) <= SIDE_ROUTE_EPSILON;
-
-  if (isMostlyVertical) {
-    const verticalMidY = edge.sourceY + (edge.targetY - edge.sourceY) * 0.5;
-
-    return `M ${edge.sourceX} ${edge.sourceY} L ${edge.sourceX} ${verticalMidY} L ${edge.targetX} ${verticalMidY} L ${edge.targetX} ${edge.targetY}`;
-  }
-
-  const horizontalMidX = edge.sourceX + (edge.targetX - edge.sourceX) * 0.5;
-
-  return `M ${edge.sourceX} ${edge.sourceY} L ${horizontalMidX} ${edge.sourceY} L ${horizontalMidX} ${edge.targetY} L ${edge.targetX} ${edge.targetY}`;
+  return [
+    `M ${startPoint.x} ${startPoint.y}`,
+    ...remainingPoints.map((point) => `L ${point.x} ${point.y}`),
+  ].join(" ");
 }
 
 function getRoutePoints(edge: PositionedEdge) {
@@ -135,7 +81,22 @@ function getRoutePoints(edge: PositionedEdge) {
   ];
 }
 
-function getPolylineMidpoint(points: Array<{ x: number; y: number }>) {
+function getOffsetPolylinePoint(points: Array<{ x: number; y: number }>, edge: PositionedEdge) {
+  const routePoint = getPointAtRouteProgress(points, 0.5);
+  const segment = getNearestSegment(points, routePoint.segmentIndex);
+  const perpendicular = getPerpendicularUnit(segment);
+  const offset = getStableLabelOffset(edge);
+
+  return {
+    x: routePoint.x + perpendicular.x * offset,
+    y: routePoint.y + perpendicular.y * offset,
+  };
+}
+
+function getPointAtRouteProgress(
+  points: Array<{ x: number; y: number }>,
+  progress: number,
+) {
   const segmentLengths = points.map((point, index) => {
     const nextPoint = points[index + 1];
 
@@ -149,6 +110,7 @@ function getPolylineMidpoint(points: Array<{ x: number; y: number }>) {
     (total, length) => total + length,
     0,
   );
+  const targetLength = totalLength * progress;
   let walkedLength = 0;
 
   for (const [index, segmentLength] of segmentLengths.entries()) {
@@ -159,20 +121,66 @@ function getPolylineMidpoint(points: Array<{ x: number; y: number }>) {
       break;
     }
 
-    if (walkedLength + segmentLength >= totalLength / 2) {
+    if (walkedLength + segmentLength >= targetLength) {
       const segmentProgress =
-        segmentLength === 0 ? 0 : (totalLength / 2 - walkedLength) / segmentLength;
+        segmentLength === 0 ? 0 : (targetLength - walkedLength) / segmentLength;
 
       return {
         x: point.x + (nextPoint.x - point.x) * segmentProgress,
         y: point.y + (nextPoint.y - point.y) * segmentProgress,
+        segmentIndex: index,
       };
     }
 
     walkedLength += segmentLength;
   }
 
-  return points[Math.floor(points.length / 2)] ?? { x: 0, y: 0 };
+  const fallbackIndex = Math.max(0, Math.floor(points.length / 2) - 1);
+  const fallback = points[Math.floor(points.length / 2)] ?? { x: 0, y: 0 };
+
+  return {
+    ...fallback,
+    segmentIndex: fallbackIndex,
+  };
+}
+
+function getNearestSegment(
+  points: Array<{ x: number; y: number }>,
+  segmentIndex: number,
+) {
+  const source = points[segmentIndex] ?? points[0] ?? { x: 0, y: 0 };
+  const target =
+    points[segmentIndex + 1] ??
+    points[segmentIndex] ??
+    points.at(-1) ??
+    source;
+
+  return { source, target };
+}
+
+function getPerpendicularUnit(segment: {
+  source: { x: number; y: number };
+  target: { x: number; y: number };
+}) {
+  const deltaX = segment.target.x - segment.source.x;
+  const deltaY = segment.target.y - segment.source.y;
+  const length = Math.hypot(deltaX, deltaY);
+
+  if (length === 0) {
+    return { x: 0, y: -1 };
+  }
+
+  return {
+    x: -deltaY / length,
+    y: deltaX / length,
+  };
+}
+
+function getStableLabelOffset(edge: PositionedEdge) {
+  const offsets = [-42, -30, 30, 42];
+  const hash = hashString(`${edge.id}:${edge.semantic?.label ?? ""}`);
+
+  return offsets[hash % offsets.length] ?? 18;
 }
 
 export function getEdgeStroke(edge: PositionedEdge, isTerminalError: boolean) {
@@ -242,43 +250,4 @@ export function getEdgeLabelFill(
   }
 
   return "var(--edge-color)";
-}
-
-function isSideRoutedVerticalEdge(edge: PositionedEdge) {
-  return (
-    Math.abs(edge.sourceX - edge.targetX) <= SIDE_ROUTE_EPSILON &&
-    Math.abs(edge.sourceY - edge.targetY) > NODE_HEIGHT / 2
-  );
-}
-
-function getSideRouteDirection(edge: PositionedEdge) {
-  return edge.type === "error" ? -1 : 1;
-}
-
-function getSideRouteLaneOffset(edge: PositionedEdge) {
-  if (!isSideRoutedVerticalEdge(edge)) {
-    return 0;
-  }
-
-  const laneOffsets = [-28, 0, 28, -56, 56];
-  const hash = hashString(`${edge.type}:${edge.source}:${edge.target}`);
-
-  return laneOffsets[hash % laneOffsets.length];
-}
-
-function getSideRouteBendX(edge: PositionedEdge) {
-  const direction = getSideRouteDirection(edge);
-  const laneOffset = getSideRouteLaneOffset(edge);
-
-  return edge.sourceX + direction * (SIDE_ROUTE_OFFSET + laneOffset);
-}
-
-function clampMagnitude(value: number, minMagnitude: number, maxMagnitude: number) {
-  const direction = value < 0 ? -1 : 1;
-  const magnitude = Math.min(
-    maxMagnitude,
-    Math.max(minMagnitude, Math.abs(value) * 0.32),
-  );
-
-  return direction * magnitude;
 }

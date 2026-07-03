@@ -7,6 +7,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { PanelHeader } from "./editor/PanelHeader";
+import { GlobalSaveBar } from "./editor/GlobalSaveBar";
 import { PaneResizeHandle } from "./editor/PaneResizeHandler";
 import { SourcePane, CanvasPane } from "./panes";
 import { StepInspectorModal } from "./StepInspectorModal";
@@ -91,6 +92,7 @@ export function VisualVibesEditor() {
   });
 
   function requestStandaloneStep(anchor?: FloatingPanelAnchor) {
+    setIsStepInspectorOpen(false);
     setAddStepRequest({ kind: "standalone" });
     setAddStepAnchor(anchor ?? null);
   }
@@ -99,6 +101,7 @@ export function VisualVibesEditor() {
     sourceStepId: string,
     anchor?: FloatingPanelAnchor,
   ) {
+    setIsStepInspectorOpen(false);
     setAddStepRequest({ kind: "appendAfter", sourceStepId });
     setAddStepAnchor(anchor ?? null);
   }
@@ -107,6 +110,7 @@ export function VisualVibesEditor() {
     targetStepId: string,
     anchor?: FloatingPanelAnchor,
   ) {
+    setIsStepInspectorOpen(false);
     setAddStepRequest({ kind: "prependBefore", targetStepId });
     setAddStepAnchor(anchor ?? null);
   }
@@ -116,6 +120,7 @@ export function VisualVibesEditor() {
     targetStepId: string;
     edgeType: "data" | "next" | "error";
   }, anchor?: FloatingPanelAnchor) {
+    setIsStepInspectorOpen(false);
     setAddStepRequest({
       kind: "onEdge",
       sourceStepId: options.sourceStepId,
@@ -141,6 +146,7 @@ export function VisualVibesEditor() {
     stepId: string,
     anchor?: FloatingPanelAnchor,
   ) {
+    closeAddStepWizard();
     handleSelectStep(stepId);
     setStepInspectorAnchor(anchor ?? null);
     setIsStepInspectorOpen(true);
@@ -244,8 +250,6 @@ export function VisualVibesEditor() {
                   onYamlTextChange={vibeState.setYamlText}
                   onSelectStepFromYamlCursor={selectStepFromYamlCursor}
                   onUpdateVibeMetadata={handleUpdateVibeMetadata}
-                  onSaveChanges={handleSaveChanges}
-                  onDiscardChanges={handleDiscardChanges}
                 />
               </div>
             )}
@@ -301,6 +305,11 @@ export function VisualVibesEditor() {
           </section>
         </div>
         {stepInspectorModal}
+        <GlobalSaveBar
+          isDirty={editingState.isDirty}
+          onSaveChanges={handleSaveChanges}
+          onDiscardChanges={handleDiscardChanges}
+        />
       </main>
     );
   }
@@ -348,8 +357,6 @@ export function VisualVibesEditor() {
               onYamlTextChange={vibeState.setYamlText}
               onSelectStepFromYamlCursor={selectStepFromYamlCursor}
               onUpdateVibeMetadata={handleUpdateVibeMetadata}
-              onSaveChanges={handleSaveChanges}
-              onDiscardChanges={handleDiscardChanges}
             />
           </div>
         </section>
@@ -400,6 +407,11 @@ export function VisualVibesEditor() {
         </section>
       </div>
       {stepInspectorModal}
+      <GlobalSaveBar
+        isDirty={editingState.isDirty}
+        onSaveChanges={handleSaveChanges}
+        onDiscardChanges={handleDiscardChanges}
+      />
     </main>
   );
 }

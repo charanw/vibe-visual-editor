@@ -1,7 +1,7 @@
 import type { VisualVibe } from "../schema";
 import type { VibeGraph, VibeGraphEdge, VibeGraphNode } from "./graphTypes";
 
-/** Adds canvas-only control-flow and parallel-path metadata to a built graph. */
+/** Adds canvas-only control-flow metadata to a built graph. */
 export function enrichSemanticGraph(
   graph: VibeGraph,
   vibe: VisualVibe,
@@ -98,10 +98,10 @@ export function enrichSemanticGraph(
     }
   }
 
-  return addParallelLaneMetadata({
+  return {
     nodes,
     edges,
-  });
+  };
 }
 
 function getNodeSemanticKind(
@@ -627,112 +627,4 @@ function humanizeVariableName(value: string) {
     .replace(/[._-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function addParallelLaneMetadata(graph: VibeGraph): VibeGraph {
-  const laneNodeIds = getExecutableComponents(graph);
-
-  if (laneNodeIds.length <= 1) {
-    return graph;
-  }
-
-  const laneByNodeId = new Map<string, number>();
-
-  laneNodeIds.forEach((nodeIds, index) => {
-    for (const nodeId of nodeIds) {
-      laneByNodeId.set(nodeId, index);
-    }
-  });
-
-  return {
-    nodes: graph.nodes.map((node) => {
-      const laneIndex = laneByNodeId.get(node.id);
-
-      if (laneIndex === undefined) {
-        return node;
-      }
-
-      const laneLabel = `Path ${laneIndex + 1}`;
-
-      return {
-        ...node,
-        semantic: {
-          ...node.semantic,
-          parallelLaneIndex: laneIndex,
-          parallelLaneLabel: laneLabel,
-          isParallelLaneStart: laneNodeIds[laneIndex]?.[0] === node.id,
-        },
-      };
-    }),
-    edges: graph.edges,
-  };
-}
-
-function getExecutableComponents(graph: VibeGraph) {
-  const nodeIds = new Set(graph.nodes.map((node) => node.id));
-  const nodeIndexById = new Map(
-    graph.nodes.map((node, index) => [node.id, index] as const),
-  );
-  const neighborsByNode = new Map<string, Set<string>>();
-
-  for (const nodeId of nodeIds) {
-    neighborsByNode.set(nodeId, new Set());
-  }
-
-  for (const edge of graph.edges) {
-    if (edge.type === "data") {
-      continue;
-    }
-
-    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) {
-      continue;
-    }
-
-    neighborsByNode.get(edge.source)?.add(edge.target);
-    neighborsByNode.get(edge.target)?.add(edge.source);
-  }
-
-  const visitedNodeIds = new Set<string>();
-  const components: string[][] = [];
-
-  for (const node of graph.nodes) {
-    if (visitedNodeIds.has(node.id)) {
-      continue;
-    }
-
-    const component: string[] = [];
-    const queue = [node.id];
-
-    while (queue.length > 0) {
-      const currentNodeId = queue.shift();
-
-      if (!currentNodeId || visitedNodeIds.has(currentNodeId)) {
-        continue;
-      }
-
-      visitedNodeIds.add(currentNodeId);
-      component.push(currentNodeId);
-
-      const neighbors = neighborsByNode.get(currentNodeId) ?? new Set();
-
-      for (const neighborId of neighbors) {
-        if (!visitedNodeIds.has(neighborId)) {
-          queue.push(neighborId);
-        }
-      }
-    }
-
-    components.push(
-      component.sort(
-        (a, b) => (nodeIndexById.get(a) ?? 0) - (nodeIndexById.get(b) ?? 0),
-      ),
-    );
-  }
-
-  return components.sort((a, b) => {
-    const aIndex = nodeIndexById.get(a[0] ?? "") ?? 0;
-    const bIndex = nodeIndexById.get(b[0] ?? "") ?? 0;
-
-    return aIndex - bIndex;
-  });
 }

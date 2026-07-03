@@ -14,12 +14,12 @@ type InspectorFieldProps = {
 export function InspectorField({ label, helperText, children }: InspectorFieldProps) {
   return (
     <label className="block">
-      <div className="mb-1 text-xs font-semibold text-[var(--text-primary)]">
+      <div className="mb-1 text-[11px] font-semibold text-[var(--text-primary)]">
         {label}
       </div>
 
       {helperText && (
-        <div className="mb-2 text-xs leading-5 text-[var(--text-muted)]">
+        <div className="mb-1.5 text-[11px] leading-4 text-[var(--text-muted)]">
           {helperText}
         </div>
       )}

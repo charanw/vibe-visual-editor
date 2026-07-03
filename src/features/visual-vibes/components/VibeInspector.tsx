@@ -70,7 +70,7 @@ export function VibeInspector({
 
   return (
     <VibeInspectorForm
-      key={getStepFormKey(selectedStep, selectedStepDescription)}
+      key={selectedStep.id}
       selectedStep={selectedStep}
       selectedStepDescription={selectedStepDescription}
       onUpdateStep={onUpdateStep}
@@ -78,17 +78,6 @@ export function VibeInspector({
       onStepEditDirtyChange={onStepEditDirtyChange}
     />
   );
-}
-
-function getStepFormKey(step: VibeStep, description: string) {
-  return JSON.stringify({
-    id: step.id,
-    functionName: step.function,
-    input: step.input,
-    onErrorStepId: step.on_error_step_id,
-    onErrorMessage: step.on_error_message,
-    description,
-  });
 }
 
 type VibeInspectorFormProps = {
@@ -227,10 +216,15 @@ function VibeInspectorForm({
     const template = getFunctionDefinition(nextFunctionName);
 
     if (!template) {
+      applyLiveStepUpdate({ functionName: nextFunctionName });
       return;
     }
 
     applyInputTemplate(template.defaultInput);
+    applyLiveStepUpdate({
+      functionName: nextFunctionName,
+      input: template.defaultInput,
+    });
   }
 
   function switchInputEditorMode(nextMode: InputEditorMode) {
@@ -272,13 +266,16 @@ function VibeInspectorForm({
     rowId: string,
     updates: Partial<Omit<InputKeyValueRow, "id">>,
   ) {
-    setInputRows((currentRows) =>
-      currentRows.map((row) =>
+    setInputRows((currentRows) => {
+      const nextRows = currentRows.map((row) =>
         row.id === rowId
           ? normalizeInputRowAfterUpdate({ ...row, ...updates })
           : row,
-      ),
-    );
+      );
+      applyLiveInputRows(nextRows);
+
+      return nextRows;
+    });
     setInputError(null);
   }
 
@@ -290,11 +287,83 @@ function VibeInspectorForm({
   function removeInputRow(rowId: string) {
     setInputRows((currentRows) => {
       const nextRows = currentRows.filter((row) => row.id !== rowId);
+      const normalizedRows =
+        nextRows.length > 0 ? nextRows : [createEmptyInputRow()];
 
-      return nextRows.length > 0 ? nextRows : [createEmptyInputRow()];
+      applyLiveInputRows(normalizedRows);
+
+      return normalizedRows;
     });
 
     setInputError(null);
+  }
+
+  function applyLiveInputRows(rows: InputKeyValueRow[]) {
+    const parsed = parseInputRows(rows);
+
+    if (!parsed.ok) {
+      setInputError(parsed.error);
+      return;
+    }
+
+    setInputDraft(JSON.stringify(parsed.value, null, 2));
+    setInputError(null);
+    applyLiveStepUpdate({ input: parsed.value });
+  }
+
+  function applyLiveJsonInput(nextInputDraft: string) {
+    const parsed = parseJsonInputDraft(nextInputDraft);
+
+    if (!parsed.ok) {
+      setInputError(parsed.error);
+      return;
+    }
+
+    setInputRows(inputObjectToRows(parsed.value));
+    setInputError(null);
+    applyLiveStepUpdate({ input: parsed.value });
+  }
+
+  function applyLiveStepUpdate(
+    overrides: Partial<{
+      id: string;
+      functionName: string;
+      input: Record<string, unknown>;
+      onErrorStepId: string;
+      onErrorMessage: string;
+    }>,
+  ) {
+    let nextInput = overrides.input;
+
+    if (!nextInput) {
+      const parsed =
+        inputEditorMode === "json"
+          ? parseJsonInputDraft(inputDraft)
+          : parseInputRows(inputRows);
+
+      if (!parsed.ok) {
+        setInputError(parsed.error);
+        return;
+      }
+
+      nextInput = parsed.value;
+    }
+
+    const nextStepId = (overrides.id ?? stepIdDraft).trim();
+
+    if (!nextStepId) {
+      setInputError("Step ID is required.");
+      return;
+    }
+
+    onUpdateStep(selectedStep.id, {
+      id: nextStepId,
+      functionName: overrides.functionName ?? functionNameDraft,
+      input: nextInput,
+      onErrorStepId: overrides.onErrorStepId ?? onErrorStepIdDraft,
+      onErrorMessage: overrides.onErrorMessage ?? onErrorMessageDraft,
+    });
+    onStepEditDirtyChange(false);
   }
 
   function saveStep() {
@@ -343,28 +412,13 @@ function VibeInspectorForm({
   }
 
   return (
-    <div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-3 sm:p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
-              Selected Step
-            </div>
-            <div className="break-words text-sm font-semibold text-[var(--text-primary)]">
-              {selectedStep.id}
-            </div>
-            <div className="mt-1 break-words text-xs text-[var(--text-muted)]">
-              {selectedStep.function}
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="space-y-2 p-2.5">
       <InspectorField label="Step ID">
         <input
           value={stepIdDraft}
           onChange={(event) => setStepIdDraft(event.target.value)}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+          onBlur={() => applyLiveStepUpdate({ id: stepIdDraft })}
+          className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] outline-none"
         />
       </InspectorField>
 
@@ -373,13 +427,13 @@ function VibeInspectorForm({
         helperText={
           selectedFunctionTemplate
             ? selectedFunctionTemplate.description
-            : "Choose a Studio X step function. Selecting a function will prefill example input keys."
+            : "Choose a Studio X step function."
         }
       >
         <select
           value={functionNameDraft}
           onChange={(event) => handleFunctionSelect(event.target.value)}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+          className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] outline-none"
         >
           {!getFunctionDefinition(functionNameDraft) && functionNameDraft && (
             <option value={functionNameDraft}>
@@ -404,36 +458,42 @@ function VibeInspectorForm({
             onClick={() =>
               applyInputTemplate(selectedFunctionTemplate.defaultInput)
             }
-            className="mt-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+            className="mt-1.5 rounded-md border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-2 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
           >
-            Reapply example input
+            Reapply input
           </button>
         )}
       </InspectorField>
 
       <InspectorField
         label="Description"
-        helperText="Stored as a Vibe source comment directly above this step."
+        helperText="Stored as a source comment."
       >
         <textarea
           value={descriptionDraft}
-          onChange={(event) => setDescriptionDraft(event.target.value)}
-          rows={4}
+          onChange={(event) => {
+            const nextDescription = event.target.value;
+
+            setDescriptionDraft(nextDescription);
+            onUpdateStepDescription(stepIdDraft.trim() || selectedStep.id, nextDescription);
+            onStepEditDirtyChange(false);
+          }}
+          rows={2}
           placeholder="Describe what this step does..."
-          className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none"
+          className="w-full resize-none rounded-md border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-2.5 py-1.5 text-xs leading-5 text-[var(--text-primary)] outline-none"
         />
       </InspectorField>
 
       <InspectorField
         label="Input"
-        helperText="Use Key/Value for simple top-level inputs. Use JSON for nested objects or advanced input structures."
+        helperText="Use JSON for nested input."
       >
-        <div className="overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)]">
+        <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)]">
           <div className="flex border-b border-[var(--border-subtle)] bg-[var(--panel-bg)]">
             <button
               type="button"
               onClick={() => switchInputEditorMode("keyValue")}
-              className={`flex-1 px-3 py-2 text-xs font-semibold ${
+              className={`flex-1 px-2 py-1.5 text-[11px] font-semibold ${
                 inputEditorMode === "keyValue"
                   ? "bg-[var(--brand-primary)] text-white"
                   : "text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
@@ -445,7 +505,7 @@ function VibeInspectorForm({
             <button
               type="button"
               onClick={() => switchInputEditorMode("json")}
-              className={`flex-1 border-l border-[var(--border-subtle)] px-3 py-2 text-xs font-semibold ${
+              className={`flex-1 border-l border-[var(--border-subtle)] px-2 py-1.5 text-[11px] font-semibold ${
                 inputEditorMode === "json"
                   ? "bg-[var(--brand-primary)] text-white"
                   : "text-[var(--text-secondary)] hover:text-[var(--brand-primary)]"
@@ -456,17 +516,17 @@ function VibeInspectorForm({
           </div>
 
           {inputEditorMode === "keyValue" ? (
-            <div className="p-3">
+            <div className="p-2">
               <div className="overflow-x-auto">
-                <div className="min-w-[620px] space-y-2">
-                  <div className="grid grid-cols-[1.1fr_1.35fr_120px_40px] gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                <div className="min-w-[540px] space-y-1.5">
+                  <div className="grid grid-cols-[1.1fr_1.35fr_104px_34px] gap-1.5 px-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
                     <div>Key</div>
                     <div>Value</div>
                     <div>Type</div>
                     <div />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {inputRows.map((row, index) => (
                       <InputKeyValueRowEditor
                         key={row.id}
@@ -484,67 +544,79 @@ function VibeInspectorForm({
               <button
                 type="button"
                 onClick={addInputRow}
-                className="mt-3 inline-flex items-center justify-center rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
+                className="mt-2 inline-flex items-center justify-center rounded-md border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
               >
-                + Add input field
+                + Input
               </button>
             </div>
           ) : (
-            <div className="p-3">
+            <div className="p-2">
               <textarea
                 value={inputDraft}
                 onChange={(event) => {
-                  setInputDraft(event.target.value);
-                  setInputError(null);
+                  const nextInputDraft = event.target.value;
+
+                  setInputDraft(nextInputDraft);
+                  applyLiveJsonInput(nextInputDraft);
                 }}
-                rows={12}
-                className="w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 font-mono text-xs leading-5 text-[var(--text-primary)] outline-none"
+                rows={8}
+                className="w-full resize-y rounded-md border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-2.5 py-1.5 font-mono text-[11px] leading-5 text-[var(--text-primary)] outline-none"
               />
             </div>
           )}
         </div>
 
         {inputError && (
-          <div className="mt-2 rounded-lg border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2 text-xs text-[var(--danger)]">
+          <div className="mt-1.5 rounded-md border border-[var(--danger)] bg-[var(--danger-soft)] px-2.5 py-1.5 text-[11px] text-[var(--danger)]">
             {inputError}
           </div>
         )}
       </InspectorField>
 
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-3 sm:p-4">
-        <div className="mb-2 text-xs font-semibold text-[var(--text-primary)]">
+      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-2.5">
+        <div className="mb-2 text-[11px] font-semibold text-[var(--text-primary)]">
           Error Handling
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           <InspectorField label="Error Step ID">
             <input
               value={onErrorStepIdDraft}
-              onChange={(event) => setOnErrorStepIdDraft(event.target.value)}
+              onChange={(event) => {
+                const nextErrorStepId = event.target.value;
+
+                setOnErrorStepIdDraft(nextErrorStepId);
+                applyLiveStepUpdate({ onErrorStepId: nextErrorStepId });
+              }}
               placeholder="error_handler"
-              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
+              className="w-full rounded-md border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-2.5 py-1.5 text-xs text-[var(--text-primary)] outline-none"
             />
           </InspectorField>
 
           <InspectorField label="Error Message">
             <textarea
               value={onErrorMessageDraft}
-              onChange={(event) => setOnErrorMessageDraft(event.target.value)}
-              rows={3}
+              onChange={(event) => {
+                const nextErrorMessage = event.target.value;
+
+                setOnErrorMessageDraft(nextErrorMessage);
+                applyLiveStepUpdate({ onErrorMessage: nextErrorMessage });
+              }}
+              rows={2}
               placeholder="What should happen if this step fails?"
-              className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none"
+              className="w-full resize-none rounded-md border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-2.5 py-1.5 text-xs leading-5 text-[var(--text-primary)] outline-none"
             />
           </InspectorField>
         </div>
       </div>
 
-      <div className="sticky bottom-0 -mx-3 border-t border-[var(--border-subtle)] bg-[var(--panel-bg)] p-3 sm:-mx-4 sm:p-4">
+      <div className="sticky bottom-0 -mx-2.5 border-t border-[var(--border-subtle)] bg-[var(--panel-bg)] px-2.5 py-2">
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={handleResetDrafts}
             disabled={!isDirty}
-            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             Reset
           </button>
@@ -553,9 +625,9 @@ function VibeInspectorForm({
             type="button"
             onClick={saveStep}
             disabled={!isDirty}
-            className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-2.5 py-1.5 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Save Step
+            Apply
           </button>
         </div>
       </div>

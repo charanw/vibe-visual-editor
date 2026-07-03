@@ -18,10 +18,18 @@ test("built-in example Vibes are valid starter YAML", () => {
   }
 });
 
-test("customer intake example keeps terminal outcomes separate from enrichment lane", () => {
+test("customer intake example starts with enrichment and keeps terminal outcomes separate", () => {
   const customerIntake = exampleVibes[0];
   const graph = visualVibeToGraph(parseVisualVibeYaml(customerIntake.yaml));
 
+  assert.equal(
+    graph.edges.some(
+      (edge) =>
+        edge.source === "enrich_source_context" &&
+        edge.target === "normalize_intake",
+    ),
+    true,
+  );
   assert.equal(
     graph.edges.some(
       (edge) =>
@@ -39,14 +47,14 @@ test("customer intake example keeps terminal outcomes separate from enrichment l
   );
 });
 
-test("customer intake Flow View includes the looped primary path and enrichment path", () => {
+test("customer intake Flow View includes one connected primary path", () => {
   const customerIntake = exampleVibes[0];
   const graph = visualVibeToGraph(parseVisualVibeYaml(customerIntake.yaml));
   const flowGraph = getFlowGraph(graph);
   const flowNodeIds = new Set(flowGraph.nodes.map((node) => node.id));
 
+  assert.equal(flowNodeIds.has("enrich_source_context"), true);
   assert.equal(flowNodeIds.has("normalize_intake"), true);
   assert.equal(flowNodeIds.has("intake_quality_gate"), true);
-  assert.equal(flowNodeIds.has("enrich_source_context"), true);
-  assert.equal(flowNodeIds.has("enrichment_done"), true);
+  assert.equal(flowNodeIds.has("enrichment_done"), false);
 });

@@ -54,8 +54,8 @@ const VIEWPORT_MARGIN = 16;
 const MOBILE_VIEWPORT_MARGIN = 8;
 const MOBILE_BREAKPOINT = 640;
 const DESKTOP_BOTTOM_GAP = 72;
-const MIN_PANEL_WIDTH = 360;
-const MIN_PANEL_HEIGHT = 300;
+const MIN_PANEL_WIDTH = 320;
+const MIN_PANEL_HEIGHT = 260;
 
 /** Non-blocking draggable panel used over the live YAML and graph editors. */
 export function FloatingEditorPanel({
@@ -226,22 +226,22 @@ function FloatingEditorPanelContent({
 
   return (
       <div
-        className="pointer-events-auto absolute flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] shadow-2xl sm:rounded-2xl"
+        className="pointer-events-auto absolute flex min-h-0 flex-col overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] shadow-2xl"
         style={panelStyle}
       >
         <div
-          className="flex shrink-0 cursor-move touch-none select-none items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-3 py-3 sm:gap-4 sm:px-5 sm:py-4"
+          className="flex shrink-0 cursor-move touch-none select-none items-center justify-between gap-2 border-b border-[var(--border-subtle)] px-3 py-2"
           onPointerDown={startDrag}
         >
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
+            <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
               {eyebrow}
             </div>
-            <h2 className="mt-1 break-words text-sm font-semibold text-[var(--text-primary)] sm:text-base">
+            <h2 className="mt-0.5 truncate text-sm font-semibold text-[var(--text-primary)]">
               {title}
             </h2>
             {description && (
-              <p className="mt-1 line-clamp-2 text-xs text-[var(--text-muted)] sm:text-sm">
+              <p className="mt-0.5 line-clamp-1 text-[11px] text-[var(--text-muted)]">
                 {description}
               </p>
             )}
@@ -255,7 +255,7 @@ function FloatingEditorPanelContent({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] sm:h-9 sm:w-9"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] text-xs text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
               aria-label="Close panel"
               title="Close panel"
             >

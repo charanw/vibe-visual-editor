@@ -210,9 +210,9 @@ export function useCanvasNodeClassifier({
 
       if (semanticKind === "loopStep") {
         return {
-          fill: "rgba(20, 184, 166, 0.08)",
-          stroke: "#0f766e",
-          labelFill: "#2dd4bf",
+          fill: "rgba(6, 182, 212, 0.12)",
+          stroke: "#06b6d4",
+          labelFill: "#67e8f9",
           strokeWidth: "2",
         };
       }

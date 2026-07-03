@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+  MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from "react";
@@ -10,6 +11,7 @@ import type {
   EdgeOperationOptions,
   FloatingPanelAnchor,
 } from "../../../types";
+import { NODE_HEIGHT, NODE_WIDTH } from "@/lib/visual-vibes/layout/layoutTypes";
 import { CanvasEdge } from "./CanvasEdge";
 import { CanvasNode } from "./CanvasNode";
 import { CanvasSvgDefs } from "./CanvasSvgDefs";
@@ -26,12 +28,18 @@ type CanvasGraphProps = {
   worldHeight: number;
   isPanning: boolean;
   isEditing: boolean;
+  canAddOnBlankCanvas: boolean;
+  connectionPreviewPoint: { x: number; y: number } | null;
   hoveredEdgeId: string | null;
   hoveredNodeId: string | null;
   connectingFromStepId: string | null;
   onHoverEdge: (edgeId: string | null) => void;
   onHoverNode: (nodeId: string | null) => void;
   onStartPanning: (event: ReactPointerEvent<SVGRectElement>) => void;
+  onBlankCanvasPointerMove: (event: ReactPointerEvent<SVGRectElement>) => void;
+  onBlankCanvasPointerLeave: () => void;
+  onBlankCanvasAddStep: (event: ReactMouseEvent<SVGRectElement>) => void;
+  onCanvasPointerMove: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onContinuePanning: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onStopPanning: (event?: ReactPointerEvent<SVGSVGElement | SVGRectElement>) => void;
   onWheelZoom: (event: ReactWheelEvent<SVGSVGElement>) => void;
@@ -60,12 +68,18 @@ export function CanvasGraph({
   worldHeight,
   isPanning,
   isEditing,
+  canAddOnBlankCanvas,
+  connectionPreviewPoint,
   hoveredEdgeId,
   hoveredNodeId,
   connectingFromStepId,
   onHoverEdge,
   onHoverNode,
   onStartPanning,
+  onBlankCanvasPointerMove,
+  onBlankCanvasPointerLeave,
+  onBlankCanvasAddStep,
+  onCanvasPointerMove,
   onContinuePanning,
   onStopPanning,
   onWheelZoom,
@@ -87,7 +101,10 @@ export function CanvasGraph({
         isPanning ? "cursor-grabbing" : "cursor-grab"
       }`}
       onWheel={onWheelZoom}
-      onPointerMove={onContinuePanning}
+      onPointerMove={(event) => {
+        onCanvasPointerMove(event);
+        onContinuePanning(event);
+      }}
       onPointerUp={onStopPanning}
       onPointerCancel={onStopPanning}
     >
@@ -99,10 +116,36 @@ export function CanvasGraph({
         width={Math.max(worldWidth + 4000, 6000)}
         height={Math.max(worldHeight + 4000, 6000)}
         fill="transparent"
+        onPointerMove={onBlankCanvasPointerMove}
+        onPointerLeave={onBlankCanvasPointerLeave}
+        onDoubleClick={(event) => {
+          if (canAddOnBlankCanvas) {
+            onBlankCanvasAddStep(event);
+          }
+        }}
         onPointerDown={onStartPanning}
       />
 
       <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
+        <rect
+          x="-2000"
+          y="-2000"
+          width={Math.max(worldWidth + 4000, 6000)}
+          height={Math.max(worldHeight + 4000, 6000)}
+          fill="url(#canvas-grid)"
+          opacity="0.72"
+          pointerEvents="none"
+        />
+
+        {connectingFromStepId && connectionPreviewPoint && (
+          <ConnectionPreview
+            sourceNode={graph.nodes.find(
+              (node) => node.id === connectingFromStepId,
+            )}
+            targetPoint={connectionPreviewPoint}
+          />
+        )}
+
         {graph.edges.map((edge) => {
           const targetNode = classifier.nodeById.get(edge.target);
           const isTerminalError = Boolean(
@@ -150,5 +193,50 @@ export function CanvasGraph({
         ))}
       </g>
     </svg>
+  );
+}
+
+function ConnectionPreview({
+  sourceNode,
+  targetPoint,
+}: {
+  sourceNode: PositionedVibeGraph["nodes"][number] | undefined;
+  targetPoint: { x: number; y: number };
+}) {
+  if (!sourceNode) {
+    return null;
+  }
+
+  const sourcePoint = {
+    x: sourceNode.x + NODE_WIDTH,
+    y: sourceNode.y + NODE_HEIGHT / 2,
+  };
+  const midX = sourcePoint.x + (targetPoint.x - sourcePoint.x) / 2;
+  const path = [
+    `M ${sourcePoint.x} ${sourcePoint.y}`,
+    `L ${midX} ${sourcePoint.y}`,
+    `L ${midX} ${targetPoint.y}`,
+    `L ${targetPoint.x} ${targetPoint.y}`,
+  ].join(" ");
+
+  return (
+    <g pointerEvents="none" opacity="0.92">
+      <path
+        d={path}
+        fill="none"
+        stroke="rgba(125, 211, 252, 0.95)"
+        strokeWidth="2"
+        strokeDasharray="8 6"
+        markerEnd="url(#arrow-preview)"
+      />
+      <circle
+        cx={targetPoint.x}
+        cy={targetPoint.y}
+        r="5"
+        fill="rgba(125, 211, 252, 0.22)"
+        stroke="rgba(125, 211, 252, 0.95)"
+        strokeWidth="2"
+      />
+    </g>
   );
 }

@@ -49,6 +49,8 @@ export function CanvasNode({
   const isLoopNode = node.semantic?.kind === "loop";
   const isConditionalNode = node.semantic?.kind === "conditional";
   const isSyntheticLoopStep = node.semantic?.kind === "loopStep";
+  const isSubworkflowNode = node.semantic?.kind === "subworkflow";
+  const isErrorHandlerNode = node.kind === "errorHub";
   const hoverHeight = NODE_HEIGHT + 82;
 
   return (
@@ -91,6 +93,30 @@ export function CanvasNode({
         />
       ) : isSyntheticLoopStep ? (
         <LoopBodyShape
+          fill={state.colors.fill}
+          stroke={state.colors.stroke}
+          strokeWidth={state.colors.strokeWidth}
+        />
+      ) : state.isTerminalError ? (
+        <StopSignShape
+          fill={state.colors.fill}
+          stroke={state.colors.stroke}
+          strokeWidth={state.colors.strokeWidth}
+        />
+      ) : state.isConclusion ? (
+        <ConclusionShape
+          fill={state.colors.fill}
+          stroke={state.colors.stroke}
+          strokeWidth={state.colors.strokeWidth}
+        />
+      ) : isSubworkflowNode ? (
+        <SubworkflowShape
+          fill={state.colors.fill}
+          stroke={state.colors.stroke}
+          strokeWidth={state.colors.strokeWidth}
+        />
+      ) : isErrorHandlerNode ? (
+        <ErrorHandlerShape
           fill={state.colors.fill}
           stroke={state.colors.stroke}
           strokeWidth={state.colors.strokeWidth}
@@ -204,7 +230,7 @@ export function CanvasNode({
             fontWeight="700"
             pointerEvents="none"
           >
-            {node.id}
+            {formatStepIdForDisplay(node.id)}
           </text>
 
           <text
@@ -346,8 +372,116 @@ function LoopBodyShape({
   strokeWidth: string;
 }) {
   return (
+    <g>
+      <path
+        d={`M 0 0 H ${NODE_WIDTH - 30} L ${NODE_WIDTH} 30 V ${NODE_HEIGHT} H 0 Z`}
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+      />
+      <path
+        d={`M ${NODE_WIDTH - 30} 0 V 30 H ${NODE_WIDTH}`}
+        fill="none"
+        stroke={stroke}
+        strokeWidth="1.4"
+        opacity="0.75"
+      />
+    </g>
+  );
+}
+
+function ConclusionShape({
+  fill,
+  stroke,
+  strokeWidth,
+}: {
+  fill: string;
+  stroke: string;
+  strokeWidth: string;
+}) {
+  return (
+    <rect
+      width={NODE_WIDTH}
+      height={NODE_HEIGHT}
+      rx="34"
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+    />
+  );
+}
+
+function StopSignShape({
+  fill,
+  stroke,
+  strokeWidth,
+}: {
+  fill: string;
+  stroke: string;
+  strokeWidth: string;
+}) {
+  return (
     <path
-      d={`M 26 0 H ${NODE_WIDTH} L ${NODE_WIDTH - 26} ${NODE_HEIGHT} H 0 Z`}
+      d={`M 28 0 H ${NODE_WIDTH - 28} L ${NODE_WIDTH} 28 V ${
+        NODE_HEIGHT - 28
+      } L ${NODE_WIDTH - 28} ${NODE_HEIGHT} H 28 L 0 ${
+        NODE_HEIGHT - 28
+      } V 28 Z`}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+    />
+  );
+}
+
+function SubworkflowShape({
+  fill,
+  stroke,
+  strokeWidth,
+}: {
+  fill: string;
+  stroke: string;
+  strokeWidth: string;
+}) {
+  return (
+    <g>
+      <rect
+        x="10"
+        y="-7"
+        width={NODE_WIDTH - 4}
+        height={NODE_HEIGHT}
+        rx="14"
+        fill="rgba(129, 140, 248, 0.05)"
+        stroke={stroke}
+        strokeWidth="1.2"
+        opacity="0.72"
+      />
+      <rect
+        width={NODE_WIDTH}
+        height={NODE_HEIGHT}
+        rx="16"
+        fill={fill}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+      />
+    </g>
+  );
+}
+
+function ErrorHandlerShape({
+  fill,
+  stroke,
+  strokeWidth,
+}: {
+  fill: string;
+  stroke: string;
+  strokeWidth: string;
+}) {
+  return (
+    <path
+      d={`M 28 0 H ${NODE_WIDTH} V ${NODE_HEIGHT} H 28 L 0 ${
+        NODE_HEIGHT / 2
+      } Z`}
       fill={fill}
       stroke={stroke}
       strokeWidth={strokeWidth}
@@ -498,9 +632,17 @@ function LoopBodyContent({
 }
 
 function shortenStepId(stepId: string, maxLength: number) {
-  const label = stepId.replace(/[_-]+/g, " ");
+  const label = formatStepIdForDisplay(stepId);
 
   return label.length > maxLength ? `${label.slice(0, maxLength - 1)}...` : label;
+}
+
+function formatStepIdForDisplay(stepId: string) {
+  return stepId
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 function getAnchorFromEvent(

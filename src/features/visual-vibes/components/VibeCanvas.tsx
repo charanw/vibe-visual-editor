@@ -6,6 +6,8 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type SetStateAction,
 } from "react";
 import { createPortal } from "react-dom";
@@ -101,6 +103,14 @@ export function VibeCanvas({
   const [connectingFromStepId, setConnectingFromStepId] = useState<
     string | null
   >(null);
+  const [blankCanvasPointer, setBlankCanvasPointer] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [connectionPreviewPoint, setConnectionPreviewPoint] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [isFullscreenCanvas, setIsFullscreenCanvas] = useState(false);
   const graphContainerRef = useRef<HTMLDivElement | null>(null);
   const [viewportSize, setViewportSize] = useState({
@@ -169,6 +179,60 @@ export function VibeCanvas({
     return () => window.cancelAnimationFrame(animationFrameId);
   }, [graphLayoutKey, viewportSize.height, viewportSize.width]);
 
+  function handleBlankCanvasPointerMove(
+    event: ReactPointerEvent<SVGRectElement>,
+  ) {
+    if (!isEditing || connectingFromStepId || addStepRequest) {
+      setBlankCanvasPointer(null);
+      return;
+    }
+
+    const bounds = graphContainerRef.current?.getBoundingClientRect();
+
+    if (!bounds) {
+      return;
+    }
+
+    setBlankCanvasPointer({
+      x: event.clientX - bounds.left,
+      y: event.clientY - bounds.top,
+    });
+  }
+
+  function handleBlankCanvasAddStep(event: ReactMouseEvent<SVGRectElement>) {
+    event.stopPropagation();
+    if (addStepRequest) {
+      return;
+    }
+
+    setBlankCanvasPointer(null);
+    onAddStandaloneStep({
+      x: event.clientX,
+      y: event.clientY,
+    });
+  }
+
+  function handleCanvasPointerMove(event: ReactPointerEvent<SVGSVGElement>) {
+    if (!connectingFromStepId) {
+      if (connectionPreviewPoint) {
+        setConnectionPreviewPoint(null);
+      }
+
+      return;
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const screenX =
+      ((event.clientX - bounds.left) / bounds.width) * viewportSize.width;
+    const screenY =
+      ((event.clientY - bounds.top) / bounds.height) * viewportSize.height;
+
+    setConnectionPreviewPoint({
+      x: screenX / viewport.zoom - viewport.pan.x,
+      y: screenY / viewport.zoom - viewport.pan.y,
+    });
+  }
+
   const canvasContent = (
     <div
       className={`relative bg-[var(--canvas-bg)] ${
@@ -200,7 +264,6 @@ export function VibeCanvas({
             onUndoYaml={onUndoYaml}
             onRedoYaml={onRedoYaml}
             onChangeViewMode={onChangeViewMode}
-              onAddStandaloneStep={onAddStandaloneStep}
           />
           </div>
 
@@ -221,6 +284,16 @@ export function VibeCanvas({
               }
             />
 
+            {isEditing &&
+              blankCanvasPointer &&
+              !connectingFromStepId &&
+              !addStepRequest && (
+              <BlankCanvasAddTooltip
+                x={blankCanvasPointer.x}
+                y={blankCanvasPointer.y}
+              />
+            )}
+
             <CanvasGraph
               graph={graph}
               classifier={nodeClassifier}
@@ -232,12 +305,18 @@ export function VibeCanvas({
               worldHeight={viewport.worldHeight}
               isPanning={viewport.isPanning}
               isEditing={isEditing}
+              canAddOnBlankCanvas={isEditing && !addStepRequest}
+              connectionPreviewPoint={connectionPreviewPoint}
               hoveredEdgeId={hoveredEdgeId}
               hoveredNodeId={hoveredNodeId}
               connectingFromStepId={connectingFromStepId}
               onHoverEdge={setHoveredEdgeId}
               onHoverNode={setHoveredNodeId}
               onStartPanning={viewport.startPanning}
+              onBlankCanvasPointerMove={handleBlankCanvasPointerMove}
+              onBlankCanvasPointerLeave={() => setBlankCanvasPointer(null)}
+              onBlankCanvasAddStep={handleBlankCanvasAddStep}
+              onCanvasPointerMove={handleCanvasPointerMove}
               onContinuePanning={viewport.continuePanning}
               onStopPanning={viewport.stopPanning}
               onWheelZoom={viewport.handleWheelZoom}
@@ -247,8 +326,14 @@ export function VibeCanvas({
               onDeleteEdge={onDeleteEdge}
               onAddEdge={onAddEdge}
               onUpdateCondition={onUpdateCondition}
-              onStartConnecting={setConnectingFromStepId}
-              onClearConnectingStep={() => setConnectingFromStepId(null)}
+              onStartConnecting={(stepId) => {
+                setConnectingFromStepId(stepId);
+                setConnectionPreviewPoint(null);
+              }}
+              onClearConnectingStep={() => {
+                setConnectingFromStepId(null);
+                setConnectionPreviewPoint(null);
+              }}
             />
           </div>
         </div>
@@ -280,6 +365,23 @@ function EmptyCanvasNotice() {
   return (
     <div className="mb-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-4 py-3 text-sm text-[var(--text-muted)]">
       No Vibe Steps found. Add a standalone step to start a new Vibe.
+    </div>
+  );
+}
+
+function BlankCanvasAddTooltip({ x, y }: { x: number; y: number }) {
+  return (
+    <div
+      className="pointer-events-none absolute z-20 flex items-center gap-2 rounded-full border border-[var(--border-subtle)] bg-[var(--panel-bg)]/95 px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] shadow-[0_10px_30px_rgba(2,6,23,0.35)]"
+      style={{
+        left: x + 14,
+        top: y + 14,
+      }}
+    >
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--brand-soft)] text-sm leading-none text-[var(--brand-primary)]">
+        +
+      </span>
+      Double-click to add step
     </div>
   );
 }
