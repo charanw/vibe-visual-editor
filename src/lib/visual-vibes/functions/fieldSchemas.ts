@@ -131,6 +131,13 @@ export const FIELD_SCHEMAS: Record<string, FieldSchema> = {
     placeholder: "Array of items to loop through",
     helpText: "The array or collection to iterate over",
   },
+  iterable: {
+    id: "iterable",
+    label: "Iterable",
+    type: "text",
+    placeholder: "${steps.fetch.output.items}",
+    helpText: "The array expression to iterate over",
+  },
   steps: {
     id: "steps",
     label: "Steps",

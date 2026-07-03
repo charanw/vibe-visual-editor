@@ -5,6 +5,7 @@ import {
   addTemplateStepInYaml,
   deleteStepInYaml,
   getStepDescriptionFromYaml,
+  getStepIdAtYamlLine,
   parseVisualVibeYaml,
   updateConditionalExpressionInYaml,
   updateStepDescriptionInYaml,
@@ -37,6 +38,13 @@ test("getStepDescriptionFromYaml reads comments directly above a step", () => {
     getStepDescriptionFromYaml(exampleYaml, "load_profile"),
     "Load the customer profile before responding.",
   );
+});
+
+test("getStepIdAtYamlLine maps editor cursor lines to workflow steps", () => {
+  assert.equal(getStepIdAtYamlLine(exampleYaml, 8), "load_profile");
+  assert.equal(getStepIdAtYamlLine(exampleYaml, 11), "load_profile");
+  assert.equal(getStepIdAtYamlLine(exampleYaml, 13), "respond");
+  assert.equal(getStepIdAtYamlLine(exampleYaml, 7), null);
 });
 
 test("updateStepDescriptionInYaml writes comment-backed descriptions", () => {

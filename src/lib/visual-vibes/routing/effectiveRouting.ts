@@ -3,9 +3,9 @@ import type { VibeStep } from "../schema";
 /**
  * Returns the step id that should run after the current step.
  *
- * Authored `next_step_id` values stay authoritative. Terminal workflow
- * conclusions stop execution. Other steps that omit `next_step_id` fall through
- * to the next step in YAML order.
+ * Authored `next_step_id` values stay authoritative. Explicit `null` and
+ * terminal workflow conclusions stop execution. Steps that omit `next_step_id`
+ * fall through to the next step in YAML order.
  */
 export function getEffectiveNextStepId(
   steps: VibeStep[],
@@ -17,7 +17,11 @@ export function getEffectiveNextStepId(
     return null;
   }
 
-  if (step.next_step_id) {
+  if (Object.prototype.hasOwnProperty.call(step, "next_step_id")) {
+    if (typeof step.next_step_id !== "string" || !step.next_step_id) {
+      return null;
+    }
+
     return step.next_step_id;
   }
 
@@ -35,7 +39,7 @@ export function isInferredNextStep(steps: VibeStep[], stepIndex: number) {
   return Boolean(
     step &&
       step.function !== "concludeWorkflow" &&
-      !step.next_step_id &&
+      !Object.prototype.hasOwnProperty.call(step, "next_step_id") &&
       steps[stepIndex + 1]?.id,
   );
 }

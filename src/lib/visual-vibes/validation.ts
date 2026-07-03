@@ -24,7 +24,7 @@ export type VibeValidationIssue = {
   metadata?: {
     field?: string;
     missingStepId?: string;
-    branch?: "then" | "else";
+    branch?: "then" | "else" | "case";
   };
 };
 
@@ -229,6 +229,26 @@ export function validateVisualVibeYaml(yamlText: string): VibeValidationIssue[] 
           });
         }
       }
+
+      for (const branchTarget of getSwitchBranchTargets(condition)) {
+        if (!stepIds.has(branchTarget)) {
+          issues.push({
+            level: "error",
+            stepId: step.id,
+            id: `${step.id}-missing-case-${branchTarget}`,
+            code: "missing_conditional_branch",
+            path: `workflow.steps.${step.id}.input.condition.cases`,
+            metadata: { branch: "case", missingStepId: branchTarget },
+            message: `Step "${step.id}" has switch case "${branchTarget}", but that step does not exist.`,
+          });
+        }
+      }
+    }
+
+    if (step.function === "loopFlow") {
+      for (const issue of validateLoopSteps(step)) {
+        issues.push(issue);
+      }
     }
   }
 
@@ -241,4 +261,82 @@ function getRecord(value: unknown): Record<string, unknown> | null {
   }
 
   return value as Record<string, unknown>;
+}
+
+function getSwitchBranchTargets(condition: Record<string, unknown> | null) {
+  if (!condition || condition.type !== "switch" || !Array.isArray(condition.cases)) {
+    return [];
+  }
+
+  return condition.cases
+    .map((switchCase) => {
+      const caseRecord = getRecord(switchCase);
+      const stepId = caseRecord?.stepId ?? caseRecord?.step_id;
+
+      return typeof stepId === "string" ? stepId : null;
+    })
+    .filter((stepId): stepId is string => Boolean(stepId));
+}
+
+function validateLoopSteps(
+  step: ReturnType<typeof parseVisualVibeYaml>["workflow"]["steps"][number],
+) {
+  const issues: VibeValidationIssue[] = [];
+
+  if (!Array.isArray(step.input.steps)) {
+    return issues;
+  }
+
+  const nestedSteps = step.input.steps.filter(isStepLike);
+  const nestedStepIds = new Set(nestedSteps.map((nestedStep) => nestedStep.id));
+
+  for (const nestedStep of nestedSteps) {
+    if (nestedStep.next_step_id && !nestedStepIds.has(nestedStep.next_step_id)) {
+      issues.push({
+        level: "error",
+        stepId: step.id,
+        id: `${step.id}-${nestedStep.id}-missing-loop-next-${nestedStep.next_step_id}`,
+        code: "missing_next_step",
+        path: `workflow.steps.${step.id}.input.steps.${nestedStep.id}.next_step_id`,
+        metadata: {
+          field: "next_step_id",
+          missingStepId: nestedStep.next_step_id,
+        },
+        message: `Loop step "${nestedStep.id}" has next_step_id "${nestedStep.next_step_id}", but that loop step does not exist.`,
+      });
+    }
+
+    if (
+      nestedStep.on_error_step_id &&
+      !nestedStepIds.has(nestedStep.on_error_step_id)
+    ) {
+      issues.push({
+        level: "error",
+        stepId: step.id,
+        id: `${step.id}-${nestedStep.id}-missing-loop-error-${nestedStep.on_error_step_id}`,
+        code: "missing_error_step",
+        path: `workflow.steps.${step.id}.input.steps.${nestedStep.id}.on_error_step_id`,
+        metadata: {
+          field: "on_error_step_id",
+          missingStepId: nestedStep.on_error_step_id,
+        },
+        message: `Loop step "${nestedStep.id}" has on_error_step_id "${nestedStep.on_error_step_id}", but that loop step does not exist.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+function isStepLike(
+  value: unknown,
+): value is ReturnType<typeof parseVisualVibeYaml>["workflow"]["steps"][number] {
+  const record = getRecord(value);
+
+  return Boolean(
+    record &&
+      typeof record.id === "string" &&
+      typeof record.function === "string" &&
+      getRecord(record.input),
+  );
 }

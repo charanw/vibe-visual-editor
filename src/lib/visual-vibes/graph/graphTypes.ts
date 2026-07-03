@@ -5,13 +5,16 @@ export type VibeGraphNode = {
   kind?: "step" | "errorHub";
   memberCount?: number;
   semantic?: {
-    kind?: "conditional" | "loop" | "subworkflow" | "terminal";
-    badge?: "IF" | "LOOP" | "FLOW" | "END";
+    kind?: "conditional" | "loop" | "loopStep" | "subworkflow" | "terminal";
+    badge?: "IF" | "LOOP" | "EACH" | "FLOW" | "END";
     conditionExpression?: string;
+    conditionMode?: "if" | "switch";
     inputPreview?: string[];
     outputPreview?: string[];
     loopItemsPreview?: string;
     loopStepIds?: string[];
+    loopParentId?: string;
+    loopStepLabel?: string;
     parallelLaneIndex?: number;
     parallelLaneLabel?: string;
     isParallelLaneStart?: boolean;
@@ -26,7 +29,7 @@ export type VibeGraphEdge = {
   type: "data" | "next" | "error" | "semantic";
   inferred?: boolean;
   semantic?: {
-    label?: "then" | "else" | "each" | "done" | "workflow";
+    label?: string;
   };
 };
 

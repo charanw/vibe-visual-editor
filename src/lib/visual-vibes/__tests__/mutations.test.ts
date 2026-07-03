@@ -134,7 +134,7 @@ test("routing mutations add and remove workflow edges", () => {
     edgeType: "next",
   });
 
-  assert.equal(unroutedWorkflow.steps[0]?.next_step_id, undefined);
+  assert.equal(unroutedWorkflow.steps[0]?.next_step_id, null);
 });
 
 test("reorderSteps returns workflow steps in requested order", () => {

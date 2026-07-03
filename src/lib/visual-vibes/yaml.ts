@@ -24,6 +24,102 @@ export function getStepDescriptionFromYaml(
   return collectStepDescriptionsFromYaml(yamlText).get(stepId) ?? "";
 }
 
+export type StepYamlRange = {
+  startLineNumber: number;
+  startColumn: number;
+  endLineNumber: number;
+  endColumn: number;
+};
+
+/** Returns the source range for one step, including its comment description. */
+export function getStepYamlRange(
+  yamlText: string,
+  stepId: string,
+): StepYamlRange | null {
+  const lines = yamlText.split(/\r?\n/);
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const stepInfo = getStepIdLineInfo(lines[index]);
+
+    if (!stepInfo || stepInfo.stepId !== stepId) {
+      continue;
+    }
+
+    let startIndex = index;
+    let commentIndex = index - 1;
+
+    while (commentIndex >= 0) {
+      const line = lines[commentIndex];
+      const commentMatch = line.match(/^(\s*)#\s?(.*)$/);
+
+      if (!commentMatch || commentMatch[1] !== stepInfo.indent) {
+        break;
+      }
+
+      startIndex = commentIndex;
+      commentIndex -= 1;
+    }
+
+    let endIndex = lines.length - 1;
+
+    for (let nextIndex = index + 1; nextIndex < lines.length; nextIndex += 1) {
+      const nextStepInfo = getStepIdLineInfo(lines[nextIndex]);
+
+      if (nextStepInfo && nextStepInfo.indent === stepInfo.indent) {
+        endIndex = nextIndex - 1;
+        break;
+      }
+    }
+
+    return {
+      startLineNumber: startIndex + 1,
+      startColumn: 1,
+      endLineNumber: endIndex + 1,
+      endColumn: lines[endIndex].length + 1,
+    };
+  }
+
+  return null;
+}
+
+/** Returns the workflow step containing a 1-based YAML editor line number. */
+export function getStepIdAtYamlLine(
+  yamlText: string,
+  lineNumber: number,
+): string | null {
+  const lines = yamlText.split(/\r?\n/);
+  let activeStep: { stepId: string; indent: string } | null = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const stepInfo = getStepIdLineInfo(lines[index]);
+    const currentLineNumber = index + 1;
+
+    if (stepInfo) {
+      if (currentLineNumber > lineNumber) {
+        break;
+      }
+
+      activeStep = {
+        stepId: stepInfo.stepId,
+        indent: stepInfo.indent,
+      };
+      continue;
+    }
+
+    if (!activeStep || currentLineNumber < lineNumber) {
+      continue;
+    }
+
+    const line = lines[index];
+    const isBlankOrNested =
+      line.trim().length === 0 || line.startsWith(`${activeStep.indent}  `);
+
+    return isBlankOrNested ? activeStep.stepId : null;
+  }
+
+  return activeStep?.stepId ?? null;
+}
+
 /**
  * Updates the comment-backed description for one step while preserving all
  * other step descriptions.

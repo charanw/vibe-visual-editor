@@ -11,7 +11,7 @@ export const VibeStepSchema = z
     id: z.string().min(1),
     function: z.string().min(1),
     input: z.record(z.string(), z.unknown()).default({}),
-    next_step_id: z.string().optional(),
+    next_step_id: z.string().nullable().optional(),
     on_error_step_id: z.string().optional(),
     on_error_message: z.string().optional(),
   })

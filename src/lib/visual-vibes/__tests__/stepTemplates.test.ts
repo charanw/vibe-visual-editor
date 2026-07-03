@@ -4,6 +4,7 @@ import {
   createStepTemplate,
   createWizardStepTemplate,
   createUniqueStepId,
+  getFunctionDefinition,
 } from "../functions";
 
 test("createUniqueStepId skips existing ids", () => {
@@ -56,5 +57,54 @@ test("createStepTemplate uses registry defaults for common and control-flow func
   assert.equal(wizardTemplate.fields[0]?.example.length > 0, true);
   assert.equal(conditionalWizardTemplate.fields[0]?.label, "Condition");
   assert.equal(conditionalWizardTemplate.fields[0]?.editorKind, "json");
-  assert.equal(loopWizardTemplate.fields[0]?.label, "Items");
+  assert.equal(loopWizardTemplate.fields[0]?.label, "Iterable");
+});
+
+test("registry includes documented Vibe step functions", () => {
+  const documentedFunctionIds = [
+    "addKnowledgebaseLabel",
+    "addKnowledgeSourceToBot",
+    "aiExtractVariables",
+    "aiProcessing",
+    "apiRequest",
+    "cancelScheduledFlow",
+    "concludeWorkflow",
+    "createBot",
+    "createExecutorMagicLink",
+    "createHtmlTable",
+    "createPersonalBot",
+    "createXlsxFile",
+    "deleteBot",
+    "deleteKnowledgeSource",
+    "executeDatabaseOperation",
+    "extractDataFromSheet",
+    "formatRerankedResults",
+    "generateChart",
+    "generatePptx",
+    "getAvailableBusinessTemplates",
+    "handleConditional",
+    "invokeWorkflow",
+    "knowledgeSourceSearch",
+    "loopFlow",
+    "loopFormat",
+    "parallelGroup",
+    "presentUiElement",
+    "promptUser",
+    "queryKnowledgebase",
+    "queryKnowledgebaseVectors",
+    "rerankKnowledgebaseVectors",
+    "scheduleFlow",
+    "sendEmail",
+    "sendResponse",
+    "sleep",
+    "updateGlobalVariable",
+    "updateKnowledgeSourceLabels",
+  ];
+
+  assert.deepEqual(
+    documentedFunctionIds.filter(
+      (functionId) => !getFunctionDefinition(functionId),
+    ),
+    [],
+  );
 });

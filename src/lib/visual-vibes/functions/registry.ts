@@ -52,6 +52,43 @@ const FUNCTION_REGISTRY: Record<string, FunctionDefinition> = {
       query: "{{user_question}}",
     },
   },
+  queryKnowledgebaseVectors: {
+    id: "queryKnowledgebaseVectors",
+    label: "Query Knowledgebase Vectors",
+    category: "AI",
+    description: "Search knowledgebase vectors for relevant passages.",
+    defaultInput: {
+      query_string: "{{user_question}}",
+      botUrl: "{{bot_url}}",
+      count: 5,
+      categories: [],
+      labels: [],
+      secondary_bots: [],
+    },
+  },
+  rerankKnowledgebaseVectors: {
+    id: "rerankKnowledgebaseVectors",
+    label: "Rerank Knowledgebase Vectors",
+    category: "AI",
+    description: "Rerank vector results using AI relevance and context expansion.",
+    defaultInput: {
+      rerank_prompt: "Rank these results by usefulness for the user question.",
+      vectors: "${steps.query_knowledge.output.vectors}",
+      count: 5,
+      relevancy_limit: 0.5,
+      force_context_expansion: false,
+    },
+  },
+  formatRerankedResults: {
+    id: "formatRerankedResults",
+    label: "Format Reranked Results",
+    category: "AI",
+    description: "Format reranked knowledgebase results for downstream prompts.",
+    defaultInput: {
+      vectors: "${steps.rerank_results.output.vectors}",
+      botUrl: "{{bot_url}}",
+    },
+  },
 
   // ============ COMMUNICATION FUNCTIONS ============
   sendResponse: {
@@ -86,6 +123,27 @@ const FUNCTION_REGISTRY: Record<string, FunctionDefinition> = {
       message: "Could you please provide a little more detail?",
     },
   },
+  presentUiElement: {
+    id: "presentUiElement",
+    label: "Present UI Element",
+    category: "Communication",
+    description: "Present an interactive form, modal, or card to the user.",
+    defaultInput: {
+      element_id: "collect_details",
+      type: "form",
+      config: {
+        title: "Details",
+        fields: [
+          {
+            id: "name",
+            label: "Name",
+            type: "text",
+            required: true,
+          },
+        ],
+      },
+    },
+  },
 
   // ============ DATA FUNCTIONS ============
   databaseExtraction: {
@@ -97,6 +155,18 @@ const FUNCTION_REGISTRY: Record<string, FunctionDefinition> = {
       resource_id: "database_resource_id",
       query: "SELECT * FROM customers WHERE email = '{{customer_email}}'",
       return_format: "json",
+    },
+  },
+  executeDatabaseOperation: {
+    id: "executeDatabaseOperation",
+    label: "Execute Database Operation",
+    category: "Data",
+    description: "Run a SQL operation against a configured resource scope.",
+    defaultInput: {
+      resource_slug: "database_resource",
+      scope_slug: "default",
+      operation_string: "SELECT * FROM customers LIMIT 10",
+      return_format: "array",
     },
   },
   extractDataFromSheet: {
@@ -117,6 +187,32 @@ const FUNCTION_REGISTRY: Record<string, FunctionDefinition> = {
     defaultInput: {
       file: "{{uploaded_file}}",
       query: "Which rows need follow-up?",
+    },
+  },
+  loopFormat: {
+    id: "loopFormat",
+    label: "Loop Format",
+    category: "Data",
+    description: "Transform each item in an array into a new output shape.",
+    defaultInput: {
+      iterable: "${steps.fetch_data.output.data}",
+      output_format: [
+        {
+          name: "name",
+          target: "profile.name",
+        },
+      ],
+      replace_null_with: "",
+    },
+  },
+  updateGlobalVariable: {
+    id: "updateGlobalVariable",
+    label: "Update Global Variable",
+    category: "Data",
+    description: "Update a persistent global variable value.",
+    defaultInput: {
+      key: "customer_status",
+      value: "${steps.compute_status.output.status}",
     },
   },
 
@@ -141,8 +237,17 @@ const FUNCTION_REGISTRY: Record<string, FunctionDefinition> = {
     category: "ControlFlow",
     description: "Loop through an array and run steps for each item.",
     defaultInput: {
-      items: "{{items}}",
-      steps: ["process_current_item"],
+      iterable: "{{items}}",
+      steps: [
+        {
+          id: "process_current_item",
+          function: "aiProcessing",
+          input: {
+            prompt: "Process ${currentElement}",
+            output_type: "text",
+          },
+        },
+      ],
     },
     isControlFlow: true,
   },
@@ -198,6 +303,35 @@ const FUNCTION_REGISTRY: Record<string, FunctionDefinition> = {
       filename: "export.xlsx",
     },
   },
+  generatePptx: {
+    id: "generatePptx",
+    label: "Generate PPTX",
+    category: "FileAndFormat",
+    description: "Generate a PowerPoint presentation file.",
+    defaultInput: {
+      slides: [
+        {
+          title: "Summary",
+          bullets: ["Key point"],
+        },
+      ],
+      filename: "presentation.pptx",
+    },
+  },
+  generateChart: {
+    id: "generateChart",
+    label: "Generate Chart",
+    category: "FileAndFormat",
+    description: "Generate a chart image or file from structured data.",
+    defaultInput: {
+      data: "${steps.fetch_metrics.output.data}",
+      chartType: "bar",
+      description: "Show the key metric trend.",
+      width: 800,
+      height: 480,
+      darkMode: false,
+    },
+  },
 
   // ============ INTEGRATION FUNCTIONS ============
   apiRequest: {
@@ -243,6 +377,150 @@ const FUNCTION_REGISTRY: Record<string, FunctionDefinition> = {
       target_flow_id: "{{scheduled_flow_id}}",
       self: false,
     },
+  },
+  sleep: {
+    id: "sleep",
+    label: "Sleep",
+    category: "Integration",
+    description: "Pause workflow execution for a duration.",
+    defaultInput: {
+      duration: 60,
+      unit: "seconds",
+    },
+  },
+  createExecutorMagicLink: {
+    id: "createExecutorMagicLink",
+    label: "Create Executor Magic Link",
+    category: "Integration",
+    description: "Create an authenticated magic link for executing a Vibe.",
+    defaultInput: {
+      executor_type: "creator",
+      vibe_slug_to_execute: "target-vibe",
+      bot_id: "{{bot_id}}",
+      executing_message: "{{user_message}}",
+      unique_data: {},
+      post_execution_html: "",
+    },
+  },
+  getAvailableBusinessTemplates: {
+    id: "getAvailableBusinessTemplates",
+    label: "Get Available Business Templates",
+    category: "Integration",
+    description: "List business templates available for bot creation.",
+    defaultInput: {
+      category: "",
+    },
+  },
+  createBot: {
+    id: "createBot",
+    label: "Create Bot",
+    category: "Integration",
+    description: "Create a bot from template or configuration.",
+    defaultInput: {
+      name: "New Assistant",
+      slug: "new-assistant",
+      template_id: "",
+      description: "Assistant created by a Vibe.",
+    },
+  },
+  createPersonalBot: {
+    id: "createPersonalBot",
+    label: "Create Personal Bot",
+    category: "Integration",
+    description: "Create a personal assistant for a user.",
+    defaultInput: {
+      name: "Personal Assistant",
+      slug: "personal-assistant",
+      role: "assistant",
+      specialization: "general support",
+    },
+  },
+  deleteBot: {
+    id: "deleteBot",
+    label: "Delete Bot",
+    category: "Integration",
+    description: "Delete a bot by identifier or URL.",
+    defaultInput: {
+      botIdentifier: "{{bot_id}}",
+      botUrl: "",
+    },
+  },
+  addKnowledgeSourceToBot: {
+    id: "addKnowledgeSourceToBot",
+    label: "Add Knowledge Source To Bot",
+    category: "Integration",
+    description: "Add text, URL, or file content as a bot knowledge source.",
+    defaultInput: {
+      botIdentifier: "{{bot_id}}",
+      type: "plainText",
+      plainText: "${steps.generate_content.output}",
+      labels: [],
+    },
+  },
+  deleteKnowledgeSource: {
+    id: "deleteKnowledgeSource",
+    label: "Delete Knowledge Source",
+    category: "Integration",
+    description: "Delete a knowledge source from a bot.",
+    defaultInput: {
+      botIdentifier: "{{bot_id}}",
+      sourceId: "{{source_id}}",
+    },
+  },
+  updateKnowledgeSourceLabels: {
+    id: "updateKnowledgeSourceLabels",
+    label: "Update Knowledge Source Labels",
+    category: "Integration",
+    description: "Replace or update labels for a knowledge source.",
+    defaultInput: {
+      sourceId: "{{source_id}}",
+      labels: ["customer-facing"],
+    },
+  },
+  knowledgeSourceSearch: {
+    id: "knowledgeSourceSearch",
+    label: "Knowledge Source Search",
+    category: "Integration",
+    description: "Search and filter bot knowledge sources.",
+    defaultInput: {
+      botIdentifier: "{{bot_id}}",
+      keyword: "",
+      rows: 20,
+      page: 1,
+      sortField: "createdAt",
+      typeFilter: "",
+      label: "",
+    },
+  },
+  addKnowledgebaseLabel: {
+    id: "addKnowledgebaseLabel",
+    label: "Add Knowledgebase Label",
+    category: "Integration",
+    description: "Create a label for organizing knowledgebase sources.",
+    defaultInput: {
+      label: "customer-facing",
+      description: "Content visible to customers",
+      isSemanticLabel: false,
+    },
+  },
+  parallelGroup: {
+    id: "parallelGroup",
+    label: "Parallel Group",
+    category: "ControlFlow",
+    description: "Run a group of steps in parallel.",
+    defaultInput: {
+      steps: [
+        {
+          id: "parallel_task",
+          function: "aiProcessing",
+          input: {
+            prompt: "Process this in parallel.",
+            output_type: "text",
+          },
+        },
+      ],
+    },
+    isControlFlow: true,
   },
 };
 

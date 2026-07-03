@@ -174,6 +174,47 @@ test("visualVibeToGraph enriches handleConditional branches", () => {
   );
 });
 
+test("visualVibeToGraph enriches handleConditional switch cases", () => {
+  const graph = visualVibeToGraph(
+    createVibe([
+      {
+        id: "route_status",
+        function: "handleConditional",
+        input: {
+          condition: {
+            type: "switch",
+            expression: "${steps.lookup.output.status}",
+            cases: [
+              { value: "open", stepId: "handle_open" },
+              { type: "pattern", pattern: "^ERR-", stepId: "handle_error" },
+            ],
+          },
+        },
+      },
+      step("handle_open"),
+      step("handle_error"),
+    ]),
+  );
+
+  const branch = graph.nodes.find((node) => node.id === "route_status");
+  const semanticEdges = graph.edges.filter(
+    (edge) => edge.source === "route_status" && edge.semantic?.label,
+  );
+
+  assert.equal(branch?.semantic?.kind, "conditional");
+  assert.equal(branch?.semantic?.conditionMode, "switch");
+  assert.deepEqual(
+    semanticEdges.map((edge) => ({
+      target: edge.target,
+      label: edge.semantic?.label,
+    })),
+    [
+      { target: "handle_open", label: "case open" },
+      { target: "handle_error", label: "pattern" },
+    ],
+  );
+});
+
 test("visualVibeToGraph enriches loop edges without duplicating next edges", () => {
   const graph = visualVibeToGraph(
     createVibe([
@@ -200,7 +241,7 @@ test("visualVibeToGraph enriches loop edges without duplicating next edges", () 
   );
 
   assert.equal(loop?.semantic?.badge, "LOOP");
-  assert.equal(loop?.semantic?.loopItemsPreview, "${steps.load.output}");
+  assert.equal(loop?.semantic?.loopItemsPreview, "load result");
   assert.deepEqual(loop?.semantic?.loopStepIds, ["process_item"]);
   assert.equal(eachEdge?.type, "semantic");
   assert.equal(eachEdge?.semantic?.label, "each");
@@ -211,6 +252,71 @@ test("visualVibeToGraph enriches loop edges without duplicating next edges", () 
       (edge) => edge.source === "loop" && edge.target === "after_loop",
     ).length,
     1,
+  );
+});
+
+test("visualVibeToGraph renders nested loopFlow steps", () => {
+  const graph = visualVibeToGraph(
+    createVibe([
+      {
+        id: "process_orders",
+        function: "loopFlow",
+        next_step_id: "done",
+        input: {
+          iterable: "${steps.fetch_orders.output.orders}",
+          steps: [
+            {
+              id: "enrich_order",
+              function: "apiRequest",
+              input: {
+                endpoint: "https://api.example.com/orders/${currentElement.id}",
+              },
+            },
+            {
+              id: "notify_customer",
+              function: "sendEmail",
+              input: {
+                to: "${currentElement.customer_email}",
+              },
+            },
+          ],
+        },
+      },
+      step("done"),
+    ]),
+  );
+
+  const loop = graph.nodes.find((node) => node.id === "process_orders");
+  const enrich = graph.nodes.find(
+    (node) => node.id === "process_orders.enrich_order",
+  );
+  const notify = graph.nodes.find(
+    (node) => node.id === "process_orders.notify_customer",
+  );
+
+  assert.equal(loop?.semantic?.loopItemsPreview, "fetch orders orders");
+  assert.deepEqual(loop?.semantic?.loopStepIds, [
+    "enrich_order",
+    "notify_customer",
+  ]);
+  assert.equal(enrich?.semantic?.kind, "loopStep");
+  assert.equal(enrich?.semantic?.badge, "EACH");
+  assert.equal(notify?.semantic?.loopParentId, "process_orders");
+  assert.ok(
+    graph.edges.some(
+      (edge) =>
+        edge.source === "process_orders" &&
+        edge.target === "process_orders.enrich_order" &&
+        edge.semantic?.label === "each",
+    ),
+  );
+  assert.ok(
+    graph.edges.some(
+      (edge) =>
+        edge.source === "process_orders.enrich_order" &&
+        edge.target === "process_orders.notify_customer" &&
+        edge.semantic?.label === "next",
+    ),
   );
 });
 
@@ -333,6 +439,25 @@ test("visualVibeToGraph uses YAML order, not data references, for sequential fal
   assert.deepEqual(
     graph.nodes.map((node) => node.semantic?.parallelLaneLabel),
     [undefined, undefined],
+  );
+});
+
+test("visualVibeToGraph treats null next_step_id as no fallthrough", () => {
+  const graph = visualVibeToGraph(
+    createVibe([
+      { ...step("producer"), next_step_id: null },
+      step("consumer"),
+    ]),
+  );
+
+  assert.equal(
+    graph.edges.some(
+      (edge) =>
+        edge.source === "producer" &&
+        edge.target === "consumer" &&
+        edge.type === "next",
+    ),
+    false,
   );
 });
 
