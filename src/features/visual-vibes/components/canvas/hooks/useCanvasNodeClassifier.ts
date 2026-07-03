@@ -22,7 +22,7 @@ export type CanvasNodeState = {
   isConclusion: boolean;
   isStartingFlowNode: boolean;
   isTerminalError: boolean;
-  isDimmed: boolean;
+  isSelected: boolean;
 };
 
 type UseCanvasNodeClassifierOptions = {
@@ -269,7 +269,7 @@ export function useCanvasNodeClassifier({
         isConclusion,
         isStartingFlowNode,
         isTerminalError,
-        isDimmed: Boolean(selectedStepId) && !isSelected,
+        isSelected,
       };
     }
 

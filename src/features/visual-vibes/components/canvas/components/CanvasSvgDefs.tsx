@@ -2,6 +2,29 @@
 export function CanvasSvgDefs() {
   return (
     <defs>
+      <filter
+        id="selected-node-glow"
+        x="-35%"
+        y="-45%"
+        width="170%"
+        height="190%"
+      >
+        <feDropShadow
+          dx="0"
+          dy="0"
+          stdDeviation="7"
+          floodColor="rgb(56, 189, 248)"
+          floodOpacity="0.72"
+        />
+        <feDropShadow
+          dx="0"
+          dy="0"
+          stdDeviation="2"
+          floodColor="rgb(125, 211, 252)"
+          floodOpacity="0.95"
+        />
+      </filter>
+
       <marker
         id="arrow-data"
         markerWidth="12"

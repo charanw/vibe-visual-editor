@@ -53,14 +53,6 @@ type VibeCanvasProps = {
   onDeleteStep: (stepId: string) => void;
   onAddEdge: (options: AddEdgeOptions) => void;
   onDeleteEdge: (options: EdgeOperationOptions) => void;
-  onAppendStepAfter: (
-    sourceStepId: string,
-    anchor?: FloatingPanelAnchor,
-  ) => void;
-  onPrependStepBefore: (
-    targetStepId: string,
-    anchor?: FloatingPanelAnchor,
-  ) => void;
   onUpdateCondition: (stepId: string, expression: string) => void;
   addStepRequest: AddStepPlacement | null;
   addStepAnchor: FloatingPanelAnchor | null;
@@ -96,8 +88,6 @@ export function VibeCanvas({
   onDeleteStep,
   onAddEdge,
   onDeleteEdge,
-  onAppendStepAfter,
-  onPrependStepBefore,
   onUpdateCondition,
   addStepRequest,
   addStepAnchor,
@@ -242,7 +232,6 @@ export function VibeCanvas({
               worldHeight={viewport.worldHeight}
               isPanning={viewport.isPanning}
               isEditing={isEditing}
-              selectedStepId={selectedStepId}
               hoveredEdgeId={hoveredEdgeId}
               hoveredNodeId={hoveredNodeId}
               connectingFromStepId={connectingFromStepId}
@@ -260,8 +249,6 @@ export function VibeCanvas({
               onUpdateCondition={onUpdateCondition}
               onStartConnecting={setConnectingFromStepId}
               onClearConnectingStep={() => setConnectingFromStepId(null)}
-              onAppendStepAfter={onAppendStepAfter}
-              onPrependStepBefore={onPrependStepBefore}
             />
           </div>
         </div>

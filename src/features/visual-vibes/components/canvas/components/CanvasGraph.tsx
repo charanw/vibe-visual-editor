@@ -26,7 +26,6 @@ type CanvasGraphProps = {
   worldHeight: number;
   isPanning: boolean;
   isEditing: boolean;
-  selectedStepId: string | null;
   hoveredEdgeId: string | null;
   hoveredNodeId: string | null;
   connectingFromStepId: string | null;
@@ -47,14 +46,6 @@ type CanvasGraphProps = {
   onUpdateCondition: (stepId: string, expression: string) => void;
   onStartConnecting: (stepId: string) => void;
   onClearConnectingStep: () => void;
-  onAppendStepAfter: (
-    sourceStepId: string,
-    anchor?: FloatingPanelAnchor,
-  ) => void;
-  onPrependStepBefore: (
-    targetStepId: string,
-    anchor?: FloatingPanelAnchor,
-  ) => void;
 };
 
 /** SVG graph surface for nodes, edges, and pointer interactions. */
@@ -69,7 +60,6 @@ export function CanvasGraph({
   worldHeight,
   isPanning,
   isEditing,
-  selectedStepId,
   hoveredEdgeId,
   hoveredNodeId,
   connectingFromStepId,
@@ -87,8 +77,6 @@ export function CanvasGraph({
   onUpdateCondition,
   onStartConnecting,
   onClearConnectingStep,
-  onAppendStepAfter,
-  onPrependStepBefore,
 }: CanvasGraphProps) {
   return (
     <svg
@@ -131,7 +119,7 @@ export function CanvasGraph({
               edge={edge}
               isEditing={isEditing}
               isHovered={hoveredEdgeId === edge.id}
-              isDimmedBySelection={Boolean(selectedStepId)}
+              isDimmedBySelection={false}
               isTerminalError={isTerminalError}
               label={classifier.getEdgeFunctionLabel(edge)}
               onHoverStart={(edgeId) => onHoverEdge(edgeId)}
@@ -158,8 +146,6 @@ export function CanvasGraph({
             onAddEdge={onAddEdge}
             onUpdateCondition={onUpdateCondition}
             onClearConnectingStep={onClearConnectingStep}
-            onAppendStepAfter={onAppendStepAfter}
-            onPrependStepBefore={onPrependStepBefore}
           />
         ))}
       </g>

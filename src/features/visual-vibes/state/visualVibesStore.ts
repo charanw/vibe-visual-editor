@@ -491,8 +491,7 @@ function createStablePositionedEdge(
     return null;
   }
 
-  const sourcePoint = getStableSourcePoint(edge, sourceNode, targetNode);
-  const targetPoint = getStableTargetPoint(edge, sourceNode, targetNode);
+  const route = getStableEdgeRoute(edge, sourceNode, targetNode);
 
   return {
     id: edge.id,
@@ -501,35 +500,129 @@ function createStablePositionedEdge(
     type: edge.type,
     inferred: edge.inferred,
     semantic: edge.semantic,
-    sourceX: sourcePoint.x,
-    sourceY: sourcePoint.y,
-    targetX: targetPoint.x,
-    targetY: targetPoint.y,
+    sourceX: route.source.x,
+    sourceY: route.source.y,
+    targetX: route.target.x,
+    targetY: route.target.y,
+    bendPoints: route.bendPoints,
   };
 }
 
-function getStableSourcePoint(
+function getStableEdgeRoute(
   edge: VibeGraphEdge,
   source: PositionedVibeNode,
   target: PositionedVibeNode,
 ) {
-  if (edge.type === "error" || target.y > source.y + NODE_HEIGHT) {
-    return { x: source.x + NODE_WIDTH / 2, y: source.y + NODE_HEIGHT };
+  const sourceCenter = getStableNodeCenter(source);
+  const targetCenter = getStableNodeCenter(target);
+  const verticalGap = target.y - (source.y + NODE_HEIGHT);
+  const horizontalGap = target.x - (source.x + NODE_WIDTH);
+  const reverseHorizontalGap = source.x - (target.x + NODE_WIDTH);
+
+  if (verticalGap >= 24) {
+    const sourcePoint = { x: sourceCenter.x, y: source.y + NODE_HEIGHT };
+    const targetPoint = { x: targetCenter.x, y: target.y };
+
+    return {
+      source: sourcePoint,
+      target: targetPoint,
+      bendPoints: getStableDownstreamBendPoints(sourcePoint, targetPoint),
+    };
   }
 
-  return { x: source.x + NODE_WIDTH, y: source.y + NODE_HEIGHT / 2 };
+  if (horizontalGap >= 24) {
+    const sourcePoint = { x: source.x + NODE_WIDTH, y: sourceCenter.y };
+    const targetPoint = { x: target.x, y: targetCenter.y };
+
+    return {
+      source: sourcePoint,
+      target: targetPoint,
+      bendPoints: getStableHorizontalBendPoints(sourcePoint, targetPoint),
+    };
+  }
+
+  if (reverseHorizontalGap >= 24) {
+    const sourcePoint = { x: source.x, y: sourceCenter.y };
+    const targetPoint = { x: target.x + NODE_WIDTH, y: targetCenter.y };
+
+    return {
+      source: sourcePoint,
+      target: targetPoint,
+      bendPoints: getStableHorizontalBendPoints(sourcePoint, targetPoint),
+    };
+  }
+
+  const routeDirection = edge.type === "error" ? -1 : 1;
+  const laneOffset = getStableBackEdgeLaneOffset(edge);
+  const sideX =
+    routeDirection > 0
+      ? Math.max(source.x + NODE_WIDTH, target.x + NODE_WIDTH) + 72 + laneOffset
+      : Math.min(source.x, target.x) - 72 - laneOffset;
+  const sourcePoint = {
+    x: routeDirection > 0 ? source.x + NODE_WIDTH : source.x,
+    y: sourceCenter.y,
+  };
+  const targetPoint = {
+    x: routeDirection > 0 ? target.x + NODE_WIDTH : target.x,
+    y: targetCenter.y,
+  };
+
+  return {
+    source: sourcePoint,
+    target: targetPoint,
+    bendPoints: [
+      { x: sideX, y: sourcePoint.y },
+      { x: sideX, y: targetPoint.y },
+    ],
+  };
 }
 
-function getStableTargetPoint(
-  edge: VibeGraphEdge,
-  source: PositionedVibeNode,
-  target: PositionedVibeNode,
+function getStableNodeCenter(node: PositionedVibeNode) {
+  return {
+    x: node.x + NODE_WIDTH / 2,
+    y: node.y + NODE_HEIGHT / 2,
+  };
+}
+
+function getStableDownstreamBendPoints(
+  source: { x: number; y: number },
+  target: { x: number; y: number },
 ) {
-  if (edge.type === "error" || target.y > source.y + NODE_HEIGHT) {
-    return { x: target.x + NODE_WIDTH / 2, y: target.y };
+  if (Math.abs(source.x - target.x) < 2) {
+    return undefined;
   }
 
-  return { x: target.x, y: target.y + NODE_HEIGHT / 2 };
+  const middleY = source.y + (target.y - source.y) / 2;
+
+  return [
+    { x: source.x, y: middleY },
+    { x: target.x, y: middleY },
+  ];
+}
+
+function getStableHorizontalBendPoints(
+  source: { x: number; y: number },
+  target: { x: number; y: number },
+) {
+  if (Math.abs(source.y - target.y) < 2) {
+    return undefined;
+  }
+
+  const middleX = source.x + (target.x - source.x) / 2;
+
+  return [
+    { x: middleX, y: source.y },
+    { x: middleX, y: target.y },
+  ];
+}
+
+function getStableBackEdgeLaneOffset(edge: VibeGraphEdge) {
+  const hash = Array.from(`${edge.source}:${edge.target}:${edge.type}`).reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  );
+
+  return [0, 28, 56][hash % 3];
 }
 
 export type VisualVibesStore = ReturnType<typeof useVisualVibesStore>;

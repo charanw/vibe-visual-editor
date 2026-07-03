@@ -80,7 +80,7 @@ export function useCanvasViewport({
     [onViewportChange],
   );
 
-  const worldWidth =
+const worldWidth =
     graph.nodes.length > 0
       ? Math.max(
           viewportSize.width,
@@ -120,14 +120,18 @@ export function useCanvasViewport({
 
   const getFitZoom = useCallback(
     (bounds: NonNullable<ReturnType<typeof getGraphBounds>>) => {
-      const fitPadding = 96;
+      const fitPadding = 72;
       const fitWidth = Math.max(bounds.width + fitPadding * 2, NODE_WIDTH);
       const fitHeight = Math.max(bounds.height + fitPadding * 2, NODE_HEIGHT);
+      const fitZoom = Math.min(
+        viewportSize.width / fitWidth,
+        viewportSize.height / fitHeight,
+      );
 
       return clamp(
-        Math.min(viewportSize.width / fitWidth, viewportSize.height / fitHeight),
-        MIN_ZOOM,
-        Math.min(MAX_ZOOM, 1.15),
+        Math.min(1, fitZoom),
+        Math.max(MIN_ZOOM, 0.62),
+        Math.min(MAX_ZOOM, 1),
       );
     },
     [viewportSize.height, viewportSize.width],
@@ -157,12 +161,14 @@ export function useCanvasViewport({
     }
 
     const nextZoom = getFitZoom(bounds);
+    const viewportPaddingX = 64;
+    const viewportPaddingY = 56;
 
     onViewportChange(() => ({
       zoom: nextZoom,
       pan: {
-        x: viewportSize.width / 2 / nextZoom - bounds.centerX,
-        y: viewportSize.height / 2 / nextZoom - bounds.centerY,
+        x: viewportPaddingX / nextZoom - bounds.minX,
+        y: viewportPaddingY / nextZoom - bounds.minY,
       },
     }));
   }, [
@@ -171,9 +177,13 @@ export function useCanvasViewport({
     onViewportChange,
     setPan,
     setZoom,
-    viewportSize.height,
-    viewportSize.width,
   ]);
+
+  const getMinimumVisibleZoom = useCallback(() => {
+    const bounds = getGraphBounds();
+
+    return bounds ? getFitZoom(bounds) : MIN_ZOOM;
+  }, [getFitZoom, getGraphBounds]);
 
   const centerNode = useCallback(
     (node: PositionedVibeGraph["nodes"][number]) => {
@@ -210,7 +220,9 @@ export function useCanvasViewport({
   }
 
   function zoomOut() {
-    setZoom((currentZoom) => clamp(currentZoom / 1.2, MIN_ZOOM, MAX_ZOOM));
+    setZoom((currentZoom) =>
+      clamp(currentZoom / 1.2, getMinimumVisibleZoom(), MAX_ZOOM),
+    );
   }
 
   function resetZoom() {
@@ -259,7 +271,11 @@ export function useCanvasViewport({
     const worldMouseX = mouseX / zoom - pan.x;
     const worldMouseY = mouseY / zoom - pan.y;
     const zoomFactor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-    const nextZoom = clamp(zoom * zoomFactor, MIN_ZOOM, MAX_ZOOM);
+    const nextZoom = clamp(
+      zoom * zoomFactor,
+      getMinimumVisibleZoom(),
+      MAX_ZOOM,
+    );
 
     setZoom(nextZoom);
     setPan({

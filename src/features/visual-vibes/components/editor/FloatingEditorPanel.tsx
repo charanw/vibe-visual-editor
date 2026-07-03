@@ -35,9 +35,27 @@ type DragState = {
   offsetY: number;
 };
 
+type PanelSize = {
+  width: number;
+  height: number;
+};
+
+type ResizeCorner = "nw" | "ne" | "sw" | "se";
+
+type ResizeState = {
+  corner: ResizeCorner;
+  startX: number;
+  startY: number;
+  startPosition: PanelPosition;
+  startSize: PanelSize;
+};
+
 const VIEWPORT_MARGIN = 16;
 const MOBILE_VIEWPORT_MARGIN = 8;
 const MOBILE_BREAKPOINT = 640;
+const DESKTOP_BOTTOM_GAP = 72;
+const MIN_PANEL_WIDTH = 360;
+const MIN_PANEL_HEIGHT = 300;
 
 /** Non-blocking draggable panel used over the live YAML and graph editors. */
 export function FloatingEditorPanel({
@@ -98,14 +116,29 @@ function FloatingEditorPanelContent({
   const [position, setPosition] = useState<PanelPosition>(() =>
     getInitialPanelPosition(anchor, width, estimatedHeight, positionStorageKey),
   );
+  const [size, setSize] = useState<PanelSize | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
+  const [resizeState, setResizeState] = useState<ResizeState | null>(null);
 
   useEffect(() => {
-    if (!dragState) {
+    if (!dragState && !resizeState) {
       return;
     }
 
     function handlePointerMove(event: PointerEvent) {
+      if (resizeState) {
+        const nextPanel = resizePanel(event, resizeState);
+
+        setPosition(nextPanel.position);
+        setSize(nextPanel.size);
+        saveStoredPosition(positionStorageKey, nextPanel.position);
+        return;
+      }
+
+      if (!dragState) {
+        return;
+      }
+
       const nextPosition = clampPanelPosition(
         {
           x: event.clientX - dragState.offsetX,
@@ -121,6 +154,7 @@ function FloatingEditorPanelContent({
 
     function handlePointerUp() {
       setDragState(null);
+      setResizeState(null);
     }
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -132,7 +166,7 @@ function FloatingEditorPanelContent({
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [dragState, estimatedHeight, positionStorageKey, width]);
+  }, [dragState, estimatedHeight, positionStorageKey, resizeState, width]);
 
   function startDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || isMobile()) {
@@ -144,6 +178,36 @@ function FloatingEditorPanelContent({
       offsetY: event.clientY - position.y,
     });
   }
+
+  function startResize(
+    corner: ResizeCorner,
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (event.button !== 0 || isMobile()) {
+      return;
+    }
+
+    const panelRect = event.currentTarget.parentElement?.getBoundingClientRect();
+
+    if (!panelRect) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    setResizeState({
+      corner,
+      startX: event.clientX,
+      startY: event.clientY,
+      startPosition: position,
+      startSize: {
+        width: panelRect.width,
+        height: panelRect.height,
+      },
+    });
+  }
+
   const isMobileViewport = isMobile();
   const panelStyle = isMobileViewport
     ? {
@@ -155,8 +219,9 @@ function FloatingEditorPanelContent({
     : {
         left: position.x,
         top: position.y,
-        width: `min(${width}px, calc(100vw - ${VIEWPORT_MARGIN * 2}px))`,
-        maxHeight: `calc(100vh - ${position.y + VIEWPORT_MARGIN}px)`,
+        width: size?.width ?? `min(${width}px, calc(100vw - ${VIEWPORT_MARGIN * 2}px))`,
+        height: size?.height,
+        maxHeight: `calc(100vh - ${position.y + DESKTOP_BOTTOM_GAP}px)`,
       };
 
   return (
@@ -206,7 +271,42 @@ function FloatingEditorPanelContent({
             {footer}
           </div>
         )}
+
+        {!isMobileViewport && (
+          <>
+            <ResizeHandle corner="nw" onResizeStart={startResize} />
+            <ResizeHandle corner="ne" onResizeStart={startResize} />
+            <ResizeHandle corner="sw" onResizeStart={startResize} />
+            <ResizeHandle corner="se" onResizeStart={startResize} />
+          </>
+        )}
       </div>
+  );
+}
+
+function ResizeHandle({
+  corner,
+  onResizeStart,
+}: {
+  corner: ResizeCorner;
+  onResizeStart: (
+    corner: ResizeCorner,
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => void;
+}) {
+  const classNameByCorner: Record<ResizeCorner, string> = {
+    nw: "left-0 top-0 cursor-nwse-resize",
+    ne: "right-0 top-0 cursor-nesw-resize",
+    sw: "bottom-0 left-0 cursor-nesw-resize",
+    se: "bottom-0 right-0 cursor-nwse-resize",
+  };
+
+  return (
+    <div
+      className={`absolute h-5 w-5 ${classNameByCorner[corner]}`}
+      onPointerDown={(event) => onResizeStart(corner, event)}
+      aria-hidden="true"
+    />
   );
 }
 
@@ -320,6 +420,61 @@ function clampPanelPosition(
     x: Math.min(Math.max(position.x, VIEWPORT_MARGIN), maxX),
     y: Math.min(Math.max(position.y, VIEWPORT_MARGIN), maxY),
   };
+}
+
+function resizePanel(event: PointerEvent, resizeState: ResizeState) {
+  const deltaX = event.clientX - resizeState.startX;
+  const deltaY = event.clientY - resizeState.startY;
+  const growsLeft = resizeState.corner.includes("w");
+  const growsUp = resizeState.corner.includes("n");
+  const rawWidth = growsLeft
+    ? resizeState.startSize.width - deltaX
+    : resizeState.startSize.width + deltaX;
+  const rawHeight = growsUp
+    ? resizeState.startSize.height - deltaY
+    : resizeState.startSize.height + deltaY;
+  const maxWidth = growsLeft
+    ? resizeState.startPosition.x +
+      resizeState.startSize.width -
+      VIEWPORT_MARGIN
+    : window.innerWidth - VIEWPORT_MARGIN - resizeState.startPosition.x;
+  const maxHeight = growsUp
+    ? resizeState.startPosition.y +
+      resizeState.startSize.height -
+      VIEWPORT_MARGIN
+    : window.innerHeight - DESKTOP_BOTTOM_GAP - resizeState.startPosition.y;
+  const nextSize = {
+    width: clampNumber(rawWidth, MIN_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, maxWidth)),
+    height: clampNumber(
+      rawHeight,
+      MIN_PANEL_HEIGHT,
+      Math.max(MIN_PANEL_HEIGHT, maxHeight),
+    ),
+  };
+  const nextPosition = {
+    x: growsLeft
+      ? resizeState.startPosition.x +
+        (resizeState.startSize.width - nextSize.width)
+      : resizeState.startPosition.x,
+    y: growsUp
+      ? resizeState.startPosition.y +
+        (resizeState.startSize.height - nextSize.height)
+      : resizeState.startPosition.y,
+  };
+  const clampedPosition = clampPanelPosition(
+    nextPosition,
+    nextSize.width,
+    nextSize.height,
+  );
+
+  return {
+    position: clampedPosition,
+    size: nextSize,
+  };
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function isMobile() {

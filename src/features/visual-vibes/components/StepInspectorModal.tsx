@@ -13,6 +13,8 @@ type StepInspectorModalProps = {
   onUpdateStep: (originalStepId: string, updates: StepUpdate) => void;
   onUpdateStepDescription: (stepId: string, description: string) => void;
   onStepEditDirtyChange: (isDirty: boolean) => void;
+  onAddStepBefore: (stepId: string) => void;
+  onAddStepAfter: (stepId: string) => void;
 };
 
 /** Modal shell for the selected node inspector. */
@@ -26,6 +28,8 @@ export function StepInspectorModal({
   onUpdateStep,
   onUpdateStepDescription,
   onStepEditDirtyChange,
+  onAddStepBefore,
+  onAddStepAfter,
 }: StepInspectorModalProps) {
   if (!isOpen || !selectedStepId) {
     return null;
@@ -41,8 +45,42 @@ export function StepInspectorModal({
       width={920}
       estimatedHeight={760}
       positionStorageKey="visual-vibes-floating-editor-panel"
+      headerActions={
+        <div className="hidden items-center gap-2 sm:flex">
+          <button
+            type="button"
+            onClick={() => onAddStepBefore(selectedStepId)}
+            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+          >
+            Add before
+          </button>
+          <button
+            type="button"
+            onClick={() => onAddStepAfter(selectedStepId)}
+            className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
+          >
+            Add after
+          </button>
+        </div>
+      }
       onClose={onClose}
     >
+      <div className="grid grid-cols-2 gap-2 border-b border-[var(--border-subtle)] px-3 py-3 sm:hidden">
+        <button
+          type="button"
+          onClick={() => onAddStepBefore(selectedStepId)}
+          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)]"
+        >
+          Add before
+        </button>
+        <button
+          type="button"
+          onClick={() => onAddStepAfter(selectedStepId)}
+          className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)]"
+        >
+          Add after
+        </button>
+      </div>
       <VibeInspector
         vibe={vibe}
         selectedStepId={selectedStepId}

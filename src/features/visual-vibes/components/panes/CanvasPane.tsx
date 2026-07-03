@@ -43,14 +43,6 @@ interface CanvasPaneProps {
   onDeleteStep: (stepId: string) => void;
   onAddEdge: (options: AddEdgeOptions) => void;
   onDeleteEdge: (options: EdgeOperationOptions) => void;
-  onAppendStepAfter: (
-    sourceStepId: string,
-    anchor?: FloatingPanelAnchor,
-  ) => void;
-  onPrependStepBefore: (
-    targetStepId: string,
-    anchor?: FloatingPanelAnchor,
-  ) => void;
   onUpdateCondition: (stepId: string, expression: string) => void;
   addStepRequest: AddStepPlacement | null;
   addStepAnchor: FloatingPanelAnchor | null;
@@ -86,8 +78,6 @@ export function CanvasPane({
   onDeleteStep,
   onAddEdge,
   onDeleteEdge,
-  onAppendStepAfter,
-  onPrependStepBefore,
   onUpdateCondition,
   addStepRequest,
   addStepAnchor,
@@ -119,8 +109,6 @@ export function CanvasPane({
           onDeleteStep={onDeleteStep}
           onAddEdge={onAddEdge}
           onDeleteEdge={onDeleteEdge}
-          onAppendStepAfter={onAppendStepAfter}
-          onPrependStepBefore={onPrependStepBefore}
           onUpdateCondition={onUpdateCondition}
           addStepRequest={addStepRequest}
           addStepAnchor={addStepAnchor}

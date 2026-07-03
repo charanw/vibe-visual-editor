@@ -7,7 +7,6 @@ import {
 import type { AddEdgeOptions, FloatingPanelAnchor } from "../../../types";
 import {
   ConclusionBadge,
-  NodeActionButton,
   SemanticNodeBadge,
   StartingFlagBadge,
 } from "./CanvasBadges";
@@ -28,14 +27,6 @@ type CanvasNodeProps = {
   onAddEdge: (options: AddEdgeOptions) => void;
   onUpdateCondition: (stepId: string, expression: string) => void;
   onClearConnectingStep: () => void;
-  onAppendStepAfter: (
-    sourceStepId: string,
-    anchor?: FloatingPanelAnchor,
-  ) => void;
-  onPrependStepBefore: (
-    targetStepId: string,
-    anchor?: FloatingPanelAnchor,
-  ) => void;
 };
 
 /** Renders one workflow node and its edit/link affordances. */
@@ -53,8 +44,6 @@ export function CanvasNode({
   onAddEdge,
   onUpdateCondition,
   onClearConnectingStep,
-  onAppendStepAfter,
-  onPrependStepBefore,
 }: CanvasNodeProps) {
   const statusBadgeX = node.semantic?.badge ? NODE_WIDTH - 82 : NODE_WIDTH - 30;
   const isLoopNode = node.semantic?.kind === "loop";
@@ -70,7 +59,6 @@ export function CanvasNode({
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => onSelectStep(node.id, getAnchorFromEvent(event))}
       className="cursor-pointer"
-      opacity={state.isDimmed ? "0.14" : "1"}
     >
       <rect
         x="-34"
@@ -80,6 +68,14 @@ export function CanvasNode({
         rx="24"
         fill="transparent"
       />
+
+      {state.isSelected && (
+        <SelectedNodeHalo
+          isLoopNode={isLoopNode}
+          isConditionalNode={isConditionalNode}
+          isSyntheticLoopStep={isSyntheticLoopStep}
+        />
+      )}
 
       {isLoopNode ? (
         <LoopDecisionShape
@@ -141,29 +137,7 @@ export function CanvasNode({
       )}
 
       {isEditing && isHovered && !isSyntheticLoopStep && (
-        <>
-          <DeleteNodeButton onClick={() => onDeleteStep(node.id)} />
-
-          <NodeActionButton
-            x={6}
-            y={NODE_HEIGHT + 18}
-            label="+ Before"
-            onClick={(event) => {
-              event.stopPropagation();
-              onPrependStepBefore(node.id, getAnchorFromEvent(event));
-            }}
-          />
-
-          <NodeActionButton
-            x={112}
-            y={NODE_HEIGHT + 18}
-            label="+ After"
-            onClick={(event) => {
-              event.stopPropagation();
-              onAppendStepAfter(node.id, getAnchorFromEvent(event));
-            }}
-          />
-        </>
+        <DeleteNodeButton onClick={() => onDeleteStep(node.id)} />
       )}
 
       {isEditing && isHovered && !isSyntheticLoopStep && (
@@ -177,26 +151,22 @@ export function CanvasNode({
             }}
           />
 
-          <LinkHandle
-            side="in"
-            isActive={Boolean(
-              connectingFromStepId && connectingFromStepId !== node.id,
-            )}
-            onClick={(event) => {
-              event.stopPropagation();
+          {connectingFromStepId && connectingFromStepId !== node.id && (
+            <LinkHandle
+              side="in"
+              isActive
+              onClick={(event) => {
+                event.stopPropagation();
 
-              if (!connectingFromStepId || connectingFromStepId === node.id) {
-                return;
-              }
+                onAddEdge({
+                  sourceStepId: connectingFromStepId,
+                  targetStepId: node.id,
+                });
 
-              onAddEdge({
-                sourceStepId: connectingFromStepId,
-                targetStepId: node.id,
-              });
-
-              onClearConnectingStep();
-            }}
-          />
+                onClearConnectingStep();
+              }}
+            />
+          )}
         </>
       )}
 
@@ -258,6 +228,71 @@ export function CanvasNode({
         />
       )}
     </g>
+  );
+}
+
+function SelectedNodeHalo({
+  isLoopNode,
+  isConditionalNode,
+  isSyntheticLoopStep,
+}: {
+  isLoopNode: boolean;
+  isConditionalNode: boolean;
+  isSyntheticLoopStep: boolean;
+}) {
+  const haloProps = {
+    fill: "none",
+    stroke: "var(--brand-primary)",
+    strokeWidth: "4",
+    opacity: "0.95",
+    filter: "url(#selected-node-glow)",
+    pointerEvents: "none" as const,
+  };
+
+  if (isLoopNode) {
+    return (
+      <path
+        d={`M 42 -8 H ${NODE_WIDTH - 42} L ${NODE_WIDTH + 10} ${
+          NODE_HEIGHT / 2
+        } L ${NODE_WIDTH - 42} ${NODE_HEIGHT + 8} H 42 L -10 ${
+          NODE_HEIGHT / 2
+        } Z`}
+        {...haloProps}
+      />
+    );
+  }
+
+  if (isConditionalNode) {
+    return (
+      <path
+        d={`M 30 -8 H ${NODE_WIDTH + 10} L ${NODE_WIDTH - 30} ${
+          NODE_HEIGHT + 8
+        } H -10 Z`}
+        {...haloProps}
+      />
+    );
+  }
+
+  if (isSyntheticLoopStep) {
+    return (
+      <path
+        d={`M 22 -8 H ${NODE_WIDTH + 10} L ${NODE_WIDTH - 22} ${
+          NODE_HEIGHT + 8
+        } H -10 Z`}
+        {...haloProps}
+      />
+    );
+  }
+
+  return (
+    <rect
+      x="-8"
+      y="-8"
+      width={NODE_WIDTH + 16}
+      height={NODE_HEIGHT + 16}
+      rx="22"
+      {...haloProps}
+    />
   );
 }
 
@@ -543,8 +578,8 @@ function LinkHandle({ side, isActive, onClick }: LinkHandleProps) {
       ? "var(--brand-primary)"
       : "var(--text-muted)";
   const path = isOutgoing
-    ? "M-4 0h8M2 -4l4 4-4 4"
-    : "M-4 0h8M-2 -4l-4 4 4 4";
+    ? "M-5 0h10M0 -5v10"
+    : "M-5 0h10M0 -5v10";
 
   return (
     <g
@@ -554,6 +589,7 @@ function LinkHandle({ side, isActive, onClick }: LinkHandleProps) {
         isOutgoing || isActive ? "cursor-crosshair" : "cursor-not-allowed"
       }
     >
+      <title>{isOutgoing ? "Start connection" : "Connect here"}</title>
       <circle r="10" fill={fill} stroke={stroke} strokeWidth="2" />
       <path
         d={path}

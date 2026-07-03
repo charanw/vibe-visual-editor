@@ -181,6 +181,8 @@ export function VisualVibesEditor() {
       onUpdateStep={handleUpdateVibeStep}
       onUpdateStepDescription={handleUpdateStepDescription}
       onStepEditDirtyChange={editingState.setHasUnsavedStepEdits}
+      onAddStepBefore={requestPrependStepBefore}
+      onAddStepAfter={requestAppendStepAfter}
     />
   );
 
@@ -286,8 +288,6 @@ export function VisualVibesEditor() {
                   onDeleteStep={handleDeleteStep}
                   onAddEdge={handleAddEdge}
                   onDeleteEdge={handleDeleteEdge}
-                  onAppendStepAfter={requestAppendStepAfter}
-                  onPrependStepBefore={requestPrependStepBefore}
                   onUpdateCondition={handleUpdateCondition}
                   addStepRequest={addStepRequest}
                   addStepAnchor={addStepAnchor}
@@ -389,8 +389,6 @@ export function VisualVibesEditor() {
             onDeleteStep={handleDeleteStep}
             onAddEdge={handleAddEdge}
             onDeleteEdge={handleDeleteEdge}
-            onAppendStepAfter={requestAppendStepAfter}
-            onPrependStepBefore={requestPrependStepBefore}
             onUpdateCondition={handleUpdateCondition}
             addStepRequest={addStepRequest}
             addStepAnchor={addStepAnchor}
