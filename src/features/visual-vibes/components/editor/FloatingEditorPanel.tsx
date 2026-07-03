@@ -18,6 +18,7 @@ type FloatingEditorPanelProps = {
   description?: ReactNode;
   width?: number;
   estimatedHeight?: number;
+  positionStorageKey?: string;
   headerActions?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
@@ -35,6 +36,8 @@ type DragState = {
 };
 
 const VIEWPORT_MARGIN = 16;
+const MOBILE_VIEWPORT_MARGIN = 8;
+const MOBILE_BREAKPOINT = 640;
 
 /** Non-blocking draggable panel used over the live YAML and graph editors. */
 export function FloatingEditorPanel({
@@ -45,6 +48,7 @@ export function FloatingEditorPanel({
   description,
   width = 900,
   estimatedHeight = 720,
+  positionStorageKey,
   headerActions,
   footer,
   children,
@@ -66,6 +70,7 @@ export function FloatingEditorPanel({
         description={description}
         width={width}
         estimatedHeight={estimatedHeight}
+        positionStorageKey={positionStorageKey}
         headerActions={headerActions}
         footer={footer}
         onClose={onClose}
@@ -84,13 +89,14 @@ function FloatingEditorPanelContent({
   description,
   width = 900,
   estimatedHeight = 720,
+  positionStorageKey,
   headerActions,
   footer,
   children,
   onClose,
 }: Omit<FloatingEditorPanelProps, "isOpen">) {
   const [position, setPosition] = useState<PanelPosition>(() =>
-    getInitialPanelPosition(anchor, width, estimatedHeight),
+    getInitialPanelPosition(anchor, width, estimatedHeight, positionStorageKey),
   );
   const [dragState, setDragState] = useState<DragState | null>(null);
 
@@ -100,16 +106,17 @@ function FloatingEditorPanelContent({
     }
 
     function handlePointerMove(event: PointerEvent) {
-      setPosition(
-        clampPanelPosition(
-          {
-            x: event.clientX - dragState.offsetX,
-            y: event.clientY - dragState.offsetY,
-          },
-          width,
-          estimatedHeight,
-        ),
+      const nextPosition = clampPanelPosition(
+        {
+          x: event.clientX - dragState.offsetX,
+          y: event.clientY - dragState.offsetY,
+        },
+        width,
+        estimatedHeight,
       );
+
+      setPosition(nextPosition);
+      saveStoredPosition(positionStorageKey, nextPosition);
     }
 
     function handlePointerUp() {
@@ -125,10 +132,10 @@ function FloatingEditorPanelContent({
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [dragState, estimatedHeight, width]);
+  }, [dragState, estimatedHeight, positionStorageKey, width]);
 
   function startDrag(event: ReactPointerEvent<HTMLDivElement>) {
-    if (event.button !== 0) {
+    if (event.button !== 0 || isMobile()) {
       return;
     }
 
@@ -137,29 +144,39 @@ function FloatingEditorPanelContent({
       offsetY: event.clientY - position.y,
     });
   }
+  const isMobileViewport = isMobile();
+  const panelStyle = isMobileViewport
+    ? {
+        left: MOBILE_VIEWPORT_MARGIN,
+        top: MOBILE_VIEWPORT_MARGIN,
+        width: `calc(100vw - ${MOBILE_VIEWPORT_MARGIN * 2}px)`,
+        maxHeight: `calc(100dvh - ${MOBILE_VIEWPORT_MARGIN * 2}px)`,
+      }
+    : {
+        left: position.x,
+        top: position.y,
+        width: `min(${width}px, calc(100vw - ${VIEWPORT_MARGIN * 2}px))`,
+        maxHeight: `calc(100vh - ${position.y + VIEWPORT_MARGIN}px)`,
+      };
 
   return (
       <div
-        className="pointer-events-auto absolute flex max-h-[calc(100vh-32px)] flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] shadow-2xl"
-        style={{
-          left: position.x,
-          top: position.y,
-          width: `min(${width}px, calc(100vw - ${VIEWPORT_MARGIN * 2}px))`,
-        }}
+        className="pointer-events-auto absolute flex min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] shadow-2xl sm:rounded-2xl"
+        style={panelStyle}
       >
         <div
-          className="flex cursor-move touch-none select-none items-start justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-4"
+          className="flex shrink-0 cursor-move touch-none select-none items-start justify-between gap-3 border-b border-[var(--border-subtle)] px-3 py-3 sm:gap-4 sm:px-5 sm:py-4"
           onPointerDown={startDrag}
         >
           <div className="min-w-0">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
               {eyebrow}
             </div>
-            <h2 className="mt-1 break-words text-base font-semibold text-[var(--text-primary)]">
+            <h2 className="mt-1 break-words text-sm font-semibold text-[var(--text-primary)] sm:text-base">
               {title}
             </h2>
             {description && (
-              <p className="mt-1 text-sm text-[var(--text-muted)]">
+              <p className="mt-1 line-clamp-2 text-xs text-[var(--text-muted)] sm:text-sm">
                 {description}
               </p>
             )}
@@ -173,7 +190,7 @@ function FloatingEditorPanelContent({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] sm:h-9 sm:w-9"
               aria-label="Close panel"
               title="Close panel"
             >
@@ -185,7 +202,9 @@ function FloatingEditorPanelContent({
         <div className="min-h-0 flex-1 overflow-auto">{children}</div>
 
         {footer && (
-          <div className="border-t border-[var(--border-subtle)]">{footer}</div>
+          <div className="shrink-0 border-t border-[var(--border-subtle)]">
+            {footer}
+          </div>
         )}
       </div>
   );
@@ -212,9 +231,16 @@ function getInitialPanelPosition(
   anchor: FloatingPanelAnchor | null,
   panelWidth: number,
   estimatedHeight: number,
+  positionStorageKey?: string,
 ): PanelPosition {
   if (typeof window === "undefined") {
     return { x: VIEWPORT_MARGIN, y: VIEWPORT_MARGIN };
+  }
+
+  const storedPosition = readStoredPosition(positionStorageKey);
+
+  if (storedPosition && !isMobile()) {
+    return clampPanelPosition(storedPosition, panelWidth, estimatedHeight);
   }
 
   const viewportWidth = window.innerWidth;
@@ -294,6 +320,54 @@ function clampPanelPosition(
     x: Math.min(Math.max(position.x, VIEWPORT_MARGIN), maxX),
     y: Math.min(Math.max(position.y, VIEWPORT_MARGIN), maxY),
   };
+}
+
+function isMobile() {
+  return typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT;
+}
+
+function readStoredPosition(
+  positionStorageKey: string | undefined,
+): PanelPosition | null {
+  if (!positionStorageKey || typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const rawValue = window.localStorage.getItem(positionStorageKey);
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsed = JSON.parse(rawValue) as Partial<PanelPosition>;
+
+    if (typeof parsed.x !== "number" || typeof parsed.y !== "number") {
+      return null;
+    }
+
+    return {
+      x: parsed.x,
+      y: parsed.y,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredPosition(
+  positionStorageKey: string | undefined,
+  position: PanelPosition,
+) {
+  if (!positionStorageKey || typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(positionStorageKey, JSON.stringify(position));
+  } catch {
+    // If storage is unavailable, dragging should still work for this session.
+  }
 }
 
 function panelRect(

@@ -40,6 +40,7 @@ export function StepInspectorModal({
       description="Review and save this node through a guided step editor."
       width={920}
       estimatedHeight={760}
+      positionStorageKey="visual-vibes-floating-editor-panel"
       onClose={onClose}
     >
       <VibeInspector

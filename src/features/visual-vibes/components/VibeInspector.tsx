@@ -343,8 +343,8 @@ function VibeInspectorForm({
   }
 
   return (
-    <div className="space-y-5 p-4">
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-4">
+    <div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-3 sm:p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
@@ -511,12 +511,12 @@ function VibeInspectorForm({
         )}
       </InspectorField>
 
-      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-4">
-        <div className="mb-3 text-xs font-semibold text-[var(--text-primary)]">
+      <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-3 sm:p-4">
+        <div className="mb-2 text-xs font-semibold text-[var(--text-primary)]">
           Error Handling
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <InspectorField label="Error Step ID">
             <input
               value={onErrorStepIdDraft}
@@ -538,7 +538,7 @@ function VibeInspectorForm({
         </div>
       </div>
 
-      <div className="sticky bottom-0 -mx-4 border-t border-[var(--border-subtle)] bg-[var(--panel-bg)] p-4">
+      <div className="sticky bottom-0 -mx-3 border-t border-[var(--border-subtle)] bg-[var(--panel-bg)] p-3 sm:-mx-4 sm:p-4">
         <div className="flex items-center justify-end gap-2">
           <button
             type="button"

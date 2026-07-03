@@ -117,19 +117,21 @@ export function AddStepWizard({
 
   const headerActions = (
     <div className="hidden items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)] sm:flex">
-              <span className={stage === "choose" ? "text-[var(--brand-primary)]" : ""}>
-                Choose
-              </span>
-              <span className="text-[var(--border-subtle)]">/</span>
-              <span className={stage === "configure" ? "text-[var(--brand-primary)]" : ""}>
-                Input
-              </span>
+      <span className={stage === "choose" ? "text-[var(--brand-primary)]" : ""}>
+        Choose
+      </span>
+      <span className="text-[var(--border-subtle)]">/</span>
+      <span
+        className={stage === "configure" ? "text-[var(--brand-primary)]" : ""}
+      >
+        Input
+      </span>
     </div>
   );
 
   const footer = (
-    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-      <div className="text-xs text-[var(--text-muted)]">
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-5">
+      <div className="hidden text-xs text-[var(--text-muted)] sm:block">
         {stage === "choose"
           ? "Pick a function first. We will walk through the input fields next."
           : "Fill out the example-backed fields, then insert the generated step."}
@@ -174,15 +176,16 @@ export function AddStepWizard({
       description={subtitle}
       width={900}
       estimatedHeight={760}
+      positionStorageKey="visual-vibes-floating-editor-panel"
       headerActions={headerActions}
       footer={footer}
       onClose={onCancel}
     >
           <div className="min-h-0">
             {stage === "choose" ? (
-              <div className="space-y-5 px-5 py-4">
+              <div className="space-y-3 px-3 py-3 sm:space-y-4 sm:px-5 sm:py-4">
                 {placement.kind === "standalone" && (
-                  <div className="border-b border-[var(--border-subtle)] pb-4">
+                  <div className="border-b border-[var(--border-subtle)] pb-3">
                     <button
                       type="button"
                       onClick={() => {
@@ -219,7 +222,7 @@ export function AddStepWizard({
                             key={definition.id}
                             type="button"
                             onClick={() => setSelectedFunctionId(definition.id)}
-                            className={`rounded-xl border px-4 py-3 text-left transition ${
+                            className={`rounded-xl border px-3 py-2.5 text-left transition sm:px-4 sm:py-3 ${
                               isSelected
                                 ? "border-[var(--brand-primary)] bg-[var(--brand-soft)]"
                                 : "border-[var(--border-subtle)] bg-[var(--panel-bg)] hover:border-[var(--brand-primary)]"
@@ -267,8 +270,8 @@ export function AddStepWizard({
                 />
               </div>
             ) : (
-              <div className="space-y-5 px-5 py-4">
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-4">
+              <div className="space-y-3 px-3 py-3 sm:space-y-4 sm:px-5 sm:py-4">
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-3 sm:p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
@@ -293,7 +296,7 @@ export function AddStepWizard({
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {selectedTemplate?.fields.length ? (
                     selectedTemplate.fields.map((field) => (
                       <WizardFieldEditor
@@ -312,7 +315,7 @@ export function AddStepWizard({
                   )}
                 </div>
 
-                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-4">
+                <div className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] p-3 sm:p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-xs font-semibold text-[var(--text-primary)]">
