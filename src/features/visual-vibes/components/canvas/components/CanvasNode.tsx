@@ -4,7 +4,7 @@ import {
   NODE_WIDTH,
   type PositionedVibeGraph,
 } from "@/lib/visual-vibes/layout/layoutTypes";
-import type { AddEdgeOptions } from "../../../types";
+import type { AddEdgeOptions, FloatingPanelAnchor } from "../../../types";
 import {
   ConclusionBadge,
   NodeActionButton,
@@ -22,14 +22,20 @@ type CanvasNodeProps = {
   connectingFromStepId: string | null;
   onHoverStart: (nodeId: string) => void;
   onHoverEnd: () => void;
-  onSelectStep: (stepId: string) => void;
+  onSelectStep: (stepId: string, anchor?: FloatingPanelAnchor) => void;
   onDeleteStep: (stepId: string) => void;
   onStartConnecting: (stepId: string) => void;
   onAddEdge: (options: AddEdgeOptions) => void;
   onUpdateCondition: (stepId: string, expression: string) => void;
   onClearConnectingStep: () => void;
-  onAppendStepAfter: (sourceStepId: string) => void;
-  onPrependStepBefore: (targetStepId: string) => void;
+  onAppendStepAfter: (
+    sourceStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
+  onPrependStepBefore: (
+    targetStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
 };
 
 /** Renders one workflow node and its edit/link affordances. */
@@ -62,7 +68,7 @@ export function CanvasNode({
       onMouseEnter={() => onHoverStart(node.id)}
       onMouseLeave={onHoverEnd}
       onMouseDown={(event) => event.stopPropagation()}
-      onClick={() => onSelectStep(node.id)}
+      onClick={(event) => onSelectStep(node.id, getAnchorFromEvent(event))}
       className="cursor-pointer"
       opacity={state.isDimmed ? "0.14" : "1"}
     >
@@ -144,7 +150,7 @@ export function CanvasNode({
             label="+ Before"
             onClick={(event) => {
               event.stopPropagation();
-              onPrependStepBefore(node.id);
+              onPrependStepBefore(node.id, getAnchorFromEvent(event));
             }}
           />
 
@@ -154,7 +160,7 @@ export function CanvasNode({
             label="+ After"
             onClick={(event) => {
               event.stopPropagation();
-              onAppendStepAfter(node.id);
+              onAppendStepAfter(node.id, getAnchorFromEvent(event));
             }}
           />
         </>
@@ -460,6 +466,25 @@ function shortenStepId(stepId: string, maxLength: number) {
   const label = stepId.replace(/[_-]+/g, " ");
 
   return label.length > maxLength ? `${label.slice(0, maxLength - 1)}...` : label;
+}
+
+function getAnchorFromEvent(
+  event: ReactMouseEvent<SVGElement>,
+): FloatingPanelAnchor {
+  const bounds = event.currentTarget.getBoundingClientRect();
+
+  return {
+    x: event.clientX,
+    y: event.clientY,
+    avoidRect: {
+      left: bounds.left,
+      top: bounds.top,
+      right: bounds.right,
+      bottom: bounds.bottom,
+      width: bounds.width,
+      height: bounds.height,
+    },
+  };
 }
 
 function DeleteNodeButton({ onClick }: { onClick: () => void }) {

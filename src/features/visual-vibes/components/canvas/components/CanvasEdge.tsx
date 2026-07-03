@@ -1,5 +1,6 @@
+import type { MouseEvent as ReactMouseEvent } from "react";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
-import type { EdgeOperationOptions } from "../../../types";
+import type { EdgeOperationOptions, FloatingPanelAnchor } from "../../../types";
 import {
   getEdgeLabelFill,
   getEdgeLabelPoint,
@@ -18,7 +19,10 @@ type CanvasEdgeProps = {
   label: string;
   onHoverStart: (edgeId: string) => void;
   onHoverEnd: () => void;
-  onAddStepOnEdge: (options: EdgeOperationOptions) => void;
+  onAddStepOnEdge: (
+    options: EdgeOperationOptions,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
   onDeleteEdge: (options: EdgeOperationOptions) => void;
 };
 
@@ -155,7 +159,7 @@ export function CanvasEdge({
                 sourceStepId: edge.source,
                 targetStepId: edge.target,
                 edgeType: editableEdgeType,
-              });
+              }, getAnchorFromEvent(event));
             }}
             className="cursor-pointer"
           >
@@ -211,6 +215,15 @@ export function CanvasEdge({
       )}
     </g>
   );
+}
+
+function getAnchorFromEvent(
+  event: ReactMouseEvent<SVGElement>,
+): FloatingPanelAnchor {
+  return {
+    x: event.clientX,
+    y: event.clientY,
+  };
 }
 
 type EdgeHoverLabelProps = {

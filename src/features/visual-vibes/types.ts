@@ -27,6 +27,20 @@ export type AddStepPlacement =
       edgeType: VibeEdgeType;
     };
 
+/** Screen-space anchor used when opening floating editor panels. */
+export type FloatingPanelAnchor = {
+  x: number;
+  y: number;
+  avoidRect?: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+    width: number;
+    height: number;
+  };
+};
+
 /** Payload passed from the Add Step wizard back to the editor. */
 export type AddStepWizardSelection = {
   placement: AddStepPlacement;

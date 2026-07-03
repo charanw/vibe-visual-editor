@@ -11,6 +11,7 @@ import type {
   CanvasViewMode,
   CenterRequest,
   EdgeOperationOptions,
+  FloatingPanelAnchor,
 } from "../../types";
 import type { CanvasViewportState } from "../../state/visualVibesStore";
 import type { HistoryDisplayItem } from "../../state/editorHistory";
@@ -29,20 +30,30 @@ interface CanvasPaneProps {
   canUndoYaml: boolean;
   canRedoYaml: boolean;
   historyItems: HistoryDisplayItem[];
-  onSelectStep: (stepId: string) => void;
+  onSelectStep: (stepId: string, anchor?: FloatingPanelAnchor) => void;
   onClearSelectedStep: () => void;
   onUndoYaml: () => void;
   onRedoYaml: () => void;
   onChangeViewMode: (mode: CanvasViewMode) => void;
-  onAddStandaloneStep: () => void;
-  onAddStepOnEdge: (options: EdgeOperationOptions) => void;
+  onAddStandaloneStep: (anchor?: FloatingPanelAnchor) => void;
+  onAddStepOnEdge: (
+    options: EdgeOperationOptions,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
   onDeleteStep: (stepId: string) => void;
   onAddEdge: (options: AddEdgeOptions) => void;
   onDeleteEdge: (options: EdgeOperationOptions) => void;
-  onAppendStepAfter: (sourceStepId: string) => void;
-  onPrependStepBefore: (targetStepId: string) => void;
+  onAppendStepAfter: (
+    sourceStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
+  onPrependStepBefore: (
+    targetStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
   onUpdateCondition: (stepId: string, expression: string) => void;
   addStepRequest: AddStepPlacement | null;
+  addStepAnchor: FloatingPanelAnchor | null;
   onCancelAddStepRequest: () => void;
   onConfirmAddStepRequest: (selection: AddStepWizardSelection) => void;
   canvasViewport: CanvasViewportState;
@@ -79,6 +90,7 @@ export function CanvasPane({
   onPrependStepBefore,
   onUpdateCondition,
   addStepRequest,
+  addStepAnchor,
   onCancelAddStepRequest,
   onConfirmAddStepRequest,
   canvasViewport,
@@ -111,6 +123,7 @@ export function CanvasPane({
           onPrependStepBefore={onPrependStepBefore}
           onUpdateCondition={onUpdateCondition}
           addStepRequest={addStepRequest}
+          addStepAnchor={addStepAnchor}
           onCancelAddStepRequest={onCancelAddStepRequest}
           onConfirmAddStepRequest={onConfirmAddStepRequest}
           canvasViewport={canvasViewport}

@@ -1,6 +1,5 @@
 "use client";
 
-import { createPortal } from "react-dom";
 import { useMemo, useState } from "react";
 import { InspectorField } from "../../inspector/InspectorField";
 import {
@@ -8,10 +7,16 @@ import {
   getAddStepWizardGroups,
   type WizardInputField,
 } from "@/lib/visual-vibes/functions";
-import type { AddStepPlacement, AddStepWizardSelection } from "../../../types";
+import type {
+  AddStepPlacement,
+  AddStepWizardSelection,
+  FloatingPanelAnchor,
+} from "../../../types";
+import { FloatingEditorPanel } from "../../editor/FloatingEditorPanel";
 
 type AddStepWizardProps = {
   placement: AddStepPlacement | null;
+  anchor: FloatingPanelAnchor | null;
   onCancel: () => void;
   onConfirm: (selection: AddStepWizardSelection) => void;
 };
@@ -30,6 +35,7 @@ const BLANK_STEP_FUNCTION_ID = "__blank__";
 /** Modal picker for choosing a registry-backed step template. */
 export function AddStepWizard({
   placement,
+  anchor,
   onCancel,
   onConfirm,
 }: AddStepWizardProps) {
@@ -109,28 +115,8 @@ export function AddStepWizard({
     });
   }
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-[rgba(5,10,24,0.6)] px-4 py-6 backdrop-blur-[2px]"
-      onMouseDown={onCancel}
-    >
-      <div
-        className="flex max-h-[min(90vh,860px)] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] shadow-2xl"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-4">
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
-              Add Step
-            </div>
-            <h2 className="mt-1 text-base font-semibold text-[var(--text-primary)]">
-              {title}
-            </h2>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">{subtitle}</p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)] sm:flex">
+  const headerActions = (
+    <div className="hidden items-center gap-1 rounded-full border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)] sm:flex">
               <span className={stage === "choose" ? "text-[var(--brand-primary)]" : ""}>
                 Choose
               </span>
@@ -138,21 +124,60 @@ export function AddStepWizard({
               <span className={stage === "configure" ? "text-[var(--brand-primary)]" : ""}>
                 Input
               </span>
-            </div>
+    </div>
+  );
 
-            <button
-              type="button"
-              onClick={onCancel}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-              aria-label="Close step wizard"
-              title="Close step wizard"
-            >
-              x
-            </button>
-          </div>
-        </div>
+  const footer = (
+    <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+      <div className="text-xs text-[var(--text-muted)]">
+        {stage === "choose"
+          ? "Pick a function first. We will walk through the input fields next."
+          : "Fill out the example-backed fields, then insert the generated step."}
+      </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
+        >
+          Cancel
+        </button>
+
+        {stage === "choose" ? (
+          <button
+            type="button"
+            onClick={handleContinue}
+            className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white hover:opacity-95"
+          >
+            Continue
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleConfirmSelection}
+            className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white hover:opacity-95"
+          >
+            Insert step
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <FloatingEditorPanel
+      isOpen={Boolean(placement)}
+      anchor={anchor}
+      eyebrow="Add Step"
+      title={title}
+      description={subtitle}
+      width={900}
+      estimatedHeight={760}
+      headerActions={headerActions}
+      footer={footer}
+      onClose={onCancel}
+    >
           <div className="min-h-0">
             {stage === "choose" ? (
               <div className="space-y-5 px-5 py-4">
@@ -331,46 +356,7 @@ export function AddStepWizard({
               </div>
             )}
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-subtle)] px-5 py-4">
-          <div className="text-xs text-[var(--text-muted)]">
-            {stage === "choose"
-              ? "Pick a function first. We will walk through the input fields next."
-              : "Fill out the example-backed fields, then insert the generated step."}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
-            >
-              Cancel
-            </button>
-
-            {stage === "choose" ? (
-              <button
-                type="button"
-                onClick={handleContinue}
-                className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white hover:opacity-95"
-              >
-                Continue
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleConfirmSelection}
-                className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white hover:opacity-95"
-              >
-                Insert step
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body,
+    </FloatingEditorPanel>
   );
 }
 

@@ -70,7 +70,7 @@ export function VibeInspector({
 
   return (
     <VibeInspectorForm
-      key={`${selectedStep.id}:${selectedStepDescription}`}
+      key={getStepFormKey(selectedStep, selectedStepDescription)}
       selectedStep={selectedStep}
       selectedStepDescription={selectedStepDescription}
       onUpdateStep={onUpdateStep}
@@ -78,6 +78,17 @@ export function VibeInspector({
       onStepEditDirtyChange={onStepEditDirtyChange}
     />
   );
+}
+
+function getStepFormKey(step: VibeStep, description: string) {
+  return JSON.stringify({
+    id: step.id,
+    functionName: step.function,
+    input: step.input,
+    onErrorStepId: step.on_error_step_id,
+    onErrorMessage: step.on_error_message,
+    description,
+  });
 }
 
 type VibeInspectorFormProps = {

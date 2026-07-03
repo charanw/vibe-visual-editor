@@ -15,6 +15,7 @@ import type {
   CanvasViewMode,
   CenterRequest,
   EdgeOperationOptions,
+  FloatingPanelAnchor,
 } from "../types";
 import { CanvasControls } from "./canvas/components/CanvasControls";
 import { AddStepWizard } from "./canvas/components/AddStepWizard";
@@ -39,20 +40,30 @@ type VibeCanvasProps = {
   canUndoYaml: boolean;
   canRedoYaml: boolean;
   historyItems: HistoryDisplayItem[];
-  onSelectStep: (stepId: string) => void;
+  onSelectStep: (stepId: string, anchor?: FloatingPanelAnchor) => void;
   onClearSelectedStep: () => void;
   onUndoYaml: () => void;
   onRedoYaml: () => void;
   onChangeViewMode: (viewMode: CanvasViewMode) => void;
-  onAddStandaloneStep: () => void;
-  onAddStepOnEdge: (options: EdgeOperationOptions) => void;
+  onAddStandaloneStep: (anchor?: FloatingPanelAnchor) => void;
+  onAddStepOnEdge: (
+    options: EdgeOperationOptions,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
   onDeleteStep: (stepId: string) => void;
   onAddEdge: (options: AddEdgeOptions) => void;
   onDeleteEdge: (options: EdgeOperationOptions) => void;
-  onAppendStepAfter: (sourceStepId: string) => void;
-  onPrependStepBefore: (targetStepId: string) => void;
+  onAppendStepAfter: (
+    sourceStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
+  onPrependStepBefore: (
+    targetStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
   onUpdateCondition: (stepId: string, expression: string) => void;
   addStepRequest: AddStepPlacement | null;
+  addStepAnchor: FloatingPanelAnchor | null;
   onCancelAddStepRequest: () => void;
   onConfirmAddStepRequest: (selection: AddStepWizardSelection) => void;
   canvasViewport: CanvasViewportState;
@@ -89,6 +100,7 @@ export function VibeCanvas({
   onPrependStepBefore,
   onUpdateCondition,
   addStepRequest,
+  addStepAnchor,
   onCancelAddStepRequest,
   onConfirmAddStepRequest,
   canvasViewport,
@@ -198,7 +210,7 @@ export function VibeCanvas({
             onUndoYaml={onUndoYaml}
             onRedoYaml={onRedoYaml}
             onChangeViewMode={onChangeViewMode}
-            onAddStandaloneStep={onAddStandaloneStep}
+              onAddStandaloneStep={onAddStandaloneStep}
           />
           </div>
 
@@ -255,7 +267,9 @@ export function VibeCanvas({
         </div>
 
         <AddStepWizard
+          key={addStepRequest ? getAddStepRequestKey(addStepRequest) : "closed"}
           placement={addStepRequest}
+          anchor={addStepAnchor}
           onCancel={onCancelAddStepRequest}
           onConfirm={onConfirmAddStepRequest}
         />
@@ -281,6 +295,22 @@ function EmptyCanvasNotice() {
       No Vibe Steps found. Add a standalone step to start a new Vibe.
     </div>
   );
+}
+
+function getAddStepRequestKey(request: AddStepPlacement) {
+  if (request.kind === "standalone") {
+    return request.kind;
+  }
+
+  if (request.kind === "appendAfter") {
+    return `${request.kind}:${request.sourceStepId}`;
+  }
+
+  if (request.kind === "prependBefore") {
+    return `${request.kind}:${request.targetStepId}`;
+  }
+
+  return `${request.kind}:${request.sourceStepId}:${request.targetStepId}:${request.edgeType}`;
 }
 
 function ConnectingNotice({

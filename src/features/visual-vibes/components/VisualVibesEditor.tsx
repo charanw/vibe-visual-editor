@@ -20,6 +20,7 @@ import { toggleMobilePane } from "../utils";
 import type {
   AddStepPlacement,
   AddStepWizardSelection,
+  FloatingPanelAnchor,
 } from "../types";
 
 /**
@@ -39,7 +40,11 @@ export function VisualVibesEditor() {
   const { resetYamlText, setFileName, setLoadError, setSourceType } = vibeState;
   const [addStepRequest, setAddStepRequest] =
     useState<AddStepPlacement | null>(null);
+  const [addStepAnchor, setAddStepAnchor] =
+    useState<FloatingPanelAnchor | null>(null);
   const [isStepInspectorOpen, setIsStepInspectorOpen] = useState(false);
+  const [stepInspectorAnchor, setStepInspectorAnchor] =
+    useState<FloatingPanelAnchor | null>(null);
 
   // Refs
   const canvasPanelRef = useRef<HTMLDivElement | null>(null);
@@ -85,43 +90,59 @@ export function VisualVibesEditor() {
     editorShellRef,
   });
 
-  function requestStandaloneStep() {
+  function requestStandaloneStep(anchor?: FloatingPanelAnchor) {
     setAddStepRequest({ kind: "standalone" });
+    setAddStepAnchor(anchor ?? null);
   }
 
-  function requestAppendStepAfter(sourceStepId: string) {
+  function requestAppendStepAfter(
+    sourceStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) {
     setAddStepRequest({ kind: "appendAfter", sourceStepId });
+    setAddStepAnchor(anchor ?? null);
   }
 
-  function requestPrependStepBefore(targetStepId: string) {
+  function requestPrependStepBefore(
+    targetStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) {
     setAddStepRequest({ kind: "prependBefore", targetStepId });
+    setAddStepAnchor(anchor ?? null);
   }
 
   function requestStepOnEdge(options: {
     sourceStepId: string;
     targetStepId: string;
     edgeType: "data" | "next" | "error";
-  }) {
+  }, anchor?: FloatingPanelAnchor) {
     setAddStepRequest({
       kind: "onEdge",
       sourceStepId: options.sourceStepId,
       targetStepId: options.targetStepId,
       edgeType: options.edgeType,
     });
+    setAddStepAnchor(anchor ?? null);
   }
 
   function closeAddStepWizard() {
     setAddStepRequest(null);
+    setAddStepAnchor(null);
   }
 
   function confirmAddStepWizard(selection: AddStepWizardSelection) {
     handleCreateStepFromWizard(selection);
+    setStepInspectorAnchor(addStepAnchor);
     closeAddStepWizard();
     setIsStepInspectorOpen(true);
   }
 
-  function selectStepFromCanvas(stepId: string) {
+  function selectStepFromCanvas(
+    stepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) {
     handleSelectStep(stepId);
+    setStepInspectorAnchor(anchor ?? null);
     setIsStepInspectorOpen(true);
   }
 
@@ -152,6 +173,7 @@ export function VisualVibesEditor() {
   const stepInspectorModal = (
     <StepInspectorModal
       isOpen={isStepInspectorOpen}
+      anchor={stepInspectorAnchor}
       vibe={vibeState.parsedResult.vibe}
       selectedStepId={vibeState.selectedStepId}
       selectedStepDescription={vibeState.selectedStepDescription}
@@ -268,6 +290,7 @@ export function VisualVibesEditor() {
                   onPrependStepBefore={requestPrependStepBefore}
                   onUpdateCondition={handleUpdateCondition}
                   addStepRequest={addStepRequest}
+                  addStepAnchor={addStepAnchor}
                   onCancelAddStepRequest={closeAddStepWizard}
                   onConfirmAddStepRequest={confirmAddStepWizard}
                   canvasViewport={layoutState.canvasViewport}
@@ -370,6 +393,7 @@ export function VisualVibesEditor() {
             onPrependStepBefore={requestPrependStepBefore}
             onUpdateCondition={handleUpdateCondition}
             addStepRequest={addStepRequest}
+            addStepAnchor={addStepAnchor}
             onCancelAddStepRequest={closeAddStepWizard}
             onConfirmAddStepRequest={confirmAddStepWizard}
             canvasViewport={layoutState.canvasViewport}

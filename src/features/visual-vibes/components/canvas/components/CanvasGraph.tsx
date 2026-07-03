@@ -5,7 +5,11 @@ import type {
   WheelEvent as ReactWheelEvent,
 } from "react";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
-import type { AddEdgeOptions, EdgeOperationOptions } from "../../../types";
+import type {
+  AddEdgeOptions,
+  EdgeOperationOptions,
+  FloatingPanelAnchor,
+} from "../../../types";
 import { CanvasEdge } from "./CanvasEdge";
 import { CanvasNode } from "./CanvasNode";
 import { CanvasSvgDefs } from "./CanvasSvgDefs";
@@ -32,16 +36,25 @@ type CanvasGraphProps = {
   onContinuePanning: (event: ReactPointerEvent<SVGSVGElement>) => void;
   onStopPanning: (event?: ReactPointerEvent<SVGSVGElement | SVGRectElement>) => void;
   onWheelZoom: (event: ReactWheelEvent<SVGSVGElement>) => void;
-  onSelectStep: (stepId: string) => void;
+  onSelectStep: (stepId: string, anchor?: FloatingPanelAnchor) => void;
   onDeleteStep: (stepId: string) => void;
-  onAddStepOnEdge: (options: EdgeOperationOptions) => void;
+  onAddStepOnEdge: (
+    options: EdgeOperationOptions,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
   onDeleteEdge: (options: EdgeOperationOptions) => void;
   onAddEdge: (options: AddEdgeOptions) => void;
   onUpdateCondition: (stepId: string, expression: string) => void;
   onStartConnecting: (stepId: string) => void;
   onClearConnectingStep: () => void;
-  onAppendStepAfter: (sourceStepId: string) => void;
-  onPrependStepBefore: (targetStepId: string) => void;
+  onAppendStepAfter: (
+    sourceStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
+  onPrependStepBefore: (
+    targetStepId: string,
+    anchor?: FloatingPanelAnchor,
+  ) => void;
 };
 
 /** SVG graph surface for nodes, edges, and pointer interactions. */
