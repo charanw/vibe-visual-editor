@@ -260,7 +260,8 @@ function useGraphLayoutState(
 
             if (
               currentGraph.nodes.length === 0 ||
-              displayLayoutKeyRef.current !== displayLayoutKey
+              displayLayoutKeyRef.current !== displayLayoutKey ||
+              shouldDiscardStableLayout(displayGraph, currentGraph)
             ) {
               displayLayoutKeyRef.current = displayLayoutKey;
 
@@ -276,7 +277,7 @@ function useGraphLayoutState(
                   }
                 });
 
-              return currentGraph;
+              return { nodes: [], edges: [] };
             }
 
             return mergeGraphIntoStableLayout(displayGraph, currentGraph);
@@ -325,7 +326,8 @@ function useGraphLayoutState(
 
             if (
               currentGraph.nodes.length === 0 ||
-              visibleLayoutKeyRef.current !== visibleLayoutKey
+              visibleLayoutKeyRef.current !== visibleLayoutKey ||
+              shouldDiscardStableLayout(visibleGraph, currentGraph)
             ) {
               visibleLayoutKeyRef.current = visibleLayoutKey;
 
@@ -344,7 +346,7 @@ function useGraphLayoutState(
                   }
                 });
 
-              return currentGraph;
+              return { nodes: [], edges: [] };
             }
 
             return mergeGraphIntoStableLayout(visibleGraph, currentGraph);
@@ -387,6 +389,24 @@ function useGraphLayoutState(
     positionedGraph,
     positionedDisplayGraph,
   };
+}
+
+function shouldDiscardStableLayout(
+  graph: VibeGraph,
+  currentGraph: PositionedVibeGraph,
+) {
+  if (graph.nodes.length === 0 || currentGraph.nodes.length === 0) {
+    return false;
+  }
+
+  const currentNodeIds = new Set(currentGraph.nodes.map((node) => node.id));
+  const sharedNodeCount = graph.nodes.filter((node) =>
+    currentNodeIds.has(node.id),
+  ).length;
+  const overlapRatio =
+    sharedNodeCount / Math.min(graph.nodes.length, currentGraph.nodes.length);
+
+  return overlapRatio < 0.5;
 }
 
 function mergeGraphIntoStableLayout(
