@@ -51,7 +51,7 @@ export function CanvasEdge({
   const labelWidth = Math.min(190, Math.max(76, label.length * 6.5 + 20));
   const shouldRenderLabel = label.trim().length > 0;
   const canEditEdge = isEditing && isHovered && edge.type !== "semantic";
-  const canDeleteEdge = canEditEdge && !edge.inferred;
+  const canDeleteEdge = canEditEdge;
   const editableEdgeType =
     edge.type === "semantic" ? "next" : edge.type;
 

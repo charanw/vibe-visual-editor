@@ -13,6 +13,10 @@ import { hashString } from "./canvasGraphUtils";
 type PositionedEdge = PositionedVibeGraph["edges"][number];
 
 export function getEdgeLabelPoint(edge: PositionedEdge) {
+  if (isDecisionBranchLabel(edge.semantic?.label)) {
+    return getDecisionBranchLabelPoint(edge);
+  }
+
   const routePoints = getRoutePoints(edge);
 
   if (routePoints.length > 2) {
@@ -54,6 +58,34 @@ export function getEdgeLabelPoint(edge: PositionedEdge) {
   return {
     x: edge.sourceX + clampMagnitude(edge.targetX - edge.sourceX, 56, 132),
     y: edge.sourceY + clampMagnitude(edge.targetY - edge.sourceY, 32, 86),
+  };
+}
+
+function isDecisionBranchLabel(label: string | undefined) {
+  if (!label) {
+    return false;
+  }
+
+  const normalizedLabel = label.toLowerCase();
+
+  return (
+    normalizedLabel === "then" ||
+    normalizedLabel === "else" ||
+    normalizedLabel === "default" ||
+    normalizedLabel.startsWith("case ")
+  );
+}
+
+function getDecisionBranchLabelPoint(edge: PositionedEdge) {
+  const verticalDelta = edge.targetY - edge.sourceY;
+  const isUpperBranch = verticalDelta < -SIDE_ROUTE_EPSILON;
+  const isLowerBranch = verticalDelta > SIDE_ROUTE_EPSILON;
+  const yOffset = isUpperBranch ? -24 : isLowerBranch ? 24 : -20;
+  const xOffset = clampMagnitude(edge.targetX - edge.sourceX, 58, 92);
+
+  return {
+    x: edge.sourceX + xOffset,
+    y: edge.sourceY + yOffset,
   };
 }
 

@@ -33,6 +33,7 @@ export type EditorHistory<T> = {
   setValue: (nextValue: SetStateAction<T>, options?: SetHistoryOptions) => void;
   reset: (nextValue: T, label?: string) => void;
   markClean: () => void;
+  discardChanges: () => void;
   undo: () => void;
   redo: () => void;
 };
@@ -97,6 +98,16 @@ export function useEditorHistory<T>(initialValue: T): EditorHistory<T> {
     setHistoryState((currentState) => ({
       ...currentState,
       cleanValue: currentState.present,
+    }));
+  }, []);
+
+  const discardChanges = useCallback(() => {
+    setHistoryState((currentState) => ({
+      past: [],
+      present: currentState.cleanValue,
+      presentLabel: "Discarded unsaved changes",
+      future: [],
+      cleanValue: currentState.cleanValue,
     }));
   }, []);
 
@@ -178,9 +189,19 @@ export function useEditorHistory<T>(initialValue: T): EditorHistory<T> {
       setValue,
       reset,
       markClean,
+      discardChanges,
       undo,
       redo,
     }),
-    [historyItems, historyState, markClean, redo, reset, setValue, undo],
+    [
+      discardChanges,
+      historyItems,
+      historyState,
+      markClean,
+      redo,
+      reset,
+      setValue,
+      undo,
+    ],
   );
 }

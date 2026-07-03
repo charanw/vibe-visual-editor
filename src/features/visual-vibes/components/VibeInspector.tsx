@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { VisualVibe, VibeStep } from "@/lib/visual-vibes/schema";
 import { InputKeyValueRowEditor } from "./inspector/InputKeyValueRowEditor";
 import { InspectorField } from "./inspector/InspectorField";
-import { PencilIcon } from "./inspector/InspectorIcons";
 import {
   createEmptyInputRow,
   inputObjectToRows,
@@ -24,8 +23,6 @@ type VibeInspectorProps = {
   vibe: VisualVibe | null;
   selectedStepId: string | null;
   selectedStepDescription: string;
-  isEditing: boolean;
-  onStartEditing: () => void;
   onUpdateStep: (originalStepId: string, updates: StepUpdate) => void;
   onUpdateStepDescription: (stepId: string, description: string) => void;
   onStepEditDirtyChange: (isDirty: boolean) => void;
@@ -41,8 +38,6 @@ export function VibeInspector({
   vibe,
   selectedStepId,
   selectedStepDescription,
-  isEditing,
-  onStartEditing,
   onUpdateStep,
   onUpdateStepDescription,
   onStepEditDirtyChange,
@@ -78,8 +73,6 @@ export function VibeInspector({
       key={`${selectedStep.id}:${selectedStepDescription}`}
       selectedStep={selectedStep}
       selectedStepDescription={selectedStepDescription}
-      isEditing={isEditing}
-      onStartEditing={onStartEditing}
       onUpdateStep={onUpdateStep}
       onUpdateStepDescription={onUpdateStepDescription}
       onStepEditDirtyChange={onStepEditDirtyChange}
@@ -90,8 +83,6 @@ export function VibeInspector({
 type VibeInspectorFormProps = {
   selectedStep: VibeStep;
   selectedStepDescription: string;
-  isEditing: boolean;
-  onStartEditing: () => void;
   onUpdateStep: (originalStepId: string, updates: StepUpdate) => void;
   onUpdateStepDescription: (stepId: string, description: string) => void;
   onStepEditDirtyChange: (isDirty: boolean) => void;
@@ -106,8 +97,6 @@ type VibeInspectorFormProps = {
 function VibeInspectorForm({
   selectedStep,
   selectedStepDescription,
-  isEditing,
-  onStartEditing,
   onUpdateStep,
   onUpdateStepDescription,
   onStepEditDirtyChange,
@@ -357,34 +346,14 @@ function VibeInspectorForm({
               {selectedStep.function}
             </div>
           </div>
-
-          {!isEditing && (
-            <button
-              type="button"
-              onClick={onStartEditing}
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] text-[var(--text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-              aria-label="Unlock step editing"
-              title="Unlock step editing"
-            >
-              <PencilIcon />
-            </button>
-          )}
         </div>
-
-        {!isEditing && (
-          <div className="mt-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs leading-5 text-[var(--text-muted)]">
-            Step editing is locked. Use the pencil to unlock editing from the
-            Inspector.
-          </div>
-        )}
       </div>
 
       <InspectorField label="Step ID">
         <input
           value={stepIdDraft}
           onChange={(event) => setStepIdDraft(event.target.value)}
-          disabled={!isEditing}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
         />
       </InspectorField>
 
@@ -399,8 +368,7 @@ function VibeInspectorForm({
         <select
           value={functionNameDraft}
           onChange={(event) => handleFunctionSelect(event.target.value)}
-          disabled={!isEditing}
-          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+          className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
         >
           {!getFunctionDefinition(functionNameDraft) && functionNameDraft && (
             <option value={functionNameDraft}>
@@ -419,7 +387,7 @@ function VibeInspectorForm({
           ))}
         </select>
 
-        {isEditing && selectedFunctionTemplate && (
+        {selectedFunctionTemplate && (
           <button
             type="button"
             onClick={() =>
@@ -439,10 +407,9 @@ function VibeInspectorForm({
         <textarea
           value={descriptionDraft}
           onChange={(event) => setDescriptionDraft(event.target.value)}
-          disabled={!isEditing}
           rows={4}
           placeholder="Describe what this step does..."
-          className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+          className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none"
         />
       </InspectorField>
 
@@ -494,7 +461,7 @@ function VibeInspectorForm({
                         key={row.id}
                         row={row}
                         rowNumber={index + 1}
-                        disabled={!isEditing}
+                        disabled={false}
                         onUpdate={(updates) => updateInputRow(row.id, updates)}
                         onRemove={() => removeInputRow(row.id)}
                       />
@@ -506,8 +473,7 @@ function VibeInspectorForm({
               <button
                 type="button"
                 onClick={addInputRow}
-                disabled={!isEditing}
-                className="mt-3 inline-flex items-center justify-center rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-3 inline-flex items-center justify-center rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
               >
                 + Add input field
               </button>
@@ -520,9 +486,8 @@ function VibeInspectorForm({
                   setInputDraft(event.target.value);
                   setInputError(null);
                 }}
-                disabled={!isEditing}
                 rows={12}
-                className="w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 font-mono text-xs leading-5 text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                className="w-full resize-y rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 font-mono text-xs leading-5 text-[var(--text-primary)] outline-none"
               />
             </div>
           )}
@@ -545,9 +510,8 @@ function VibeInspectorForm({
             <input
               value={onErrorStepIdDraft}
               onChange={(event) => setOnErrorStepIdDraft(event.target.value)}
-              disabled={!isEditing}
               placeholder="error_handler"
-              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+              className="w-full rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none"
             />
           </InspectorField>
 
@@ -555,42 +519,34 @@ function VibeInspectorForm({
             <textarea
               value={onErrorMessageDraft}
               onChange={(event) => setOnErrorMessageDraft(event.target.value)}
-              disabled={!isEditing}
               rows={3}
               placeholder="What should happen if this step fails?"
-              className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none disabled:cursor-not-allowed disabled:opacity-70"
+              className="w-full resize-none rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-sm leading-6 text-[var(--text-primary)] outline-none"
             />
           </InspectorField>
         </div>
       </div>
 
       <div className="sticky bottom-0 -mx-4 border-t border-[var(--border-subtle)] bg-[var(--panel-bg)] p-4">
-        {isEditing ? (
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={handleResetDrafts}
-              disabled={!isDirty}
-              className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Reset
-            </button>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={handleResetDrafts}
+            disabled={!isDirty}
+            className="rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Reset
+          </button>
 
-            <button
-              type="button"
-              onClick={saveStep}
-              disabled={!isDirty}
-              className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Save Step
-            </button>
-          </div>
-        ) : (
-          <div className="text-xs text-[var(--text-muted)]">
-            Unlock step editing on the canvas or use the pencil above to edit
-            this step.
-          </div>
-        )}
+          <button
+            type="button"
+            onClick={saveStep}
+            disabled={!isDirty}
+            className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Save Step
+          </button>
+        </div>
       </div>
     </div>
   );

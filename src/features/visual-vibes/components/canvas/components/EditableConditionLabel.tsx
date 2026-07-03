@@ -16,6 +16,8 @@ export function EditableConditionLabel({
   const [isEditingCondition, setIsEditingCondition] = useState(false);
   const [draftExpression, setDraftExpression] = useState(expression ?? "");
   const displayExpression = expression?.trim() || "Unsupported condition";
+  const readableExpression = getReadableConditionExpression(displayExpression);
+  const displayLines = wrapConditionExpression(readableExpression);
 
   function openEditor() {
     if (!isEditing || !expression) {
@@ -39,7 +41,7 @@ export function EditableConditionLabel({
 
   if (isEditingCondition) {
     return (
-      <foreignObject x="14" y="74" width="192" height="94">
+      <foreignObject x="18" y="70" width="184" height="110">
         <div
           className="rounded-lg border border-[var(--brand-primary)] bg-[var(--panel-bg)] p-2 shadow-lg"
           onClick={(event) => event.stopPropagation()}
@@ -73,20 +75,131 @@ export function EditableConditionLabel({
   }
 
   return (
-    <foreignObject x="14" y="84" width="192" height="22">
-      <button
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          openEditor();
-        }}
-        disabled={!isEditing || !expression}
-        className="flex h-full w-full items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-2 text-left text-[10px] font-semibold text-[var(--text-secondary)] disabled:cursor-default"
-        title={displayExpression}
+    <g
+      onClick={(event) => {
+        event.stopPropagation();
+        openEditor();
+      }}
+      className={isEditing && expression ? "cursor-text" : undefined}
+    >
+      <title>{displayExpression}</title>
+      <rect
+        x="34"
+        y="74"
+        width="152"
+        height="26"
+        rx="7"
+        fill="rgba(2, 6, 23, 0.72)"
+        stroke="rgba(139, 92, 246, 0.55)"
+        strokeWidth="1"
+      />
+      <text
+        x="110"
+        y={displayLines.length === 1 ? "90" : "84"}
+        textAnchor="middle"
+        fill="var(--text-primary)"
+        fontSize="9.5"
+        fontWeight="700"
+        pointerEvents="none"
       >
-        <span className="shrink-0 text-[var(--brand-primary)]">if</span>
-        <span className="truncate">{displayExpression}</span>
-      </button>
-    </foreignObject>
+        {displayLines.map((line, index) => (
+          <tspan key={`${line}-${index}`} x="110" dy={index === 0 ? 0 : 11}>
+            {line}
+          </tspan>
+        ))}
+      </text>
+    </g>
   );
+}
+
+function wrapConditionExpression(expression: string) {
+  const normalizedExpression = expression
+    .replace(/\s+/g, " ")
+    .trim();
+  const maxLineLength = 30;
+  const maxLines = 2;
+  const words = normalizedExpression.split(" ");
+  const lines: string[] = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const nextLine = currentLine ? `${currentLine} ${word}` : word;
+
+    if (nextLine.length <= maxLineLength) {
+      currentLine = nextLine;
+      continue;
+    }
+
+    if (currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      lines.push(word);
+      currentLine = "";
+    }
+
+    if (lines.length === maxLines) {
+      break;
+    }
+  }
+
+  if (currentLine && lines.length < maxLines) {
+    lines.push(currentLine);
+  }
+
+  if (lines.length === 0) {
+    return ["Unsupported condition"];
+  }
+
+  if (lines.join(" ").length < normalizedExpression.length) {
+    const lastIndex = lines.length - 1;
+    const lastLine = lines[lastIndex];
+    lines[lastIndex] =
+      lastLine.length > maxLineLength - 3
+        ? `${lastLine.slice(0, maxLineLength - 3)}...`
+        : `${lastLine}...`;
+  }
+
+  return lines;
+}
+
+function getReadableConditionExpression(expression: string) {
+  const unwrappedExpression = expression
+    .replace(/^\s*if\s*/i, "")
+    .replace(/^\$\{/, "")
+    .replace(/\}$/, "")
+    .trim();
+  const presenceMatch = unwrappedExpression.match(/^(.+?)\s*!={1,2}\s*null$/);
+  const missingMatch = unwrappedExpression.match(/^(.+?)\s*={2,3}\s*null$/);
+  const truthyMatch = unwrappedExpression.match(/^(.+?)\s*={2,3}\s*true$/);
+  const falseyMatch = unwrappedExpression.match(/^(.+?)\s*={2,3}\s*false$/);
+
+  if (presenceMatch?.[1]) {
+    return `${formatConditionOperand(presenceMatch[1])} is present`;
+  }
+
+  if (missingMatch?.[1]) {
+    return `${formatConditionOperand(missingMatch[1])} is missing`;
+  }
+
+  if (truthyMatch?.[1]) {
+    return `${formatConditionOperand(truthyMatch[1])} is true`;
+  }
+
+  if (falseyMatch?.[1]) {
+    return `${formatConditionOperand(falseyMatch[1])} is false`;
+  }
+
+  return unwrappedExpression
+    .replace(/\bsteps\.([^.]+)\.output\.([A-Za-z0-9_]+)/g, "$2")
+    .replace(/\buniqueData\.([A-Za-z0-9_]+)/g, "$1")
+    .replace(/[_-]+/g, " ");
+}
+
+function formatConditionOperand(operand: string) {
+  return operand
+    .replace(/\bsteps\.([^.]+)\.output\.([A-Za-z0-9_]+)/g, "$2")
+    .replace(/\buniqueData\.([A-Za-z0-9_]+)/g, "$1")
+    .replace(/[_-]+/g, " ")
+    .trim();
 }

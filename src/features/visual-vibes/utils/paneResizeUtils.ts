@@ -110,11 +110,7 @@ export function startPaneResize(
  */
 export function calculateGridTemplateColumns(
   leftWidth: number,
-  rightWidth: number,
   leftCollapsed: boolean,
-  rightCollapsed: boolean,
 ): string {
-  return `${leftCollapsed ? 0 : leftWidth}px ${PANE_GAP}px minmax(${MIN_CENTER_PANE_WIDTH}px, 1fr) ${PANE_GAP}px ${
-    rightCollapsed ? 0 : rightWidth
-  }px`;
+  return `${leftCollapsed ? 0 : leftWidth}px ${PANE_GAP}px minmax(${MIN_CENTER_PANE_WIDTH}px, 1fr)`;
 }

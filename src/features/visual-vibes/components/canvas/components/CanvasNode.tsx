@@ -51,11 +51,10 @@ export function CanvasNode({
   onPrependStepBefore,
 }: CanvasNodeProps) {
   const statusBadgeX = node.semantic?.badge ? NODE_WIDTH - 82 : NODE_WIDTH - 30;
-  const inputPreview = node.semantic?.inputPreview ?? [];
-  const outputPreview = node.semantic?.outputPreview ?? [];
-  const loopStepIds = node.semantic?.loopStepIds ?? [];
-  const hoverHeight =
-    node.semantic?.kind === "loop" ? NODE_HEIGHT + 142 : NODE_HEIGHT + 82;
+  const isLoopNode = node.semantic?.kind === "loop";
+  const isConditionalNode = node.semantic?.kind === "conditional";
+  const isSyntheticLoopStep = node.semantic?.kind === "loopStep";
+  const hoverHeight = NODE_HEIGHT + 82;
 
   return (
     <g
@@ -76,14 +75,34 @@ export function CanvasNode({
         fill="transparent"
       />
 
-      <rect
-        width={NODE_WIDTH}
-        height={NODE_HEIGHT}
-        rx="16"
-        fill={state.colors.fill}
-        stroke={state.colors.stroke}
-        strokeWidth={state.colors.strokeWidth}
-      />
+      {isLoopNode ? (
+        <LoopDecisionShape
+          fill={state.colors.fill}
+          stroke={state.colors.stroke}
+          strokeWidth={state.colors.strokeWidth}
+        />
+      ) : isConditionalNode ? (
+        <ConditionalDecisionShape
+          fill={state.colors.fill}
+          stroke={state.colors.stroke}
+          strokeWidth={state.colors.strokeWidth}
+        />
+      ) : isSyntheticLoopStep ? (
+        <LoopBodyShape
+          fill={state.colors.fill}
+          stroke={state.colors.stroke}
+          strokeWidth={state.colors.strokeWidth}
+        />
+      ) : (
+        <rect
+          width={NODE_WIDTH}
+          height={NODE_HEIGHT}
+          rx="16"
+          fill={state.colors.fill}
+          stroke={state.colors.stroke}
+          strokeWidth={state.colors.strokeWidth}
+        />
+      )}
 
       {node.semantic?.isParallelLaneStart &&
         node.semantic.parallelLaneLabel && (
@@ -115,7 +134,7 @@ export function CanvasNode({
         <StartingFlagBadge x={statusBadgeX} y={26} />
       )}
 
-      {isEditing && isHovered && (
+      {isEditing && isHovered && !isSyntheticLoopStep && (
         <>
           <DeleteNodeButton onClick={() => onDeleteStep(node.id)} />
 
@@ -141,7 +160,7 @@ export function CanvasNode({
         </>
       )}
 
-      {isEditing && isHovered && (
+      {isEditing && isHovered && !isSyntheticLoopStep && (
         <>
           <LinkHandle
             side="out"
@@ -175,38 +194,54 @@ export function CanvasNode({
         </>
       )}
 
-      <text
-        x="18"
-        y="34"
-        fill={state.colors.labelFill}
-        fontSize="11"
-        fontWeight="700"
-        letterSpacing="1.4"
-        pointerEvents="none"
-      >
-        {state.label}
-      </text>
+      {isLoopNode ? (
+        <LoopDecisionContent
+          node={node}
+          labelFill={state.colors.labelFill}
+        />
+      ) : isConditionalNode ? (
+        <ConditionalDecisionContent
+          node={node}
+          labelFill={state.colors.labelFill}
+        />
+      ) : isSyntheticLoopStep ? (
+        <LoopBodyContent node={node} labelFill={state.colors.labelFill} />
+      ) : (
+        <>
+          <text
+            x="18"
+            y="34"
+            fill={state.colors.labelFill}
+            fontSize="11"
+            fontWeight="700"
+            letterSpacing="1.4"
+            pointerEvents="none"
+          >
+            {state.label}
+          </text>
 
-      <text
-        x="18"
-        y="60"
-        fill="var(--text-primary)"
-        fontSize="14"
-        fontWeight="700"
-        pointerEvents="none"
-      >
-        {node.id}
-      </text>
+          <text
+            x="18"
+            y="60"
+            fill="var(--text-primary)"
+            fontSize="14"
+            fontWeight="700"
+            pointerEvents="none"
+          >
+            {node.id}
+          </text>
 
-      <text
-        x="18"
-        y={node.semantic?.kind === "conditional" ? "76" : "78"}
-        fill="var(--text-muted)"
-        fontSize="12"
-        pointerEvents="none"
-      >
-        {node.functionName}
-      </text>
+          <text
+            x="18"
+            y={node.semantic?.kind === "conditional" ? "76" : "78"}
+            fill="var(--text-muted)"
+            fontSize="12"
+            pointerEvents="none"
+          >
+            {node.functionName}
+          </text>
+        </>
+      )}
 
       {node.semantic?.kind === "conditional" && (
         <EditableConditionLabel
@@ -216,175 +251,215 @@ export function CanvasNode({
           onUpdateCondition={onUpdateCondition}
         />
       )}
-
-      <PreviewSection
-        x={18}
-        y={node.semantic?.kind === "conditional" ? 88 : 88}
-        label="IN"
-        items={inputPreview}
-        accent="var(--brand-primary)"
-      />
-
-      <PreviewSection
-        x={118}
-        y={88}
-        label="OUT"
-        items={outputPreview}
-        accent="#22c55e"
-      />
-
-      {node.semantic?.kind === "loop" && (
-        <LoopSubnodes
-          loopItemsPreview={node.semantic.loopItemsPreview}
-          loopStepIds={loopStepIds}
-        />
-      )}
     </g>
   );
 }
 
-function PreviewSection({
-  x,
-  y,
-  label,
-  items,
-  accent,
+function ConditionalDecisionShape({
+  fill,
+  stroke,
+  strokeWidth,
 }: {
-  x: number;
-  y: number;
-  label: string;
-  items: string[];
-  accent: string;
+  fill: string;
+  stroke: string;
+  strokeWidth: string;
 }) {
-  const visibleItems = items.slice(0, 2);
-
-  if (visibleItems.length === 0) {
-    return null;
-  }
-
   return (
-    <g pointerEvents="none">
-      <text
-        x={x}
-        y={y}
-        fill={accent}
-        fontSize="8"
-        fontWeight="800"
-        letterSpacing="1.1"
-      >
-        {label}
-      </text>
-      {visibleItems.map((item, index) => (
-        <text
-          key={`${label}-${item}-${index}`}
-          x={x}
-          y={y + 12 + index * 10}
-          fill="var(--text-muted)"
-          fontSize="8.5"
-        >
-          {item}
-        </text>
-      ))}
-    </g>
+    <path
+      d={`M 34 0 H ${NODE_WIDTH} L ${NODE_WIDTH - 34} ${NODE_HEIGHT} H 0 Z`}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+    />
   );
 }
 
-function LoopSubnodes({
-  loopItemsPreview,
-  loopStepIds,
+function LoopDecisionShape({
+  fill,
+  stroke,
+  strokeWidth,
 }: {
-  loopItemsPreview?: string;
-  loopStepIds: string[];
+  fill: string;
+  stroke: string;
+  strokeWidth: string;
 }) {
-  if (loopStepIds.length === 0) {
-    return null;
-  }
+  return (
+    <path
+      d={`M 42 0 H ${NODE_WIDTH - 42} L ${NODE_WIDTH} ${NODE_HEIGHT / 2} L ${
+        NODE_WIDTH - 42
+      } ${NODE_HEIGHT} H 42 L 0 ${NODE_HEIGHT / 2} Z`}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+    />
+  );
+}
 
-  const visibleStepIds = loopStepIds.slice(0, 3);
-  const startX = 16;
-  const startY = NODE_HEIGHT + 42;
-  const cardWidth = 104;
-  const cardHeight = 40;
-  const gap = 12;
-  const returnY = startY + cardHeight + 22;
-  const returnStartX = startX + (visibleStepIds.length - 1) * (cardWidth + gap) + cardWidth;
+function LoopBodyShape({
+  fill,
+  stroke,
+  strokeWidth,
+}: {
+  fill: string;
+  stroke: string;
+  strokeWidth: string;
+}) {
+  return (
+    <path
+      d={`M 26 0 H ${NODE_WIDTH} L ${NODE_WIDTH - 26} ${NODE_HEIGHT} H 0 Z`}
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+    />
+  );
+}
+
+function LoopDecisionContent({
+  node,
+  labelFill,
+}: {
+  node: PositionedVibeGraph["nodes"][number];
+  labelFill: string;
+}) {
+  const loopStepCount = node.semantic?.loopStepIds?.length ?? 0;
+  const itemLabel = node.semantic?.loopItemsPreview
+    ? shortenStepId(node.semantic.loopItemsPreview, 25)
+    : "items";
 
   return (
-    <g pointerEvents="none">
+    <>
       <text
-        x={startX}
-        y={NODE_HEIGHT + 24}
-        fill="var(--brand-primary)"
-        fontSize="9"
+        x={NODE_WIDTH / 2}
+        y="30"
+        textAnchor="middle"
+        fill={labelFill}
+        fontSize="10"
         fontWeight="800"
         letterSpacing="1.2"
+        pointerEvents="none"
       >
-        LOOP ITEMS {loopItemsPreview ? `· ${loopItemsPreview}` : ""}
+        FOR EACH
       </text>
-
-      {visibleStepIds.map((stepId, index) => {
-        const x = startX + index * (cardWidth + gap);
-
-        return (
-          <g key={stepId} transform={`translate(${x}, ${startY})`}>
-            <rect
-              width={cardWidth}
-              height={cardHeight}
-              rx="10"
-              fill="rgba(14, 165, 233, 0.08)"
-              stroke="var(--brand-primary)"
-              strokeWidth="1.4"
-              strokeDasharray="4 4"
-            />
-            <text
-              x="10"
-              y="17"
-              fill="var(--brand-primary)"
-              fontSize="8"
-              fontWeight="800"
-              letterSpacing="1"
-            >
-              EACH
-            </text>
-            <text
-              x="10"
-              y="31"
-              fill="var(--text-primary)"
-              fontSize="10"
-              fontWeight="700"
-            >
-              {stepId}
-            </text>
-          </g>
-        );
-      })}
-
-      {visibleStepIds.length > 1 && (
-        <path
-          d={`M ${startX + cardWidth} ${startY + cardHeight / 2} H ${returnStartX - cardWidth - gap}`}
-          fill="none"
-          stroke="var(--brand-primary)"
-          strokeWidth="1.4"
-          strokeDasharray="4 4"
-        />
-      )}
-
       <path
-        d={`M ${returnStartX} ${startY + cardHeight / 2} V ${returnY} H ${startX - 8} V ${startY + cardHeight / 2}`}
+        d="M 92 41 C 100 33 120 33 128 41 M 128 41 L 128 33 M 128 41 L 120 41 M 128 61 C 120 69 100 69 92 61 M 92 61 L 92 69 M 92 61 L 100 61"
         fill="none"
-        stroke="var(--brand-primary)"
-        strokeWidth="1.4"
-        strokeDasharray="4 4"
-      />
-      <path
-        d={`M ${startX - 8} ${startY + cardHeight / 2} l5 -5 m-5 5 l5 5`}
-        fill="none"
-        stroke="var(--brand-primary)"
-        strokeWidth="1.4"
+        stroke={labelFill}
+        strokeWidth="2"
         strokeLinecap="round"
+        strokeLinejoin="round"
+        pointerEvents="none"
       />
-    </g>
+      <text
+        x={NODE_WIDTH / 2}
+        y="58"
+        textAnchor="middle"
+        fill="var(--text-primary)"
+        fontSize="13"
+        fontWeight="800"
+        pointerEvents="none"
+      >
+        {itemLabel}
+      </text>
+      <text
+        x={NODE_WIDTH / 2}
+        y="78"
+        textAnchor="middle"
+        fill="var(--text-muted)"
+        fontSize="10"
+        fontWeight="700"
+        pointerEvents="none"
+      >
+        repeat {loopStepCount} {loopStepCount === 1 ? "step" : "steps"}
+      </text>
+    </>
   );
+}
+
+function ConditionalDecisionContent({
+  node,
+  labelFill,
+}: {
+  node: PositionedVibeGraph["nodes"][number];
+  labelFill: string;
+}) {
+  const modeLabel = node.semantic?.conditionMode === "switch" ? "SWITCH" : "IF";
+
+  return (
+    <>
+      <text
+        x={NODE_WIDTH / 2}
+        y="30"
+        textAnchor="middle"
+        fill={labelFill}
+        fontSize="10"
+        fontWeight="800"
+        letterSpacing="1.2"
+        pointerEvents="none"
+      >
+        {modeLabel}
+      </text>
+      <text
+        x={NODE_WIDTH / 2}
+        y="56"
+        textAnchor="middle"
+        fill="var(--text-primary)"
+        fontSize="13"
+        fontWeight="800"
+        pointerEvents="none"
+      >
+        {shortenStepId(node.id, 22)}
+      </text>
+    </>
+  );
+}
+
+function LoopBodyContent({
+  node,
+  labelFill,
+}: {
+  node: PositionedVibeGraph["nodes"][number];
+  labelFill: string;
+}) {
+  return (
+    <>
+      <text
+        x="34"
+        y="34"
+        fill={labelFill}
+        fontSize="11"
+        fontWeight="800"
+        letterSpacing="1.2"
+        pointerEvents="none"
+      >
+        STATEMENT
+      </text>
+      <text
+        x="34"
+        y="60"
+        fill="var(--text-primary)"
+        fontSize="14"
+        fontWeight="700"
+        pointerEvents="none"
+      >
+        {shortenStepId(node.semantic?.loopStepLabel ?? node.id, 22)}
+      </text>
+      <text
+        x="34"
+        y="78"
+        fill="var(--text-muted)"
+        fontSize="12"
+        pointerEvents="none"
+      >
+        {node.functionName}
+      </text>
+    </>
+  );
+}
+
+function shortenStepId(stepId: string, maxLength: number) {
+  const label = stepId.replace(/[_-]+/g, " ");
+
+  return label.length > maxLength ? `${label.slice(0, maxLength - 1)}...` : label;
 }
 
 function DeleteNodeButton({ onClick }: { onClick: () => void }) {

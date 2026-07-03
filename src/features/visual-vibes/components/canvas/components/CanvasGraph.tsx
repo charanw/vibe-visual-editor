@@ -6,10 +6,6 @@ import type {
 } from "react";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
 import type { AddEdgeOptions, EdgeOperationOptions } from "../../../types";
-import {
-  CANVAS_VIEWPORT_HEIGHT,
-  CANVAS_VIEWPORT_WIDTH,
-} from "../utils/canvasConstants";
 import { CanvasEdge } from "./CanvasEdge";
 import { CanvasNode } from "./CanvasNode";
 import { CanvasSvgDefs } from "./CanvasSvgDefs";
@@ -20,6 +16,8 @@ type CanvasGraphProps = {
   classifier: ReturnType<typeof useCanvasNodeClassifier>;
   zoom: number;
   pan: { x: number; y: number };
+  viewportWidth: number;
+  viewportHeight: number;
   worldWidth: number;
   worldHeight: number;
   isPanning: boolean;
@@ -52,6 +50,8 @@ export function CanvasGraph({
   classifier,
   zoom,
   pan,
+  viewportWidth,
+  viewportHeight,
   worldWidth,
   worldHeight,
   isPanning,
@@ -81,8 +81,8 @@ export function CanvasGraph({
     <svg
       width="100%"
       height="100%"
-      viewBox={`0 0 ${CANVAS_VIEWPORT_WIDTH} ${CANVAS_VIEWPORT_HEIGHT}`}
-      className={`block h-full min-h-[620px] w-full ${
+      viewBox={`0 0 ${viewportWidth} ${viewportHeight}`}
+      className={`block h-full w-full ${
         isPanning ? "cursor-grabbing" : "cursor-grab"
       }`}
       onWheel={onWheelZoom}

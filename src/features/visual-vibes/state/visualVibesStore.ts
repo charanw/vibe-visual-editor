@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -10,11 +11,15 @@ import type {
   CenterRequest,
 } from "../types";
 import { layoutVibeGraph } from "@/lib/visual-vibes/layout/layoutGraph";
+import {
+  NODE_HEIGHT,
+  NODE_WIDTH,
+} from "@/lib/visual-vibes/layout/layoutTypes";
 import type {
   PositionedVibeGraph,
-  VibeGraphLayoutDirection,
+  PositionedVibeNode,
 } from "@/lib/visual-vibes/layout/layoutTypes";
-import type { VibeGraph } from "@/lib/visual-vibes/graph/graphTypes";
+import type { VibeGraph, VibeGraphEdge } from "@/lib/visual-vibes/graph/graphTypes";
 import { getErrorGraph, getFlowGraph } from "../components/editor/editorGraphFilters";
 import { calculateGridTemplateColumns } from "../utils";
 import { useEditorHistory } from "./editorHistory";
@@ -77,12 +82,12 @@ export function useVisualVibesStore() {
     });
   const [isDesktopLayout, setIsDesktopLayout] = useState(true);
 
-  const [isCanvasEditing, setIsCanvasEditing] = useState(false);
+  const [isCanvasEditing, setIsCanvasEditing] = useState(true);
   const [canvasEditSnapshot, setCanvasEditSnapshot] = useState<string | null>(
     null,
   );
   const [hasUnsavedStepEdits, setHasUnsavedStepEdits] = useState(false);
-  const [isYamlEditing, setIsYamlEditing] = useState(false);
+  const [isYamlEditing, setIsYamlEditing] = useState(true);
   const [yamlEditSnapshot, setYamlEditSnapshot] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,14 +120,12 @@ export function useVisualVibesStore() {
   const graphLayout = useGraphLayoutState(
     parsedResult.graph,
     canvasViewMode,
-    isDesktopLayout,
+    isCanvasEditing,
   );
 
   const gridTemplateColumns = calculateGridTemplateColumns(
     leftPaneWidth,
-    rightPaneWidth,
     isLeftPaneCollapsed,
-    isRightPaneCollapsed,
   );
 
   const domainState = {
@@ -130,6 +133,7 @@ export function useVisualVibesStore() {
     setYamlText: yamlHistory.setValue,
     resetYamlText: yamlHistory.reset,
     markYamlClean: yamlHistory.markClean,
+    discardYamlChanges: yamlHistory.discardChanges,
     canUndoYaml: yamlHistory.canUndo,
     canRedoYaml: yamlHistory.canRedo,
     yamlHistoryItems: yamlHistory.historyItems,
@@ -221,12 +225,14 @@ export function useVisualVibesStore() {
 function useGraphLayoutState(
   displayGraph: VibeGraph | null,
   canvasViewMode: CanvasViewMode,
-  isDesktopLayout: boolean,
+  isCanvasEditing: boolean,
 ) {
   const [positionedDisplayGraph, setPositionedDisplayGraph] =
     useState<PositionedVibeGraph>({ nodes: [], edges: [] });
   const [positionedGraph, setPositionedGraph] =
     useState<PositionedVibeGraph>({ nodes: [], edges: [] });
+  const displayLayoutKeyRef = useRef<string | null>(null);
+  const visibleLayoutKeyRef = useRef<string | null>(null);
   const visibleGraph = useMemo(() => {
     if (!displayGraph) {
       return null;
@@ -238,9 +244,51 @@ function useGraphLayoutState(
 
     return getFlowGraph(displayGraph);
   }, [displayGraph, canvasViewMode]);
-  const layoutDirection: VibeGraphLayoutDirection = isDesktopLayout ? "LR" : "TB";
+  const layoutDirection = "TB";
 
   useEffect(() => {
+    if (isCanvasEditing) {
+      let isStale = false;
+      const displayLayoutKey = String(layoutDirection);
+
+      Promise.resolve().then(() => {
+        if (!isStale) {
+          setPositionedDisplayGraph((currentGraph) => {
+            if (!displayGraph) {
+              return { nodes: [], edges: [] };
+            }
+
+            if (
+              currentGraph.nodes.length === 0 ||
+              displayLayoutKeyRef.current !== displayLayoutKey
+            ) {
+              displayLayoutKeyRef.current = displayLayoutKey;
+
+              void layoutVibeGraph(displayGraph, { direction: layoutDirection })
+                .then((nextGraph) => {
+                  if (!isStale) {
+                    setPositionedDisplayGraph(nextGraph);
+                  }
+                })
+                .catch(() => {
+                  if (!isStale) {
+                    setPositionedDisplayGraph({ nodes: [], edges: [] });
+                  }
+                });
+
+              return currentGraph;
+            }
+
+            return mergeGraphIntoStableLayout(displayGraph, currentGraph);
+          });
+        }
+      });
+
+      return () => {
+        isStale = true;
+      };
+    }
+
     let isStale = false;
     const layoutPromise = displayGraph
       ? layoutVibeGraph(displayGraph, { direction: layoutDirection })
@@ -261,9 +309,54 @@ function useGraphLayoutState(
     return () => {
       isStale = true;
     };
-  }, [displayGraph, layoutDirection]);
+  }, [displayGraph, isCanvasEditing, layoutDirection]);
 
   useEffect(() => {
+    if (isCanvasEditing) {
+      let isStale = false;
+      const visibleLayoutKey = `${canvasViewMode}:${layoutDirection}`;
+
+      Promise.resolve().then(() => {
+        if (!isStale) {
+          setPositionedGraph((currentGraph) => {
+            if (!visibleGraph) {
+              return { nodes: [], edges: [] };
+            }
+
+            if (
+              currentGraph.nodes.length === 0 ||
+              visibleLayoutKeyRef.current !== visibleLayoutKey
+            ) {
+              visibleLayoutKeyRef.current = visibleLayoutKey;
+
+              void layoutVibeGraph(visibleGraph, {
+                mode: canvasViewMode,
+                direction: layoutDirection,
+              })
+                .then((nextGraph) => {
+                  if (!isStale) {
+                    setPositionedGraph(nextGraph);
+                  }
+                })
+                .catch(() => {
+                  if (!isStale) {
+                    setPositionedGraph({ nodes: [], edges: [] });
+                  }
+                });
+
+              return currentGraph;
+            }
+
+            return mergeGraphIntoStableLayout(visibleGraph, currentGraph);
+          });
+        }
+      });
+
+      return () => {
+        isStale = true;
+      };
+    }
+
     let isStale = false;
     const layoutPromise = visibleGraph
       ? layoutVibeGraph(visibleGraph, {
@@ -287,13 +380,136 @@ function useGraphLayoutState(
     return () => {
       isStale = true;
     };
-  }, [visibleGraph, canvasViewMode, layoutDirection]);
+  }, [visibleGraph, canvasViewMode, isCanvasEditing, layoutDirection]);
 
   return {
     visibleGraph,
     positionedGraph,
     positionedDisplayGraph,
   };
+}
+
+function mergeGraphIntoStableLayout(
+  graph: VibeGraph,
+  currentGraph: PositionedVibeGraph,
+): PositionedVibeGraph {
+  const currentNodeById = new Map(
+    currentGraph.nodes.map((node) => [node.id, node] as const),
+  );
+  const nodes = graph.nodes.map((node, index) => {
+    const currentNode = currentNodeById.get(node.id);
+    const fallbackPosition = getFallbackNodePosition(currentGraph, index);
+
+    return {
+      id: node.id,
+      functionName: node.functionName,
+      kind: node.kind,
+      memberCount: node.memberCount,
+      semantic: node.semantic,
+      x: currentNode?.x ?? fallbackPosition.x,
+      y: currentNode?.y ?? fallbackPosition.y,
+    };
+  });
+  const nodeById = new Map(nodes.map((node) => [node.id, node] as const));
+  const currentEdgeById = new Map(
+    currentGraph.edges.map((edge) => [edge.id, edge] as const),
+  );
+  const edges = graph.edges
+    .map((edge) => {
+      const currentEdge = currentEdgeById.get(edge.id);
+
+      if (currentEdge) {
+        return {
+          ...currentEdge,
+          type: edge.type,
+          inferred: edge.inferred,
+          semantic: edge.semantic,
+        };
+      }
+
+      return createStablePositionedEdge(edge, nodeById);
+    })
+    .filter((edge): edge is PositionedVibeGraph["edges"][number] =>
+      Boolean(edge),
+    );
+
+  return {
+    nodes,
+    edges,
+    lanes: currentGraph.lanes,
+  };
+}
+
+function getFallbackNodePosition(
+  currentGraph: PositionedVibeGraph,
+  nodeIndex: number,
+) {
+  if (currentGraph.nodes.length === 0) {
+    return {
+      x: 80 + nodeIndex * (NODE_WIDTH + 118),
+      y: 80,
+    };
+  }
+
+  const maxX = Math.max(...currentGraph.nodes.map((node) => node.x));
+  const minY = Math.min(...currentGraph.nodes.map((node) => node.y));
+
+  return {
+    x: maxX + NODE_WIDTH + 118,
+    y: minY,
+  };
+}
+
+function createStablePositionedEdge(
+  edge: VibeGraphEdge,
+  nodeById: Map<string, PositionedVibeNode>,
+): PositionedVibeGraph["edges"][number] | null {
+  const sourceNode = nodeById.get(edge.source);
+  const targetNode = nodeById.get(edge.target);
+
+  if (!sourceNode || !targetNode) {
+    return null;
+  }
+
+  const sourcePoint = getStableSourcePoint(edge, sourceNode, targetNode);
+  const targetPoint = getStableTargetPoint(edge, sourceNode, targetNode);
+
+  return {
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    type: edge.type,
+    inferred: edge.inferred,
+    semantic: edge.semantic,
+    sourceX: sourcePoint.x,
+    sourceY: sourcePoint.y,
+    targetX: targetPoint.x,
+    targetY: targetPoint.y,
+  };
+}
+
+function getStableSourcePoint(
+  edge: VibeGraphEdge,
+  source: PositionedVibeNode,
+  target: PositionedVibeNode,
+) {
+  if (edge.type === "error" || target.y > source.y + NODE_HEIGHT) {
+    return { x: source.x + NODE_WIDTH / 2, y: source.y + NODE_HEIGHT };
+  }
+
+  return { x: source.x + NODE_WIDTH, y: source.y + NODE_HEIGHT / 2 };
+}
+
+function getStableTargetPoint(
+  edge: VibeGraphEdge,
+  source: PositionedVibeNode,
+  target: PositionedVibeNode,
+) {
+  if (edge.type === "error" || target.y > source.y + NODE_HEIGHT) {
+    return { x: target.x + NODE_WIDTH / 2, y: target.y };
+  }
+
+  return { x: target.x, y: target.y + NODE_HEIGHT / 2 };
 }
 
 export type VisualVibesStore = ReturnType<typeof useVisualVibesStore>;

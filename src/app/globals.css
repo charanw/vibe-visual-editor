@@ -79,3 +79,8 @@ body {
 * {
   box-sizing: border-box;
 }
+
+.vibe-yaml-selected-step {
+  background: color-mix(in srgb, var(--brand-primary) 18%, transparent);
+  border-left: 3px solid var(--brand-primary);
+}

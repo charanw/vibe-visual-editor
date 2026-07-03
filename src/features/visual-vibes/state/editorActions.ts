@@ -16,7 +16,6 @@ import {
 import {
   calculateGridTemplateColumns,
   findAddedStepId,
-  revealMobileInspector,
   startPaneResize,
   updateCanvasEditSnapshot,
 } from "../utils";
@@ -84,6 +83,16 @@ export function useVisualVibesEditorActions({
     uploadedFileName: string,
     uploadedYamlText: string,
   ) {
+    if (editingState.isDirty) {
+      const confirmed = window.confirm(
+        "Import this Vibe and discard your unsaved changes?",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
     vibeState.setYamlText(uploadedYamlText, {
       label: "Imported Vibe",
       markClean: true,
@@ -93,9 +102,9 @@ export function useVisualVibesEditorActions({
     vibeState.setSelectedExampleName(null);
     vibeState.setLoadError(null);
     vibeState.setSelectedStepId(null);
-    editingState.setIsYamlEditing(false);
+    editingState.setIsYamlEditing(true);
     editingState.setYamlEditSnapshot(null);
-    editingState.setIsCanvasEditing(false);
+    editingState.setIsCanvasEditing(true);
     editingState.setCanvasEditSnapshot(null);
     editingState.setHasUnsavedStepEdits(false);
     graphLayout.setCanvasViewMode("flow");
@@ -104,7 +113,7 @@ export function useVisualVibesEditorActions({
   function handleLoadExample(example: ExampleVibe) {
     if (editingState.isDirty) {
       const confirmed = window.confirm(
-        "Load this example and replace your current YAML changes?",
+        "Load this example and discard your unsaved changes?",
       );
 
       if (!confirmed) {
@@ -121,33 +130,22 @@ export function useVisualVibesEditorActions({
     vibeState.setSelectedExampleName(example.name);
     vibeState.setLoadError(null);
     vibeState.setSelectedStepId(null);
-    editingState.setIsYamlEditing(false);
+    editingState.setIsYamlEditing(true);
     editingState.setYamlEditSnapshot(null);
-    editingState.setIsCanvasEditing(false);
+    editingState.setIsCanvasEditing(true);
     editingState.setCanvasEditSnapshot(null);
     editingState.setHasUnsavedStepEdits(false);
     graphLayout.setCanvasViewMode("flow");
   }
 
   function handleSelectStep(stepId: string) {
-    vibeState.setSelectedStepId((currentStepId) =>
-      currentStepId === stepId ? null : stepId,
-    );
-    layoutState.setIsRightPaneCollapsed(false);
-
-    layoutState.setMobileCollapsedPanes((currentPanes) =>
-      revealMobileInspector(currentPanes),
-    );
-    layoutState.setActivePanel("inspector");
+    vibeState.setSelectedStepId(stepId);
+    layoutState.setActivePanel("canvas");
   }
 
   function revealStepInEditor(stepId: string) {
     vibeState.setSelectedStepId(stepId);
-    layoutState.setIsRightPaneCollapsed(false);
-    layoutState.setMobileCollapsedPanes((currentPanes) =>
-      revealMobileInspector(currentPanes),
-    );
-    layoutState.setActivePanel("inspector");
+    layoutState.setActivePanel("canvas");
     graphLayout.setCenterRequest((currentRequest) => ({
       stepId,
       requestId: (currentRequest?.requestId ?? 0) + 1,
@@ -316,7 +314,8 @@ export function useVisualVibesEditorActions({
 
   function handleSaveYamlEditing() {
     editingState.setYamlEditSnapshot(null);
-    editingState.setIsYamlEditing(false);
+    editingState.setIsYamlEditing(true);
+    vibeState.markYamlClean();
   }
 
   function handleStartCanvasEditing() {
@@ -327,8 +326,9 @@ export function useVisualVibesEditorActions({
 
   function handleSaveCanvasEditing() {
     editingState.setCanvasEditSnapshot(null);
-    editingState.setIsCanvasEditing(false);
+    editingState.setIsCanvasEditing(true);
     editingState.setHasUnsavedStepEdits(false);
+    vibeState.markYamlClean();
   }
 
   function handleCancelCanvasEditing() {
@@ -360,9 +360,38 @@ export function useVisualVibesEditorActions({
     }
 
     editingState.setCanvasEditSnapshot(null);
-    editingState.setIsCanvasEditing(false);
+    editingState.setIsCanvasEditing(true);
     vibeState.setSelectedStepId(null);
     editingState.setHasUnsavedStepEdits(false);
+  }
+
+  function handleSaveChanges() {
+    vibeState.markYamlClean();
+    editingState.setYamlEditSnapshot(null);
+    editingState.setCanvasEditSnapshot(null);
+    editingState.setHasUnsavedStepEdits(false);
+    editingState.setIsYamlEditing(true);
+    editingState.setIsCanvasEditing(true);
+  }
+
+  function handleDiscardChanges() {
+    if (editingState.hasUnsavedStepEdits) {
+      const confirmed = window.confirm(
+        "Discard unsaved step edits and revert to the last saved YAML?",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    vibeState.discardYamlChanges();
+    vibeState.setSelectedStepId(null);
+    editingState.setYamlEditSnapshot(null);
+    editingState.setCanvasEditSnapshot(null);
+    editingState.setHasUnsavedStepEdits(false);
+    editingState.setIsYamlEditing(true);
+    editingState.setIsCanvasEditing(true);
   }
 
   function handleAddEdge(options: AddEdgeOptions) {
@@ -436,9 +465,7 @@ export function useVisualVibesEditorActions({
 
   const gridTemplateColumns = calculateGridTemplateColumns(
     layoutState.leftPaneWidth,
-    layoutState.rightPaneWidth,
     layoutState.isLeftPaneCollapsed,
-    layoutState.isRightPaneCollapsed,
   );
 
   return {
@@ -463,6 +490,8 @@ export function useVisualVibesEditorActions({
     handleStartCanvasEditing,
     handleSaveCanvasEditing,
     handleCancelCanvasEditing,
+    handleSaveChanges,
+    handleDiscardChanges,
     handleAddEdge,
     handleUpdateCondition,
     handleCreateStepFromWizard,

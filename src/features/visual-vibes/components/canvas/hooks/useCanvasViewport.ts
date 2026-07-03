@@ -17,8 +17,6 @@ import {
 } from "@/lib/visual-vibes/layout/layoutTypes";
 import type { CenterRequest } from "../../../types";
 import {
-  CANVAS_VIEWPORT_HEIGHT,
-  CANVAS_VIEWPORT_WIDTH,
   MAX_ZOOM,
   MIN_ZOOM,
 } from "../utils/canvasConstants";
@@ -37,6 +35,7 @@ type UseCanvasViewportOptions = {
   graph: PositionedVibeGraph;
   centerRequest: CenterRequest;
   selectedStepId: string | null;
+  viewportSize: { width: number; height: number };
   viewport: CanvasViewportState;
   onViewportChange: Dispatch<SetStateAction<CanvasViewportState>>;
 };
@@ -46,6 +45,7 @@ export function useCanvasViewport({
   graph,
   centerRequest,
   selectedStepId,
+  viewportSize,
   viewport,
   onViewportChange,
 }: UseCanvasViewportOptions) {
@@ -82,13 +82,19 @@ export function useCanvasViewport({
 
   const worldWidth =
     graph.nodes.length > 0
-      ? Math.max(...graph.nodes.map((node) => node.x + NODE_WIDTH)) + 320
-      : CANVAS_VIEWPORT_WIDTH;
+      ? Math.max(
+          viewportSize.width,
+          Math.max(...graph.nodes.map((node) => node.x + NODE_WIDTH)) + 240,
+        )
+      : viewportSize.width;
 
   const worldHeight =
     graph.nodes.length > 0
-      ? Math.max(...graph.nodes.map((node) => node.y + NODE_HEIGHT)) + 320
-      : CANVAS_VIEWPORT_HEIGHT;
+      ? Math.max(
+          viewportSize.height,
+          Math.max(...graph.nodes.map((node) => node.y + NODE_HEIGHT)) + 240,
+        )
+      : viewportSize.height;
 
   const getGraphBounds = useCallback(() => {
     if (graph.nodes.length === 0) {
@@ -101,10 +107,31 @@ export function useCanvasViewport({
     const maxY = Math.max(...graph.nodes.map((node) => node.y + NODE_HEIGHT));
 
     return {
+      minX,
+      maxX,
+      minY,
+      maxY,
+      width: maxX - minX,
+      height: maxY - minY,
       centerX: (minX + maxX) / 2,
       centerY: (minY + maxY) / 2,
     };
   }, [graph.nodes]);
+
+  const getFitZoom = useCallback(
+    (bounds: NonNullable<ReturnType<typeof getGraphBounds>>) => {
+      const fitPadding = 96;
+      const fitWidth = Math.max(bounds.width + fitPadding * 2, NODE_WIDTH);
+      const fitHeight = Math.max(bounds.height + fitPadding * 2, NODE_HEIGHT);
+
+      return clamp(
+        Math.min(viewportSize.width / fitWidth, viewportSize.height / fitHeight),
+        MIN_ZOOM,
+        Math.min(MAX_ZOOM, 1.15),
+      );
+    },
+    [viewportSize.height, viewportSize.width],
+  );
 
   const centerGraph = useCallback(() => {
     const bounds = getGraphBounds();
@@ -115,19 +142,47 @@ export function useCanvasViewport({
     }
 
     setPan({
-      x: CANVAS_VIEWPORT_WIDTH / 2 / zoom - bounds.centerX,
-      y: CANVAS_VIEWPORT_HEIGHT / 2 / zoom - bounds.centerY,
+      x: viewportSize.width / 2 / zoom - bounds.centerX,
+      y: viewportSize.height / 2 / zoom - bounds.centerY,
     });
-  }, [getGraphBounds, setPan, zoom]);
+  }, [getGraphBounds, setPan, viewportSize.height, viewportSize.width, zoom]);
+
+  const fitGraph = useCallback(() => {
+    const bounds = getGraphBounds();
+
+    if (!bounds) {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      return;
+    }
+
+    const nextZoom = getFitZoom(bounds);
+
+    onViewportChange(() => ({
+      zoom: nextZoom,
+      pan: {
+        x: viewportSize.width / 2 / nextZoom - bounds.centerX,
+        y: viewportSize.height / 2 / nextZoom - bounds.centerY,
+      },
+    }));
+  }, [
+    getFitZoom,
+    getGraphBounds,
+    onViewportChange,
+    setPan,
+    setZoom,
+    viewportSize.height,
+    viewportSize.width,
+  ]);
 
   const centerNode = useCallback(
     (node: PositionedVibeGraph["nodes"][number]) => {
       setPan({
-        x: CANVAS_VIEWPORT_WIDTH / 2 / zoom - (node.x + NODE_WIDTH / 2),
-        y: CANVAS_VIEWPORT_HEIGHT / 2 / zoom - (node.y + NODE_HEIGHT / 2),
+        x: viewportSize.width / 2 / zoom - (node.x + NODE_WIDTH / 2),
+        y: viewportSize.height / 2 / zoom - (node.y + NODE_HEIGHT / 2),
       });
     },
-    [setPan, zoom],
+    [setPan, viewportSize.height, viewportSize.width, zoom],
   );
 
   useEffect(() => {
@@ -163,8 +218,7 @@ export function useCanvasViewport({
   }
 
   function resetZoomAndPan() {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
+    fitGraph();
   }
 
   const flushPendingPan = useCallback(() => {
@@ -197,10 +251,10 @@ export function useCanvasViewport({
 
     const svgRect = event.currentTarget.getBoundingClientRect();
     const mouseX =
-      ((event.clientX - svgRect.left) / svgRect.width) * CANVAS_VIEWPORT_WIDTH;
+      ((event.clientX - svgRect.left) / svgRect.width) * viewportSize.width;
     const mouseY =
       ((event.clientY - svgRect.top) / svgRect.height) *
-      CANVAS_VIEWPORT_HEIGHT;
+      viewportSize.height;
 
     const worldMouseX = mouseX / zoom - pan.x;
     const worldMouseY = mouseY / zoom - pan.y;
@@ -305,6 +359,7 @@ export function useCanvasViewport({
     resetZoomAndPan,
     recenterCanvas,
     centerGraph,
+    fitGraph,
     handleWheelZoom,
     startPanning,
     continuePanning,

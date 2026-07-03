@@ -12,8 +12,6 @@ interface InspectorPaneProps {
   vibe: VisualVibe | null;
   selectedStepId: string | null;
   selectedStepDescription: string;
-  isCanvasEditing: boolean;
-  onStartEditing: () => void;
   onUpdateStep: (
     originalStepId: string,
     updates: StepUpdate,
@@ -31,8 +29,6 @@ export function InspectorPane({
   vibe,
   selectedStepId,
   selectedStepDescription,
-  isCanvasEditing,
-  onStartEditing,
   onUpdateStep,
   onUpdateStepDescription,
   onStepEditDirtyChange,
@@ -43,8 +39,6 @@ export function InspectorPane({
         vibe={vibe}
         selectedStepId={selectedStepId}
         selectedStepDescription={selectedStepDescription}
-        isEditing={isCanvasEditing}
-        onStartEditing={onStartEditing}
         onUpdateStep={onUpdateStep}
         onUpdateStepDescription={onUpdateStepDescription}
         onStepEditDirtyChange={onStepEditDirtyChange}

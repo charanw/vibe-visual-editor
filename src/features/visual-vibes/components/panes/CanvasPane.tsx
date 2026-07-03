@@ -4,7 +4,6 @@ import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import { VibeCanvas } from "../VibeCanvas";
 import { AppFooter } from "../editor/AppFooter";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
-import type { VisualVibe } from "@/lib/visual-vibes/schema";
 import type {
   AddEdgeOptions,
   AddStepPlacement,
@@ -12,7 +11,6 @@ import type {
   CanvasViewMode,
   CenterRequest,
   EdgeOperationOptions,
-  MetadataField,
 } from "../../types";
 import type { CanvasViewportState } from "../../state/visualVibesStore";
 import type { HistoryDisplayItem } from "../../state/editorHistory";
@@ -22,7 +20,6 @@ import type { HistoryDisplayItem } from "../../state/editorHistory";
  */
 interface CanvasPaneProps {
   canvasPanelRef: RefObject<HTMLDivElement | null>;
-  vibe: VisualVibe | null;
   positionedGraph: PositionedVibeGraph;
   positionedDisplayGraph: PositionedVibeGraph;
   selectedStepId: string | null;
@@ -37,9 +34,6 @@ interface CanvasPaneProps {
   onUndoYaml: () => void;
   onRedoYaml: () => void;
   onChangeViewMode: (mode: CanvasViewMode) => void;
-  onStartEditing: () => void;
-  onSaveEditing: () => void;
-  onCancelEditing: () => void;
   onAddStandaloneStep: () => void;
   onAddStepOnEdge: (options: EdgeOperationOptions) => void;
   onDeleteStep: (stepId: string) => void;
@@ -48,10 +42,6 @@ interface CanvasPaneProps {
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
   onUpdateCondition: (stepId: string, expression: string) => void;
-  onUpdateVibeMetadata: (
-    field: MetadataField,
-    value: string,
-  ) => void;
   addStepRequest: AddStepPlacement | null;
   onCancelAddStepRequest: () => void;
   onConfirmAddStepRequest: (selection: AddStepWizardSelection) => void;
@@ -66,7 +56,6 @@ interface CanvasPaneProps {
  */
 export function CanvasPane({
   canvasPanelRef,
-  vibe,
   positionedGraph,
   positionedDisplayGraph,
   selectedStepId,
@@ -81,9 +70,6 @@ export function CanvasPane({
   onUndoYaml,
   onRedoYaml,
   onChangeViewMode,
-  onStartEditing,
-  onSaveEditing,
-  onCancelEditing,
   onAddStandaloneStep,
   onAddStepOnEdge,
   onDeleteStep,
@@ -92,7 +78,6 @@ export function CanvasPane({
   onAppendStepAfter,
   onPrependStepBefore,
   onUpdateCondition,
-  onUpdateVibeMetadata,
   addStepRequest,
   onCancelAddStepRequest,
   onConfirmAddStepRequest,
@@ -103,7 +88,6 @@ export function CanvasPane({
     <>
       <div className="min-h-[560px] flex-1 lg:min-h-0" ref={canvasPanelRef}>
         <VibeCanvas
-          vibe={vibe}
           graph={positionedGraph}
           classificationGraph={positionedDisplayGraph}
           selectedStepId={selectedStepId}
@@ -118,9 +102,6 @@ export function CanvasPane({
           onUndoYaml={onUndoYaml}
           onRedoYaml={onRedoYaml}
           onChangeViewMode={onChangeViewMode}
-          onStartEditing={onStartEditing}
-          onSaveEditing={onSaveEditing}
-          onCancelEditing={onCancelEditing}
           onAddStandaloneStep={onAddStandaloneStep}
           onAddStepOnEdge={onAddStepOnEdge}
           onDeleteStep={onDeleteStep}
@@ -129,7 +110,6 @@ export function CanvasPane({
           onAppendStepAfter={onAppendStepAfter}
           onPrependStepBefore={onPrependStepBefore}
           onUpdateCondition={onUpdateCondition}
-          onUpdateVibeMetadata={onUpdateVibeMetadata}
           addStepRequest={addStepRequest}
           onCancelAddStepRequest={onCancelAddStepRequest}
           onConfirmAddStepRequest={onConfirmAddStepRequest}

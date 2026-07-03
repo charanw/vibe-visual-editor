@@ -115,7 +115,7 @@ export function AddStepWizard({
       onMouseDown={onCancel}
     >
       <div
-        className="flex max-h-[min(90vh,860px)] w-full max-w-[1160px] flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] shadow-2xl"
+        className="flex max-h-[min(90vh,860px)] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] px-5 py-4">
@@ -152,8 +152,8 @@ export function AddStepWizard({
           </div>
         </div>
 
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="min-h-0 overflow-auto border-b border-[var(--border-subtle)] lg:border-b-0 lg:border-r">
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div className="min-h-0">
             {stage === "choose" ? (
               <div className="space-y-5 px-5 py-4">
                 {placement.kind === "standalone" && (
@@ -220,6 +220,26 @@ export function AddStepWizard({
                     </div>
                   </section>
                 ))}
+
+                <InlineWizardPreview
+                  title={selectedTemplate?.title ?? "Blank step"}
+                  description={
+                    selectedTemplate?.description ??
+                    "Starts from the built-in variable step boilerplate."
+                  }
+                  currentInput={
+                    selectedTemplate
+                      ? selectedTemplate.input
+                      : { variable_name: "new_step", value: "" }
+                  }
+                  exampleInput={
+                    selectedTemplate
+                      ? selectedTemplate.input
+                      : { variable_name: "new_step", value: "" }
+                  }
+                  errorMessage={null}
+                  defaultOpen={false}
+                />
               </div>
             ) : (
               <div className="space-y-5 px-5 py-4">
@@ -287,37 +307,28 @@ export function AddStepWizard({
                     </button>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
 
-          <div className="min-h-0 overflow-auto bg-[var(--panel-muted-bg)] px-5 py-4">
-            {stage === "choose" ? (
-              <WizardPreviewPanel
-                title={selectedTemplate?.title ?? "Blank step"}
-                description={
-                  selectedTemplate?.description ??
-                  "Starts from the built-in variable step boilerplate."
-                }
-                currentInput={
-                  selectedTemplate ? selectedTemplate.input : { variable_name: "new_step", value: "" }
-                }
-                exampleInput={
-                  selectedTemplate ? selectedTemplate.input : { variable_name: "new_step", value: "" }
-                }
-                errorMessage={null}
-              />
-            ) : (
-              <WizardPreviewPanel
-                title={selectedTemplate?.title ?? "Blank step"}
-                description={
-                  selectedTemplate?.description ??
-                  "These values will be inserted into the workflow."
-                }
-                currentInput={previewResult.ok ? previewResult.value : previewResult.fallback}
-                exampleInput={selectedTemplate?.input ?? { variable_name: "new_step", value: "" }}
-                errorMessage={inputError ?? (previewResult.ok ? null : previewResult.error)}
-              />
+                <InlineWizardPreview
+                  title={selectedTemplate?.title ?? "Blank step"}
+                  description={
+                    selectedTemplate?.description ??
+                    "These values will be inserted into the workflow."
+                  }
+                  currentInput={
+                    previewResult.ok ? previewResult.value : previewResult.fallback
+                  }
+                  exampleInput={
+                    selectedTemplate?.input ?? {
+                      variable_name: "new_step",
+                      value: "",
+                    }
+                  }
+                  errorMessage={
+                    inputError ?? (previewResult.ok ? null : previewResult.error)
+                  }
+                  defaultOpen
+                />
+              </div>
             )}
           </div>
         </div>
@@ -480,6 +491,42 @@ function WizardPreviewPanel({
         </pre>
       </div>
     </div>
+  );
+}
+
+function InlineWizardPreview({
+  title,
+  description,
+  currentInput,
+  exampleInput,
+  errorMessage,
+  defaultOpen,
+}: {
+  title: string;
+  description: string;
+  currentInput: Record<string, unknown>;
+  exampleInput: Record<string, unknown>;
+  errorMessage: string | null;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details
+      className="rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)]"
+      open={defaultOpen}
+    >
+      <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-[var(--text-primary)]">
+        Preview generated input
+      </summary>
+      <div className="border-t border-[var(--border-subtle)] px-4 py-4">
+        <WizardPreviewPanel
+          title={title}
+          description={description}
+          currentInput={currentInput}
+          exampleInput={exampleInput}
+          errorMessage={errorMessage}
+        />
+      </div>
+    </details>
   );
 }
 

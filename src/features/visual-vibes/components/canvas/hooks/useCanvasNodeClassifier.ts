@@ -128,6 +128,10 @@ export function useCanvasNodeClassifier({
         return "LOOP";
       }
 
+      if (semanticKind === "loopStep") {
+        return "LOOP STEP";
+      }
+
       if (semanticKind === "subworkflow") {
         return "SUBWORKFLOW";
       }
@@ -140,9 +144,15 @@ export function useCanvasNodeClassifier({
       isTerminalError: boolean;
       isConclusion: boolean;
       isErrorHandler: boolean;
+      semanticKind?: PositionedVibeGraph["nodes"][number]["semantic"]["kind"];
     }): CanvasNodeColors {
-      const { isSelected, isTerminalError, isConclusion, isErrorHandler } =
-        options;
+      const {
+        isSelected,
+        isTerminalError,
+        isConclusion,
+        isErrorHandler,
+        semanticKind,
+      } = options;
 
       if (isSelected) {
         return {
@@ -177,6 +187,42 @@ export function useCanvasNodeClassifier({
           stroke: "#f59e0b",
           labelFill: "#b45309",
           strokeWidth: "2.5",
+        };
+      }
+
+      if (semanticKind === "conditional") {
+        return {
+          fill: "rgba(139, 92, 246, 0.14)",
+          stroke: "#8b5cf6",
+          labelFill: "#c4b5fd",
+          strokeWidth: "2.4",
+        };
+      }
+
+      if (semanticKind === "loop") {
+        return {
+          fill: "rgba(20, 184, 166, 0.14)",
+          stroke: "#14b8a6",
+          labelFill: "#5eead4",
+          strokeWidth: "2.4",
+        };
+      }
+
+      if (semanticKind === "loopStep") {
+        return {
+          fill: "rgba(20, 184, 166, 0.08)",
+          stroke: "#0f766e",
+          labelFill: "#2dd4bf",
+          strokeWidth: "2",
+        };
+      }
+
+      if (semanticKind === "subworkflow") {
+        return {
+          fill: "rgba(129, 140, 248, 0.12)",
+          stroke: "#818cf8",
+          labelFill: "#a5b4fc",
+          strokeWidth: "2.2",
         };
       }
 
@@ -218,6 +264,7 @@ export function useCanvasNodeClassifier({
           isTerminalError,
           isConclusion,
           isErrorHandler,
+          semanticKind: node.semantic?.kind,
         }),
         isConclusion,
         isStartingFlowNode,
@@ -229,11 +276,7 @@ export function useCanvasNodeClassifier({
     function getEdgeFunctionLabel(
       edge: PositionedVibeGraph["edges"][number],
     ) {
-      if (
-        edge.semantic?.label === "then" ||
-        edge.semantic?.label === "else" ||
-        edge.semantic?.label === "each"
-      ) {
+      if (edge.semantic?.label) {
         return edge.semantic.label;
       }
 

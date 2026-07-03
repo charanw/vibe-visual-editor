@@ -1,4 +1,4 @@
-import { CancelIcon, LockIcon, PlusIcon, SaveIcon } from "./CanvasIcons";
+import { PlusIcon } from "./CanvasIcons";
 import { HistoryMenu } from "./HistoryMenu";
 import { LegendItem } from "./CanvasLegend";
 import type { CanvasViewMode } from "../../../types";
@@ -8,7 +8,6 @@ type CanvasControlsProps = {
   selectedStepId: string | null;
   viewMode: CanvasViewMode;
   nodeCount: number;
-  isEditing: boolean;
   canUndoYaml: boolean;
   canRedoYaml: boolean;
   historyItems: HistoryDisplayItem[];
@@ -17,9 +16,6 @@ type CanvasControlsProps = {
   onRedoYaml: () => void;
   onChangeViewMode: (viewMode: CanvasViewMode) => void;
   onAddStandaloneStep: () => void;
-  onStartEditing: () => void;
-  onSaveEditing: () => void;
-  onCancelEditing: () => void;
 };
 
 /**
@@ -32,7 +28,6 @@ export function CanvasControls({
   selectedStepId,
   viewMode,
   nodeCount,
-  isEditing,
   canUndoYaml,
   canRedoYaml,
   historyItems,
@@ -41,22 +36,16 @@ export function CanvasControls({
   onRedoYaml,
   onChangeViewMode,
   onAddStandaloneStep,
-  onStartEditing,
-  onSaveEditing,
-  onCancelEditing,
 }: CanvasControlsProps) {
   const isSelectionMode = Boolean(selectedStepId);
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--brand-primary)]">
             Steps
           </div>
-          <h3 className="mt-1 text-sm font-semibold text-[var(--text-primary)]">
-            Visual Step Flow
-          </h3>
           <p className="mt-1 text-xs text-[var(--text-muted)]">
             {isSelectionMode
               ? "Selection mode highlights only the selected step while keeping the graph layout stable."
@@ -66,7 +55,7 @@ export function CanvasControls({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           {selectedStepId && (
             <button
               type="button"
@@ -135,66 +124,68 @@ export function CanvasControls({
             {nodeCount} {nodeCount === 1 ? "step" : "steps"}
           </div>
 
-          {isEditing && (
-            <button
-              type="button"
-              onClick={onAddStandaloneStep}
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
-              title="Add a new step"
-            >
-              <PlusIcon />
-              Add step
-            </button>
-          )}
-
-          {isEditing ? (
-            <>
-              <button
-                type="button"
-                onClick={onCancelEditing}
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
-              >
-                <CancelIcon />
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={onSaveEditing}
-                className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary)] px-3 py-2 text-xs font-semibold text-white"
-              >
-                <SaveIcon />
-                Save
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={onStartEditing}
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-            >
-              <LockIcon />
-              Unlock step editing
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onAddStandaloneStep}
+            className="inline-flex items-center gap-2 rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary)] hover:text-white"
+            title="Add a new step"
+          >
+            <PlusIcon />
+            Add step
+          </button>
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-bg)] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
         <LegendItem
-          lineClassName="border-[var(--brand-primary)]"
+          className="border-[var(--brand-primary)]"
           label="Main flow"
         />
-        <LegendItem lineClassName="border-yellow-500" label="Error handler" />
         <LegendItem
-          lineClassName="border-yellow-500 border-dashed"
+          className="border-yellow-500"
           label="Error edge"
+          variant="dash"
         />
         <LegendItem
-          lineClassName="border-[var(--danger)] border-dashed"
+          className="border-[var(--danger)]"
           label="Terminating error"
+          variant="dash"
         />
-        <LegendItem lineClassName="border-green-500" label="Conclusion" />
+        <LegendItem
+          className="border-[var(--brand-primary)] bg-[var(--node-bg)]"
+          label="Step"
+          variant="node"
+        />
+        <LegendItem
+          className="border-[var(--brand-primary)] bg-[var(--panel-bg)]"
+          label="Start"
+          variant="circle"
+        />
+        <LegendItem
+          className="border-violet-400 bg-violet-500/15"
+          label="Conditional"
+          variant="rhombus"
+        />
+        <LegendItem
+          className="border-teal-400 bg-teal-500/15"
+          label="Loop"
+          variant="hex"
+        />
+        <LegendItem
+          className="border-indigo-400 bg-indigo-500/15"
+          label="Subworkflow"
+          variant="node"
+        />
+        <LegendItem
+          className="border-green-500 bg-green-500/15"
+          label="Stop"
+          variant="node"
+        />
+        <LegendItem
+          className="border-yellow-500 bg-yellow-500/15"
+          label="Error handler"
+          variant="node"
+        />
       </div>
     </>
   );

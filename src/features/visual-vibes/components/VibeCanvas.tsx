@@ -10,20 +10,16 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import type { PositionedVibeGraph } from "@/lib/visual-vibes/layout/layoutTypes";
-import type { VisualVibe } from "@/lib/visual-vibes/schema";
 import type {
   AddEdgeOptions,
   CanvasViewMode,
   CenterRequest,
   EdgeOperationOptions,
-  MetadataField,
 } from "../types";
 import { CanvasControls } from "./canvas/components/CanvasControls";
 import { AddStepWizard } from "./canvas/components/AddStepWizard";
 import { CanvasGraph } from "./canvas/components/CanvasGraph";
-import { CanvasMetadataPanel } from "./canvas/components/CanvasMetadataPanel";
 import { CanvasZoomToolbar } from "./canvas/components/CanvasZoomToolbar";
-import { useCanvasMetadataEditor } from "./canvas/hooks/useCanvasMetadataEditor";
 import { useCanvasNodeClassifier } from "./canvas/hooks/useCanvasNodeClassifier";
 import { useCanvasViewport } from "./canvas/hooks/useCanvasViewport";
 import type { CanvasViewportState } from "../state/visualVibesStore";
@@ -34,7 +30,6 @@ import type {
 } from "../types";
 
 type VibeCanvasProps = {
-  vibe: VisualVibe | null;
   graph: PositionedVibeGraph;
   classificationGraph: PositionedVibeGraph;
   selectedStepId: string | null;
@@ -49,9 +44,6 @@ type VibeCanvasProps = {
   onUndoYaml: () => void;
   onRedoYaml: () => void;
   onChangeViewMode: (viewMode: CanvasViewMode) => void;
-  onStartEditing: () => void;
-  onSaveEditing: () => void;
-  onCancelEditing: () => void;
   onAddStandaloneStep: () => void;
   onAddStepOnEdge: (options: EdgeOperationOptions) => void;
   onDeleteStep: (stepId: string) => void;
@@ -60,7 +52,6 @@ type VibeCanvasProps = {
   onAppendStepAfter: (sourceStepId: string) => void;
   onPrependStepBefore: (targetStepId: string) => void;
   onUpdateCondition: (stepId: string, expression: string) => void;
-  onUpdateVibeMetadata: (field: MetadataField, value: string) => void;
   addStepRequest: AddStepPlacement | null;
   onCancelAddStepRequest: () => void;
   onConfirmAddStepRequest: (selection: AddStepWizardSelection) => void;
@@ -75,7 +66,6 @@ type VibeCanvasProps = {
  * modules so this component can stay close to orchestration.
  */
 export function VibeCanvas({
-  vibe,
   graph,
   classificationGraph,
   selectedStepId,
@@ -90,9 +80,6 @@ export function VibeCanvas({
   onUndoYaml,
   onRedoYaml,
   onChangeViewMode,
-  onStartEditing,
-  onSaveEditing,
-  onCancelEditing,
   onAddStandaloneStep,
   onAddStepOnEdge,
   onDeleteStep,
@@ -101,7 +88,6 @@ export function VibeCanvas({
   onAppendStepAfter,
   onPrependStepBefore,
   onUpdateCondition,
-  onUpdateVibeMetadata,
   addStepRequest,
   onCancelAddStepRequest,
   onConfirmAddStepRequest,
@@ -114,10 +100,12 @@ export function VibeCanvas({
     string | null
   >(null);
   const [isFullscreenCanvas, setIsFullscreenCanvas] = useState(false);
-
-  const metadataEditor = useCanvasMetadataEditor({
-    onUpdateVibeMetadata,
+  const graphContainerRef = useRef<HTMLDivElement | null>(null);
+  const [viewportSize, setViewportSize] = useState({
+    width: 1200,
+    height: 720,
   });
+
   const nodeClassifier = useCanvasNodeClassifier({
     graph,
     classificationGraph,
@@ -128,6 +116,7 @@ export function VibeCanvas({
     graph,
     centerRequest,
     selectedStepId,
+    viewportSize,
     viewport: canvasViewport,
     onViewportChange: onCanvasViewportChange,
   });
@@ -145,19 +134,45 @@ export function VibeCanvas({
   }, [viewport]);
 
   useEffect(() => {
+    const container = graphContainerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const updateViewportSize = () => {
+      const rect = container.getBoundingClientRect();
+
+      setViewportSize({
+        width: Math.max(360, Math.round(rect.width)),
+        height: Math.max(320, Math.round(rect.height)),
+      });
+    };
+
+    updateViewportSize();
+
+    const resizeObserver = new ResizeObserver(updateViewportSize);
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
     const animationFrameId = window.requestAnimationFrame(() => {
-      viewportRef.current.centerGraph();
+      viewportRef.current.fitGraph();
     });
 
     return () => window.cancelAnimationFrame(animationFrameId);
-  }, [graphLayoutKey]);
+  }, [graphLayoutKey, viewportSize.height, viewportSize.width]);
 
   const canvasContent = (
     <div
       className={`relative bg-[var(--canvas-bg)] ${
         isFullscreenCanvas
-          ? "h-screen w-screen overflow-hidden p-2 sm:p-4 lg:p-6"
-          : "h-full w-full overflow-hidden p-0 lg:p-8"
+          ? "h-screen w-screen overflow-hidden"
+          : "h-full w-full overflow-hidden"
       }`}
     >
       {graph.nodes.length === 0 && <EmptyCanvasNotice />}
@@ -169,26 +184,13 @@ export function VibeCanvas({
         />
       )}
 
-      <div className="flex h-full min-h-[640px] flex-col rounded-none border-0 border-[var(--border-subtle)] bg-[var(--canvas-inner-bg)] shadow-none lg:rounded-2xl lg:border lg:shadow-sm">
-        {!isFullscreenCanvas && (
-          <CanvasMetadataPanel
-            vibe={vibe}
-            isEditing={isEditing}
-            editingMetadataField={metadataEditor.editingMetadataField}
-            metadataDraftValue={metadataEditor.metadataDraftValue}
-            onStartEditing={metadataEditor.startEditingMetadata}
-            onChangeDraft={metadataEditor.setMetadataDraftValue}
-            onSave={metadataEditor.saveMetadataEdit}
-            onCancel={metadataEditor.cancelMetadataEdit}
-          />
-        )}
-
-        <div className="flex min-h-0 flex-1 flex-col p-3 lg:p-6">
+      <div className="flex h-full min-h-0 flex-col bg-[var(--canvas-inner-bg)]">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="shrink-0 border-b border-[var(--border-subtle)] px-3 py-2">
           <CanvasControls
             selectedStepId={selectedStepId}
             viewMode={viewMode}
             nodeCount={graph.nodes.length}
-            isEditing={isEditing}
             canUndoYaml={canUndoYaml}
             canRedoYaml={canRedoYaml}
             historyItems={historyItems}
@@ -197,12 +199,13 @@ export function VibeCanvas({
             onRedoYaml={onRedoYaml}
             onChangeViewMode={onChangeViewMode}
             onAddStandaloneStep={onAddStandaloneStep}
-            onStartEditing={onStartEditing}
-            onSaveEditing={onSaveEditing}
-            onCancelEditing={onCancelEditing}
           />
+          </div>
 
-          <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--canvas-bg)]">
+          <div
+            ref={graphContainerRef}
+            className="relative min-h-0 flex-1 overflow-hidden bg-[var(--canvas-bg)]"
+          >
             <CanvasZoomToolbar
               zoom={viewport.zoom}
               isFullscreenCanvas={isFullscreenCanvas}
@@ -221,6 +224,8 @@ export function VibeCanvas({
               classifier={nodeClassifier}
               zoom={viewport.zoom}
               pan={viewport.pan}
+              viewportWidth={viewportSize.width}
+              viewportHeight={viewportSize.height}
               worldWidth={viewport.worldWidth}
               worldHeight={viewport.worldHeight}
               isPanning={viewport.isPanning}
@@ -273,8 +278,7 @@ export function VibeCanvas({
 function EmptyCanvasNotice() {
   return (
     <div className="mb-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--panel-muted-bg)] px-4 py-3 text-sm text-[var(--text-muted)]">
-      No Vibe Steps found. Unlock step editing and add a standalone step to
-      start a new Vibe.
+      No Vibe Steps found. Add a standalone step to start a new Vibe.
     </div>
   );
 }

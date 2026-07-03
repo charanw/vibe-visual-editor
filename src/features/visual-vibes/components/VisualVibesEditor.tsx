@@ -1,13 +1,15 @@
 "use client";
 
 import {
+  useEffect,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { PanelHeader } from "./editor/PanelHeader";
 import { PaneResizeHandle } from "./editor/PaneResizeHandler";
-import { SourcePane, CanvasPane, InspectorPane } from "./panes";
+import { SourcePane, CanvasPane } from "./panes";
+import { StepInspectorModal } from "./StepInspectorModal";
 import {
   useDefaultVibeYaml,
   useCanvasResizeObserver,
@@ -24,12 +26,11 @@ import type {
  * VisualVibesEditor Component
  *
  * Main editor component for creating and editing Visual Vibes.
- * Manages three primary panes:
+ * Manages two primary panes:
  * - Source: YAML file controls and editing
  * - Canvas: Visual graph representation
- * - Inspector: Step/node property editing
  *
- * Supports both desktop (3-pane) and mobile (collapsible) layouts.
+ * Supports both desktop (2-pane) and mobile (collapsible) layouts.
  * Handles graph manipulation, YAML editing, and responsive resizing.
  */
 export function VisualVibesEditor() {
@@ -38,6 +39,7 @@ export function VisualVibesEditor() {
   const { resetYamlText, setFileName, setLoadError, setSourceType } = vibeState;
   const [addStepRequest, setAddStepRequest] =
     useState<AddStepPlacement | null>(null);
+  const [isStepInspectorOpen, setIsStepInspectorOpen] = useState(false);
 
   // Refs
   const canvasPanelRef = useRef<HTMLDivElement | null>(null);
@@ -71,12 +73,8 @@ export function VisualVibesEditor() {
     handleUpdateVibeStep,
     handleUpdateStepDescription,
     handleCreateStepFromWizard,
-    handleStartYamlEditing,
-    handleCancelYamlEditing,
-    handleSaveYamlEditing,
-    handleStartCanvasEditing,
-    handleSaveCanvasEditing,
-    handleCancelCanvasEditing,
+    handleSaveChanges,
+    handleDiscardChanges,
     handleAddEdge,
     handleStartPaneResize,
   } = useVisualVibesEditorActions({
@@ -119,7 +117,68 @@ export function VisualVibesEditor() {
   function confirmAddStepWizard(selection: AddStepWizardSelection) {
     handleCreateStepFromWizard(selection);
     closeAddStepWizard();
+    setIsStepInspectorOpen(true);
   }
+
+  function selectStepFromCanvas(stepId: string) {
+    handleSelectStep(stepId);
+    setIsStepInspectorOpen(true);
+  }
+
+  function selectStepFromYamlCursor(stepId: string | null) {
+    vibeState.setSelectedStepId(stepId);
+  }
+
+  function clearSelectedStep() {
+    vibeState.setSelectedStepId(null);
+    setIsStepInspectorOpen(false);
+  }
+
+  function closeStepInspector() {
+    if (editingState.hasUnsavedStepEdits) {
+      const confirmed = window.confirm(
+        "Close the step inspector and discard unsaved step edits?",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setIsStepInspectorOpen(false);
+    editingState.setHasUnsavedStepEdits(false);
+  }
+
+  const stepInspectorModal = (
+    <StepInspectorModal
+      isOpen={isStepInspectorOpen}
+      vibe={vibeState.parsedResult.vibe}
+      selectedStepId={vibeState.selectedStepId}
+      selectedStepDescription={vibeState.selectedStepDescription}
+      onClose={closeStepInspector}
+      onUpdateStep={handleUpdateVibeStep}
+      onUpdateStepDescription={handleUpdateStepDescription}
+      onStepEditDirtyChange={editingState.setHasUnsavedStepEdits}
+    />
+  );
+
+  useEffect(() => {
+    if (!editingState.isDirty) {
+      return;
+    }
+
+    function handleBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [editingState.isDirty]);
+
   // Mobile layout
   if (!layoutState.isDesktopLayout) {
     return (
@@ -145,9 +204,11 @@ export function VisualVibesEditor() {
                   fileName={vibeState.fileName}
                   sourceType={vibeState.sourceType}
                   selectedExampleName={vibeState.selectedExampleName}
+                  selectedStepId={vibeState.selectedStepId}
+                  vibe={vibeState.parsedResult.vibe}
                   yamlText={vibeState.yamlText}
                   isDesktopLayout={layoutState.isDesktopLayout}
-                  isYamlEditing={editingState.isYamlEditing}
+                  isDirty={editingState.isDirty}
                   loadError={vibeState.loadError}
                   parsedError={vibeState.parsedResult.error}
                   validationIssues={vibeState.validationIssues}
@@ -157,9 +218,10 @@ export function VisualVibesEditor() {
                   onApplyValidationFix={handleApplyValidationFix}
                   onLoadError={vibeState.setLoadError}
                   onYamlTextChange={vibeState.setYamlText}
-                  onStartYamlEditing={handleStartYamlEditing}
-                  onCancelYamlEditing={handleCancelYamlEditing}
-                  onSaveYamlEditing={handleSaveYamlEditing}
+                  onSelectStepFromYamlCursor={selectStepFromYamlCursor}
+                  onUpdateVibeMetadata={handleUpdateVibeMetadata}
+                  onSaveChanges={handleSaveChanges}
+                  onDiscardChanges={handleDiscardChanges}
                 />
               </div>
             )}
@@ -183,7 +245,6 @@ export function VisualVibesEditor() {
               <div className="flex min-h-[560px] flex-1 flex-col">
                 <CanvasPane
                   canvasPanelRef={canvasPanelRef}
-                  vibe={vibeState.parsedResult.vibe}
                   positionedGraph={graphLayout.positionedGraph}
                   positionedDisplayGraph={graphLayout.positionedDisplayGraph}
                   selectedStepId={vibeState.selectedStepId}
@@ -193,14 +254,11 @@ export function VisualVibesEditor() {
                   canUndoYaml={vibeState.canUndoYaml}
                   canRedoYaml={vibeState.canRedoYaml}
                   historyItems={vibeState.yamlHistoryItems}
-                  onSelectStep={handleSelectStep}
-                  onClearSelectedStep={() => vibeState.setSelectedStepId(null)}
+                  onSelectStep={selectStepFromCanvas}
+                  onClearSelectedStep={clearSelectedStep}
                   onUndoYaml={vibeState.undoYaml}
                   onRedoYaml={vibeState.redoYaml}
                   onChangeViewMode={graphLayout.setCanvasViewMode}
-                  onStartEditing={handleStartCanvasEditing}
-                  onSaveEditing={handleSaveCanvasEditing}
-                  onCancelEditing={handleCancelCanvasEditing}
                   onAddStandaloneStep={requestStandaloneStep}
                   onAddStepOnEdge={requestStepOnEdge}
                   onDeleteStep={handleDeleteStep}
@@ -209,7 +267,6 @@ export function VisualVibesEditor() {
                   onAppendStepAfter={requestAppendStepAfter}
                   onPrependStepBefore={requestPrependStepBefore}
                   onUpdateCondition={handleUpdateCondition}
-                  onUpdateVibeMetadata={handleUpdateVibeMetadata}
                   addStepRequest={addStepRequest}
                   onCancelAddStepRequest={closeAddStepWizard}
                   onConfirmAddStepRequest={confirmAddStepWizard}
@@ -219,35 +276,8 @@ export function VisualVibesEditor() {
               </div>
             )}
           </section>
-
-          {/* Inspector pane section */}
-          <section className="flex flex-col bg-[var(--panel-bg)]">
-            <PanelHeader
-              eyebrow="Inspector"
-              title="Vibe Step"
-              description="Edit the selected node."
-              isCollapsedOnMobile={layoutState.mobileCollapsedPanes.inspector}
-              onToggleMobileCollapse={() =>
-                layoutState.setMobileCollapsedPanes((panes) =>
-                  toggleMobilePane(panes, "inspector"),
-                )
-              }
-            />
-
-            {layoutState.shouldRenderMobileInspectorPane && (
-              <InspectorPane
-                vibe={vibeState.parsedResult.vibe}
-                selectedStepId={vibeState.selectedStepId}
-                selectedStepDescription={vibeState.selectedStepDescription}
-                isCanvasEditing={editingState.isCanvasEditing}
-                onStartEditing={handleStartCanvasEditing}
-                onUpdateStep={handleUpdateVibeStep}
-                onUpdateStepDescription={handleUpdateStepDescription}
-                onStepEditDirtyChange={editingState.setHasUnsavedStepEdits}
-              />
-            )}
-          </section>
         </div>
+        {stepInspectorModal}
       </main>
     );
   }
@@ -279,9 +309,11 @@ export function VisualVibesEditor() {
               fileName={vibeState.fileName}
               sourceType={vibeState.sourceType}
               selectedExampleName={vibeState.selectedExampleName}
+              selectedStepId={vibeState.selectedStepId}
+              vibe={vibeState.parsedResult.vibe}
               yamlText={vibeState.yamlText}
               isDesktopLayout={layoutState.isDesktopLayout}
-              isYamlEditing={editingState.isYamlEditing}
+              isDirty={editingState.isDirty}
               loadError={vibeState.loadError}
               parsedError={vibeState.parsedResult.error}
               validationIssues={vibeState.validationIssues}
@@ -291,9 +323,10 @@ export function VisualVibesEditor() {
               onApplyValidationFix={handleApplyValidationFix}
               onLoadError={vibeState.setLoadError}
               onYamlTextChange={vibeState.setYamlText}
-              onStartYamlEditing={handleStartYamlEditing}
-              onCancelYamlEditing={handleCancelYamlEditing}
-              onSaveYamlEditing={handleSaveYamlEditing}
+              onSelectStepFromYamlCursor={selectStepFromYamlCursor}
+              onUpdateVibeMetadata={handleUpdateVibeMetadata}
+              onSaveChanges={handleSaveChanges}
+              onDiscardChanges={handleDiscardChanges}
             />
           </div>
         </section>
@@ -312,15 +345,8 @@ export function VisualVibesEditor() {
 
         {/* Center pane: Canvas */}
         <section className="flex min-h-0 min-w-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--canvas-bg)]">
-          <PanelHeader
-            eyebrow="Visualizer"
-            title="Vibe Canvas"
-            description="A custom view of the YAML structure."
-          />
-
           <CanvasPane
             canvasPanelRef={canvasPanelRef}
-            vibe={vibeState.parsedResult.vibe}
             positionedGraph={graphLayout.positionedGraph}
             positionedDisplayGraph={graphLayout.positionedDisplayGraph}
             selectedStepId={vibeState.selectedStepId}
@@ -330,14 +356,11 @@ export function VisualVibesEditor() {
             canUndoYaml={vibeState.canUndoYaml}
             canRedoYaml={vibeState.canRedoYaml}
             historyItems={vibeState.yamlHistoryItems}
-            onSelectStep={handleSelectStep}
-            onClearSelectedStep={() => vibeState.setSelectedStepId(null)}
+            onSelectStep={selectStepFromCanvas}
+            onClearSelectedStep={clearSelectedStep}
             onUndoYaml={vibeState.undoYaml}
             onRedoYaml={vibeState.redoYaml}
             onChangeViewMode={graphLayout.setCanvasViewMode}
-            onStartEditing={handleStartCanvasEditing}
-            onSaveEditing={handleSaveCanvasEditing}
-            onCancelEditing={handleCancelCanvasEditing}
             onAddStandaloneStep={requestStandaloneStep}
             onAddStepOnEdge={requestStepOnEdge}
             onDeleteStep={handleDeleteStep}
@@ -346,7 +369,6 @@ export function VisualVibesEditor() {
             onAppendStepAfter={requestAppendStepAfter}
             onPrependStepBefore={requestPrependStepBefore}
             onUpdateCondition={handleUpdateCondition}
-            onUpdateVibeMetadata={handleUpdateVibeMetadata}
             addStepRequest={addStepRequest}
             onCancelAddStepRequest={closeAddStepWizard}
             onConfirmAddStepRequest={confirmAddStepWizard}
@@ -354,47 +376,8 @@ export function VisualVibesEditor() {
             onCanvasViewportChange={layoutState.setCanvasViewport}
           />
         </section>
-
-        {/* Right pane resize handle */}
-        <PaneResizeHandle
-          side="right"
-          collapsed={layoutState.isRightPaneCollapsed}
-          onMouseDown={(event: ReactMouseEvent<HTMLDivElement>) =>
-            handleStartPaneResize("right", event.clientX)
-          }
-          onToggleCollapse={() =>
-            layoutState.setIsRightPaneCollapsed((currentValue) => !currentValue)
-          }
-        />
-
-        {/* Right pane: Inspector */}
-        <section
-          className={`min-w-0 overflow-hidden bg-[var(--panel-bg)] ${
-            layoutState.isRightPaneCollapsed
-              ? "pointer-events-none opacity-0"
-              : "opacity-100"
-          }`}
-        >
-          <div className="flex h-full min-h-0 flex-col">
-            <PanelHeader
-              eyebrow="Inspector"
-              title="Vibe Step"
-              description="Edit the selected node."
-            />
-
-            <InspectorPane
-              vibe={vibeState.parsedResult.vibe}
-              selectedStepId={vibeState.selectedStepId}
-              selectedStepDescription={vibeState.selectedStepDescription}
-              isCanvasEditing={editingState.isCanvasEditing}
-              onStartEditing={handleStartCanvasEditing}
-              onUpdateStep={handleUpdateVibeStep}
-              onUpdateStepDescription={handleUpdateStepDescription}
-              onStepEditDirtyChange={editingState.setHasUnsavedStepEdits}
-            />
-          </div>
-        </section>
       </div>
+      {stepInspectorModal}
     </main>
   );
 }
